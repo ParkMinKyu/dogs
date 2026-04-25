@@ -33,8 +33,8 @@
 
   const STAGES = [
     { id: 'puppy', label: '아기',     threshold: 0   },
-    { id: 'teen',  label: '청소년',   threshold: 60  },
-    { id: 'adult', label: '어른',     threshold: 300 },
+    { id: 'teen',  label: '청소년',   threshold: 180 },
+    { id: 'adult', label: '어른',     threshold: 900 },
   ];
 
   // 진화 점수 적립 rate cap — 12초당 +1 (= 분당 +5)
@@ -95,11 +95,13 @@
       if (typeof s.lastTs !== 'number') s.lastTs = Date.now();
       if (typeof s.care !== 'number') s.care = 0;
       if (typeof s.careLastTick !== 'number') s.careLastTick = 0;
-      // 마이그레이션 — v0.5 이전엔 임계값 30/100. 이미 100점 넘긴 어른은 그대로 두되,
-      // 기존 점수가 새 임계값(60/300) 기준으로 너무 낮게 잡히지 않도록 비례 보정.
-      // care가 100 이상이면 어른이었던 것 → 300으로 이상치 보정해서 어른 유지.
-      // care가 30~99면 청소년 → 60~ 사이로 매핑하지 않고 그냥 둠 (다시 천천히 어른으로).
-      if (s.care >= 100 && s.care < 300) s.care = 300;
+      // 마이그레이션 — 임계값이 점진적으로 올라옴: 30/100 → 60/300 → 180/900.
+      // 기존 단계를 유지하기 위한 보정:
+      //   어른이었던 사람(care >= 300, 또는 옛 100~299): care = 900 으로 어른 유지
+      //   청소년이었던 사람(care 60~299, 또는 옛 30~99): care = 180 으로 청소년 유지
+      //   아기는 그대로
+      if (s.care >= 100) s.care = Math.max(s.care, 900);
+      else if (s.care >= 30) s.care = Math.max(s.care, 180);
       if (typeof s.stage !== 'string') s.stage = stageForCare(s.care);
       else s.stage = stageForCare(s.care); // 마이그레이션 후 stage 재계산 보장
       // P2 보강
@@ -178,57 +180,38 @@
   function nameWithSubject(name) { return name + josa(name, '이가', '가'); }
   function nameTopic(name)        { return name + josa(name, '은', '는'); }
 
-  // ----- 강제 리셋 비상구 -------------------------------------------------
-  // ?reset=1, ?clear=1 — 빠른 데이터 청소 (SW/cache는 fire-and-forget)
-  // ?nuke=1                — 풀 청소: localStorage 통째 + sessionStorage + caches + SW unregister
-  //                          모두 await 완료 후 reload, 100% 클린 슬레이트
-  // 폰에서 UI reset 버튼이 안 눌릴 때 URL로 진입.
-  {
-    let __resetting = false;
-    let __nuking = false;
+  // ----- 풀 하드 리셋 (재사용) -------------------------------------------
+  // localStorage / sessionStorage / SW caches / SW 등록 모두 정리 후 클린 reload.
+  // ?nuke=1 / ?reset=1 / ?clear=1 URL 진입과 in-app "처음부터 다시" 모두 같은 함수 호출.
+  async function hardReset() {
+    try { localStorage.clear(); } catch {}
+    try { sessionStorage.clear(); } catch {}
     try {
-      const params = new URLSearchParams(location.search);
-      if (params.get('nuke') === '1') {
-        __nuking = true;
-        (async () => {
-          try { localStorage.clear(); } catch {}
-          try { sessionStorage.clear(); } catch {}
-          try {
-            if ('caches' in window) {
-              const ks = await caches.keys();
-              await Promise.all(ks.map(k => caches.delete(k)));
-            }
-          } catch {}
-          try {
-            if ('serviceWorker' in navigator) {
-              const regs = await navigator.serviceWorker.getRegistrations();
-              await Promise.all(regs.map(r => r.unregister()));
-            }
-          } catch {}
-          // 모든 비동기 청소 끝난 뒤 클린 reload
-          try { location.replace(location.pathname); } catch { location.reload(); }
-        })();
-      } else if (params.get('reset') === '1' || params.get('clear') === '1') {
-        __resetting = true;
-        // 빠른 경로 — synchronous 부분만 처리
-        try {
-          for (let i = localStorage.length - 1; i >= 0; i--) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith('dogs.')) localStorage.removeItem(k);
-          }
-        } catch {}
-        try {
-          if ('caches' in window) {
-            caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))).catch(() => {});
-          }
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
-          }
-        } catch {}
-        try { location.replace(location.pathname); } catch { location.reload(); }
+      if ('caches' in window) {
+        const ks = await caches.keys();
+        await Promise.all(ks.map(k => caches.delete(k)));
       }
     } catch {}
-    if (__resetting || __nuking) return; // IIFE 즉시 종료 — 페이지 navigation 대기
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+      }
+    } catch {}
+    try { location.replace(location.pathname); } catch { location.reload(); }
+  }
+
+  // 강제 리셋 비상구 — 폰에서 UI reset 버튼이 안 눌릴 때 URL로 진입.
+  {
+    let __resetting = false;
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.get('nuke') === '1' || params.get('reset') === '1' || params.get('clear') === '1') {
+        __resetting = true;
+        hardReset();
+      }
+    } catch {}
+    if (__resetting) return; // IIFE 즉시 종료 — 페이지 navigation 대기
   }
 
   // ----- QA query params -------------------------------------------------
@@ -1257,24 +1240,8 @@
     openModal({ title: '처음부터 다시 시작?', body });
   }
 
-  async function performReset() {
-    // localStorage — dogs.* 네임스페이스 제거 (다른 앱 영향 X)
-    try {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('dogs.')) localStorage.removeItem(k);
-      }
-    } catch {}
-    // service worker cache 비움 — 다음 로드에서 새 자산
-    try {
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map(k => caches.delete(k)));
-      }
-    } catch {}
-    // 하드 새로고침 (쿼리 스트립으로 ?demo=1 같은 파라미터도 제거)
-    try { location.replace(location.pathname); } catch { location.reload(); }
-  }
+  // in-app "처음부터 다시" — URL ?nuke=1과 동일한 풀 청소
+  function performReset() { return hardReset(); }
 
   // ----- 헤더 버튼 핸들러 -------------------------------------------------
   settingsBtn.addEventListener('click', () => { SOUNDS.pop(); openSettingsModal(); });
