@@ -135,6 +135,18 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 .stage-badge::before { content: '🐾 '; }
 
+.title-avatar {
+  width: 32px;
+  height: 32px;
+  vertical-align: middle;
+  margin-right: 6px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,0.15));
+}
+.app[data-breed="maltese"] .title-avatar { filter: drop-shadow(0 2px 0 rgba(0,0,0,0.15)) hue-rotate(-30deg) saturate(0.25) brightness(1.2); }
+.app[data-breed="poodle"]  .title-avatar { filter: drop-shadow(0 2px 0 rgba(0,0,0,0.15)) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
+.app[data-breed="husky"]   .title-avatar { filter: drop-shadow(0 2px 0 rgba(0,0,0,0.15)) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
+
 .title {
   font-family: var(--font-display);
   font-weight: 400;

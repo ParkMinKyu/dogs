@@ -337,6 +337,8 @@
   const careBadge  = $('#careBadge');
   const evolveFx   = $('#evolveFx');
   const titleEl    = $('#titleEl');
+  const titleAvatar = $('#titleAvatar');
+  const titleName  = $('#titleName');
   const settingsBtn = $('#settingsBtn');
   const shopBtn    = $('#shopBtn');
   const missionBtn = $('#missionBtn');
@@ -1259,10 +1261,12 @@
       stageBadge.textContent = meta.label;
     }
     if (careBadge) careBadge.textContent = '🌟 ' + (state.points || 0);
-    if (titleEl) {
-      const n = state.name;
-      titleEl.textContent = n ? `🐶 ${n}` : '🐶 우리 강아지';
+    if (titleAvatar) {
+      const stage = state.stage || 'puppy';
+      const want = `assets/${stage}/idle.png`;
+      if (!titleAvatar.src.endsWith(want)) titleAvatar.src = want;
     }
+    if (titleName) titleName.textContent = state.name || '우리 강아지';
 
     renderAccessories();
     renderActionCooldowns();
