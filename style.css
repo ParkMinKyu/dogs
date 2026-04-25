@@ -560,6 +560,71 @@ body.is-sick #vetBtn .dot { display: block; }
 }
 /* puppy-wrap[data-direction=left]는 .puppy만 mirror라 speech-bubble은 글자 정상 */
 
+/* ---------- 미니게임 결과 모달 ---------- */
+.result-body { text-align: center; padding: 4px 0; }
+.result-bigcount {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 4px 0 12px;
+}
+.result-bigcount .num {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--ink);
+  text-shadow: 0 2px 0 #fff, 0 4px 0 rgba(0,0,0,0.08);
+  line-height: 1;
+}
+.result-bigcount .lbl {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--ink-soft);
+}
+.result-badge {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 22px;
+  padding: 8px 20px;
+  border-radius: 18px;
+  border: 3px solid #fff;
+  margin: 4px 0 14px;
+  box-shadow: 0 3px 0 rgba(74,58,46,0.18);
+}
+.tier-best .result-badge { background: linear-gradient(180deg, #fff5b1 0%, #ffd66e 100%); color: #6b4a00; }
+.tier-good .result-badge { background: linear-gradient(180deg, #d6efff 0%, #9fd6ff 100%); color: #134; }
+.tier-ok   .result-badge { background: linear-gradient(180deg, #ffe6ec 0%, #ffb3c1 100%); color: #5b2235; }
+.tier-low  .result-badge { background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%); color: var(--ink); }
+.tier-best .result-bigcount .num { color: #c47b00; }
+
+.result-rewards {
+  background: #fff7ec;
+  border: 3px solid #f1d9c2;
+  border-radius: 16px;
+  padding: 10px 14px;
+  margin: 8px 0 14px;
+}
+.result-rew-head {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+.result-rew-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 18px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #f1d9c2;
+}
+.result-rew-row:last-child { border-bottom: none; }
+.result-rew-row .e { font-size: 22px; }
+.result-rew-row .n { flex: 1; text-align: left; color: var(--ink); }
+.result-rew-row .v { font-weight: 700; color: #2a8a3a; }
+
 /* ---------- Gauges ---------- */
 
 .gauges {

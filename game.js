@@ -1685,6 +1685,43 @@
     bubbleEl._t = setTimeout(() => bubbleEl.classList.remove('show'), 1100);
   }
 
+  // 미니게임 결과 모달 (등급 배지 + 큰 카운트 + 보상 박스)
+  function openResultModal({ title, bigCount, countLabel, badge, tier, rewards }) {
+    const body = document.createElement('div');
+    body.className = 'result-body tier-' + (tier || 'ok');
+
+    const big = document.createElement('div');
+    big.className = 'result-bigcount';
+    big.innerHTML = `<span class="num">${bigCount}</span><span class="lbl">${countLabel}</span>`;
+    body.appendChild(big);
+
+    const bd = document.createElement('div');
+    bd.className = 'result-badge';
+    bd.textContent = badge;
+    body.appendChild(bd);
+
+    const rewBox = document.createElement('div');
+    rewBox.className = 'result-rewards';
+    const rewHead = document.createElement('div');
+    rewHead.className = 'result-rew-head';
+    rewHead.textContent = '받은 보상';
+    rewBox.appendChild(rewHead);
+    rewards.forEach(([emo, name, val]) => {
+      const row = document.createElement('div');
+      row.className = 'result-rew-row';
+      row.innerHTML = `<span class="e">${emo}</span><span class="n">${name}</span><span class="v">${val}</span>`;
+      rewBox.appendChild(row);
+    });
+    body.appendChild(rewBox);
+
+    const ok = document.createElement('button');
+    ok.type = 'button'; ok.className = 'modal-btn'; ok.textContent = '좋아요!';
+    ok.addEventListener('click', () => closeModal());
+    body.appendChild(ok);
+
+    openModal({ title, body, mandatory: true });
+  }
+
   // 만화 speech bubble — 강아지 머리 위 텍스트
   let __speechEl = null;
   function showSpeech(text, durationMs = 3500) {
@@ -2185,11 +2222,11 @@
       endedFlag = true;
       decayPaused = false;
       // 차등 보상
-      let happyGain, careBoost, msg;
-      if (count >= 30)      { happyGain = 40; careBoost = 2; msg = '최고! 🎉'; }
-      else if (count >= 20) { happyGain = 30; careBoost = 1; msg = '잘했어요!'; }
-      else if (count >= 10) { happyGain = 20; careBoost = 1; msg = '좋아요!'; }
-      else                   { happyGain = 10; careBoost = 0; msg = '재밌었지?'; }
+      let happyGain, careBoost, badge, tier;
+      if (count >= 30)      { happyGain = 40; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
+      else if (count >= 20) { happyGain = 30; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (count >= 10) { happyGain = 20; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else                   { happyGain = 10; careBoost = 0; badge = '😅 조금만 더!'; tier = 'low'; }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
         state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
@@ -2199,17 +2236,16 @@
       markPlayDone('pet');
       progressMission('minigame', 1);
       saveState(); render(); SOUNDS.fanfare();
-
-      const rb = document.createElement('div');
-      const p = document.createElement('p'); p.className = 'modal-sub';
-      const nm = state.name || '강아지';
-      p.innerHTML = `${count}번 쓰다듬었어요!<br>${nameTopic(nm)} 행복해해요 💖<br><span style="color:#c47b00">${msg}</span><br><span style="font-size:13px;color:#836a55">행복 +${happyGain}${careBoost ? `, 케어 +${careBoost}` : ''}</span>`;
-      rb.appendChild(p);
-      const ok = document.createElement('button');
-      ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
-      ok.addEventListener('click', () => closeModal());
-      rb.appendChild(ok);
-      openModal({ title: '쓰다듬기 끝!', body: rb, mandatory: true });
+      openResultModal({
+        title: '쓰다듬기 끝!',
+        bigCount: count + '번',
+        countLabel: '쓰다듬었어요',
+        badge, tier,
+        rewards: [
+          ['💖', '행복', '+' + happyGain],
+          ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
+        ],
+      });
     }
 
     endBtn.addEventListener('click', () => endGame());
@@ -2470,17 +2506,22 @@
       markPlayDone('treat');
       progressMission('minigame', 1);
       saveState(); render(); SOUNDS.fanfare();
-      const rb = document.createElement('div');
-      const p = document.createElement('p'); p.className = 'modal-sub';
-      const nm = state.name || '강아지';
-      const treatGrade = got >= 8 ? '최고! 🎉' : got >= 5 ? '잘했어요!' : got >= 3 ? '좋아요!' : '재밌었지?';
-      p.innerHTML = `${got}개 받았어요!<br>${nameTopic(nm)} 배도 부르고 행복해요 💖<br><span style="color:#c47b00">${treatGrade}</span><br><span style="font-size:13px;color:#836a55">행복 +${happyGain}, 배고픔 +${hungerGain}${careBoost ? `, 케어 +${careBoost}` : ''}</span>`;
-      rb.appendChild(p);
-      const ok = document.createElement('button');
-      ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
-      ok.addEventListener('click', () => closeModal());
-      rb.appendChild(ok);
-      openModal({ title: '간식 받기 끝!', body: rb, mandatory: true });
+      let badge, tier;
+      if (got >= 8)      { badge = '⭐ 최고예요!';   tier = 'best'; }
+      else if (got >= 5) { badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (got >= 3) { badge = '🙂 좋아요!';     tier = 'ok'; }
+      else                { badge = '😅 조금만 더!'; tier = 'low'; }
+      openResultModal({
+        title: '간식 받기 끝!',
+        bigCount: got + '개',
+        countLabel: '받았어요',
+        badge, tier,
+        rewards: [
+          ['💖', '행복', '+' + happyGain],
+          ['🍖', '배고픔', '+' + hungerGain],
+          ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
+        ],
+      });
     }
     endBtn.addEventListener('click', () => endGame());
     openModal({
