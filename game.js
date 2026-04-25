@@ -727,10 +727,30 @@
       scrubMove._t = setTimeout(() => puppyWrap.classList.remove('scrub-tilt'), 120);
       try { if (added >= 2) SOUNDS.splash(); } catch {}
       render();
-      // 청결 100 도달 시 자동 종료
+      // 청결 100 도달 시 축하 + 자동 종료
       if (state.clean >= 100 && state.busy?.action === 'wash') {
         scrubReset();
-        finishBusy();
+        // 콘페티 + 큰 글씨
+        const stageEl = document.querySelector('.stage');
+        if (stageEl) {
+          const cel = document.createElement('div');
+          cel.className = 'wash-celebrate';
+          cel.textContent = '깨끗해졌어요! ✨';
+          stageEl.appendChild(cel);
+          setTimeout(() => cel.remove(), 1400);
+          for (let i = 0; i < 14; i++) {
+            const c = document.createElement('span');
+            c.className = 'wash-confetti';
+            c.textContent = ['✨','🫧','💧','💖','⭐'][Math.floor(Math.random()*5)];
+            c.style.left = (10 + Math.random()*80) + '%';
+            c.style.animationDelay = (Math.random()*0.3) + 's';
+            stageEl.appendChild(c);
+            setTimeout(() => c.remove(), 1300);
+          }
+        }
+        try { SOUNDS.fanfare(); } catch {}
+        // 살짝 딜레이 후 종료 (축하 보고 마무리)
+        setTimeout(() => finishBusy(), 600);
       }
     }
   }
@@ -785,6 +805,8 @@
       el.dataset.kind = desired;
       if (desired === 'bathtub') {
         el.innerHTML = `
+          <div class="bath-label">🛁 씻는 중!</div>
+          <div class="bath-pct-wrap"><div class="bath-pct">0%</div></div>
           <div class="bath-bubbles">
             <span style="left:8%;animation-delay:.1s">✨</span>
             <span style="left:24%;animation-delay:.5s">✨</span>
@@ -910,7 +932,8 @@
   }
 
   function render() {
-    // 원형 게이지 갱신: pct, 색, critical pulse
+    const isWashing = state.busy?.action === 'wash';
+    // 원형 게이지 갱신: pct, 색, critical pulse, 씻기 중 highlight
     for (const g of GAUGES) {
       const v = state[g];
       const els = gaugeEls[g];
@@ -919,7 +942,15 @@
       els.circle.style.setProperty('--col', colorForGauge(g, v));
       els.pct.textContent = v;
       els.circle.classList.toggle('is-critical', v <= 20);
+      // 씻기 진행 중엔 clean 게이지만 highlight (다른건 dim)
+      els.root.classList.toggle('is-washing', isWashing && g === 'clean');
+      els.root.classList.toggle('is-dim', isWashing && g !== 'clean');
     }
+    // 욕조 prop 안 청결 % 표시 갱신
+    const tubPct = document.querySelector('.prop-bathtub .bath-pct');
+    if (tubPct) tubPct.textContent = state.clean + '%';
+    const tubLbl = document.querySelector('.prop-bathtub .bath-label');
+    if (tubLbl) tubLbl.textContent = state.clean >= 100 ? '깨끗해졌어요! ✨' : '🛁 씻는 중!';
 
     const s = pickPuppyState();
     const stage = state.stage || 'puppy';

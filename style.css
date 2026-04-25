@@ -435,6 +435,19 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   color: var(--ink);
 }
 
+/* 씻기 중 — 청결 게이지 강조 */
+.gauge.is-washing { transform: scale(1.18); transition: transform 240ms cubic-bezier(.2,1.4,.4,1); }
+.gauge.is-washing .gauge-circle {
+  box-shadow: 0 0 0 4px #9fd6ff, 0 0 16px #6cbff7, 0 4px 0 rgba(74,58,46,0.12);
+  animation: wash-glow 1s ease-in-out infinite;
+}
+.gauge.is-washing .label { color: #1d6da8; font-weight: 700; }
+@keyframes wash-glow {
+  0%, 100% { box-shadow: 0 0 0 4px #9fd6ff, 0 0 16px #6cbff7, 0 4px 0 rgba(74,58,46,0.12); }
+  50%      { box-shadow: 0 0 0 6px #6cbff7, 0 0 28px #9fd6ff, 0 4px 0 rgba(74,58,46,0.12); }
+}
+.gauge.is-dim { opacity: 0.4; transition: opacity 200ms; }
+
 /* 위험 — 진동 + 톤 */
 .gauge-circle.is-critical { animation: gauge-danger 0.9s ease-in-out infinite; }
 @keyframes gauge-danger {
@@ -564,6 +577,83 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-2px); }
 }
+.prop-bathtub .bath-label {
+  position: absolute;
+  top: -98px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: #1d6da8;
+  background: #fff;
+  border: 3px solid #9fd6ff;
+  border-radius: 18px;
+  padding: 6px 14px;
+  white-space: nowrap;
+  box-shadow: 0 3px 0 rgba(74,58,46,0.18);
+  pointer-events: none;
+  animation: bath-label-bob 1.2s ease-in-out infinite;
+}
+@keyframes bath-label-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-3px); }
+}
+.prop-bathtub .bath-pct-wrap {
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.prop-bathtub .bath-pct {
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: #1d6da8;
+  text-shadow: 0 2px 0 #fff, 0 0 6px rgba(108,191,247,0.6);
+  font-weight: 700;
+}
+
+.wash-celebrate {
+  position: absolute;
+  left: 50%; top: 30%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: #1d6da8;
+  background: rgba(255,255,255,0.95);
+  border: 3px solid #9fd6ff;
+  border-radius: 18px;
+  padding: 10px 22px;
+  pointer-events: none;
+  box-shadow: 0 4px 0 rgba(74,58,46,0.18);
+  animation: wash-cel 1400ms ease-out forwards;
+  z-index: 12;
+}
+@keyframes wash-cel {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -90%) scale(1); }
+}
+.wash-confetti {
+  position: absolute;
+  top: 30%;
+  font-size: 24px;
+  pointer-events: none;
+  animation: wash-confetti-fall 1300ms ease-out forwards;
+  filter: drop-shadow(0 0 4px #fff);
+  z-index: 11;
+}
+@keyframes wash-confetti-fall {
+  0%   { opacity: 0; transform: translateY(-20px) rotate(0); }
+  20%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(180px) rotate(540deg); }
+}
+
 .prop-bathtub .bath-stop {
   position: absolute;
   top: -52px;
