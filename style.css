@@ -1404,6 +1404,29 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   .stage { min-height: clamp(360px, 50vw, 500px); }
 }
 
+/* ---------- 게이지 floating delta ---------- */
+.gauge { position: relative; }
+.gauge-float {
+  position: absolute;
+  left: 50%;
+  top: -4px;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  pointer-events: none;
+  text-shadow: 0 1px 0 #fff, 0 0 4px rgba(255,255,255,0.8);
+  animation: gauge-float 1100ms ease-out forwards;
+  z-index: 5;
+}
+.gauge-float.up   { color: #2a8a3a; }
+.gauge-float.down { color: #c4324a; }
+@keyframes gauge-float {
+  0%   { opacity: 0; transform: translate(-50%, 8px) scale(0.6); }
+  20%  { opacity: 1; transform: translate(-50%, -4px) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -36px) scale(1); }
+}
+
 /* ---------- 놀이 메뉴 카드 ---------- */
 .play-grid {
   display: grid;
@@ -1411,6 +1434,7 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   gap: 10px;
   margin: 4px 0 0;
 }
+.play-grid > .play-card:nth-child(5):last-child { grid-column: 1 / -1; }
 .play-card {
   appearance: none;
   border: 3px solid #f1d9c2;
@@ -1483,6 +1507,104 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6) rotate(-10deg); }
   20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.2); }
   100% { opacity: 0; transform: translate(-50%, -90px) scale(1.4) rotate(20deg); }
+}
+
+/* 산책 — 야외 배경 + 아이템 */
+.minigame-arena.walk-arena {
+  background: linear-gradient(180deg, #c8e8ff 0%, #a8e2c8 50%, #8dca96 70%, #f6c993 100%);
+  cursor: pointer;
+}
+.walk-arena .walk-sky {
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: radial-gradient(50% 80% at 30% 20%, #fff7c0 0%, transparent 60%);
+  pointer-events: none;
+}
+.walk-arena .walk-grass {
+  position: absolute;
+  left: 0; right: 0; bottom: 30%;
+  height: 20%;
+  background: linear-gradient(180deg, #95da9c 0%, #6cba80 100%);
+  border-top: 3px dashed rgba(255,255,255,0.5);
+  pointer-events: none;
+}
+.walk-arena .walk-path {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 30%;
+  background: linear-gradient(180deg, #d8b48a 0%, #a8845a 100%);
+  pointer-events: none;
+}
+.walk-dog {
+  bottom: 16%;
+  width: 100px;
+  height: 100px;
+  transition: left 100ms linear;
+}
+.walk-item {
+  position: absolute;
+  font-size: 32px;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18));
+  animation: walk-item-spawn 250ms ease-out;
+  pointer-events: auto;
+}
+.walk-item.rare {
+  font-size: 38px;
+  animation: walk-item-spawn 250ms ease-out, walk-item-glow 1.4s ease-in-out infinite;
+}
+@keyframes walk-item-spawn {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes walk-item-glow {
+  0%, 100% { filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18)) drop-shadow(0 0 6px #ffe28a); }
+  50%      { filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18)) drop-shadow(0 0 12px #ffd66e); }
+}
+.walk-item-pop { animation: walk-item-pop 240ms ease-out forwards; }
+@keyframes walk-item-pop {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -120%) scale(1.6); }
+}
+.walk-item-fade { animation: walk-item-fade 300ms ease-out forwards; }
+@keyframes walk-item-fade {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+}
+.walk-footprint {
+  position: absolute;
+  font-size: 14px;
+  pointer-events: none;
+  opacity: 0.6;
+  animation: walk-footprint 1.4s ease-out forwards;
+  filter: drop-shadow(0 0 1px #fff);
+}
+@keyframes walk-footprint {
+  0%   { opacity: 0.7; transform: scale(0.8); }
+  100% { opacity: 0; transform: scale(0.6); }
+}
+.walk-celebrate {
+  position: absolute;
+  left: 50%; top: 30%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: #c44a1a;
+  background: rgba(255,247,236,0.95);
+  border: 3px solid #ffd66e;
+  border-radius: 16px;
+  padding: 8px 18px;
+  pointer-events: none;
+  animation: walk-celebrate 1300ms ease-out forwards;
+  z-index: 10;
+  text-shadow: 0 2px 0 #fff;
+}
+@keyframes walk-celebrate {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -90%) scale(1); }
 }
 
 /* 간식 받기 */
