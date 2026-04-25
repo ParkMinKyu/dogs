@@ -1,6 +1,6 @@
 /* 우리 강아지 — Service Worker
    offline-first cache. 새 버전 배포 시 CACHE 이름 bump. */
-const CACHE = 'dogs-p2-v46';
+const CACHE = 'dogs-p2-v47';
 const PRECACHE = [
   './',
   'index.html',

@@ -1059,7 +1059,11 @@
     const stageEl = document.querySelector('.stage');
     if (!stageEl) return null;
     let el = stageEl.querySelector('.action-prop');
-    const desired = { feed: 'bowl', wash: 'bathtub', sleep: 'cushion' }[action];
+    let desired = { feed: 'bowl', wash: 'bathtub', sleep: 'cushion' }[action];
+    // 시바 puppy 먹이 sprite에 이미 그릇이 들어있어 별도 prop 불필요
+    if (action === 'feed' && state.breed === 'shiba' && (state.stage || 'puppy') === 'puppy') {
+      desired = null;
+    }
     if (!desired) { if (el) el.remove(); return null; }
     if (!el || el.dataset.kind !== desired) {
       if (el) el.remove();
