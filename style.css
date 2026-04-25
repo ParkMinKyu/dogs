@@ -237,9 +237,12 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 .sun { right: 18px; }
 .moon { left: 18px; transform: rotate(-12deg); }
-.app[data-tod="day"] .sun { opacity: 1; }
-.app[data-tod="evening"] .sun { opacity: 0.85; transform: translateY(8px); }
+.app[data-tod="day"] .sun { opacity: 1; transform: translateY(0); }
+/* 저녁 — 해는 거의 지고(아래로 + 흐리게), 달이 살짝 떠오름 */
+.app[data-tod="evening"] .sun  { opacity: 0.35; transform: translateY(28px) scale(0.9); filter: hue-rotate(-10deg) saturate(1.4); }
+.app[data-tod="evening"] .moon { opacity: 0.55; transform: rotate(-12deg) translateY(0); }
 .app[data-tod="night"] .moon { opacity: 1; }
+.app[data-tod="night"] .sun  { opacity: 0; transform: translateY(60px); }
 
 .app[data-tod="night"] .stage::before,
 .app[data-tod="night"] .stage::after {
@@ -1535,6 +1538,106 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   20%  { opacity: 1; transform: translate(-50%, -4px) scale(1.2); }
   100% { opacity: 0; transform: translate(-50%, -36px) scale(1); }
 }
+
+/* ---------- 강아지 방 ---------- */
+.room-area {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 320px;
+  border-radius: 18px;
+  border: 4px solid #f1d9c2;
+  background:
+    linear-gradient(180deg, #fff5e6 0%, #ffe7cc 60%, #f6c993 100%);
+  overflow: hidden;
+  box-shadow: inset 0 4px 0 #ffffff70;
+  margin-bottom: 10px;
+  cursor: crosshair;
+}
+.room-area::before {
+  /* 바닥 라인 */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 28%;
+  background: linear-gradient(180deg, #e6a86a 0%, #c08a52 100%);
+  border-top: 3px dashed #ffffff80;
+}
+.room-dog {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  width: 80px;
+  height: 80px;
+  transform: translateX(-50%);
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 0 rgba(0,0,0,0.18));
+  z-index: 2;
+  pointer-events: none;
+}
+.room-item {
+  position: absolute;
+  font-size: 28px;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,0.15));
+  transition: transform 100ms ease;
+  z-index: 3;
+}
+.room-item:active { transform: translate(-50%, -50%) scale(1.2); }
+
+.room-inv {
+  background: #fff7ec;
+  border: 3px solid #f1d9c2;
+  border-radius: 14px;
+  padding: 8px 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.room-inv-heading {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+  text-align: center;
+}
+.room-inv-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.room-inv-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-soft);
+  padding: 10px;
+}
+.room-inv-card {
+  appearance: none;
+  border: 2px solid #f1d9c2;
+  background: #fff;
+  border-radius: 12px;
+  padding: 6px 4px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  box-shadow: 0 2px 0 rgba(74,58,46,0.1);
+}
+.room-inv-card:active { transform: translateY(1px); box-shadow: none; }
+.room-inv-card.picked {
+  border-color: var(--pink-d);
+  background: #fff0f4;
+  box-shadow: 0 0 0 3px var(--pink-d), 0 2px 0 rgba(74,58,46,0.1);
+}
+.room-inv-card .emo { font-size: 24px; }
+.room-inv-card .name { font-size: 11px; }
+.room-inv-card .count { font-size: 11px; color: #c47b00; }
 
 /* ---------- 놀이 메뉴 카드 ---------- */
 .play-grid {

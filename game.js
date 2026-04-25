@@ -120,6 +120,8 @@
       if (!s.equipped || typeof s.equipped !== 'object') s.equipped = { hat: null, neck: null, glasses: null };
       if (typeof s.minigameLastTs !== 'number') s.minigameLastTs = 0;
       if (!s.playLast || typeof s.playLast !== 'object') s.playLast = {};
+      if (!s.roomInv || typeof s.roomInv !== 'object') s.roomInv = {};
+      if (!Array.isArray(s.roomLayout)) s.roomLayout = [];
       if (s.busy && typeof s.busy === 'object') {
         if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
       } else { s.busy = null; }
@@ -147,6 +149,8 @@
       equipped: { hat: null, neck: null, glasses: null },
       minigameLastTs: 0,
       playLast: {},
+      roomInv: {},
+      roomLayout: [],
       busy: null,
       missions: { date: '', list: [] },
     };
@@ -310,6 +314,7 @@
   const settingsBtn = $('#settingsBtn');
   const shopBtn    = $('#shopBtn');
   const missionBtn = $('#missionBtn');
+  const roomBtn    = $('#roomBtn');
   const missionDot = $('#missionDot');
   const modalRoot  = $('#modalRoot');
   const accHatEl   = $('#accHat');
@@ -910,7 +915,11 @@
     }
     if (todBadge) todBadge.textContent = TOD_LABEL[tod];
   }
-  setInterval(applyTod, 30 * 60 * 1000);
+  // 시간대 갱신 — 5분마다 + 페이지 visibility 회복 시 즉시
+  setInterval(applyTod, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') applyTod();
+  });
 
   // ----- Render -----------------------------------------------------------
   function pickPuppyState() {
@@ -1379,6 +1388,127 @@
     body.appendChild(hint);
 
     openModal({ title: '🛍️ 상점', body });
+  }
+
+  // ----- 강아지 방 (수집 아이템 배치) -----------------------------------
+  // 산책 등에서 모은 아이템을 방에 배치. state.roomInv는 카운트, state.roomLayout은
+  // 배치된 아이템 [{kind, x, y}] (x,y는 방 영역 0~100% 비율).
+  const ROOM_ITEMS = {
+    bone:    { emoji: '🦴', name: '뼈다귀' },
+    flower:  { emoji: '🌸', name: '꽃' },
+    butter:  { emoji: '🦋', name: '나비' },
+    bird:    { emoji: '🐦', name: '새' },
+    balloon: { emoji: '🎈', name: '풍선' },
+    star:    { emoji: '⭐', name: '별' },
+    gem:     { emoji: '💎', name: '보석' },
+    gift:    { emoji: '🎁', name: '선물' },
+  };
+
+  let __roomPickedKind = null; // 모달 안에서 배치 모드 — 선택된 아이템 종류
+
+  function openRoomModal() {
+    const body = document.createElement('div');
+
+    // 방 영역
+    const room = document.createElement('div');
+    room.className = 'room-area';
+    body.appendChild(room);
+    // 강아지 (방 한가운데)
+    const dog = document.createElement('img');
+    dog.className = 'room-dog';
+    dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
+    room.appendChild(dog);
+    // 배치된 아이템 그리기
+    function renderRoom() {
+      // 강아지 외 모든 아이템 element 제거 후 재생성
+      room.querySelectorAll('.room-item').forEach(n => n.remove());
+      (state.roomLayout || []).forEach((it, idx) => {
+        const def = ROOM_ITEMS[it.kind];
+        if (!def) return;
+        const el = document.createElement('div');
+        el.className = 'room-item';
+        el.textContent = def.emoji;
+        el.style.left = it.x + '%';
+        el.style.top  = it.y + '%';
+        el.dataset.idx = idx;
+        // 탭 시 회수
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (__roomPickedKind) return; // 배치 모드 중엔 무시
+          state.roomInv[it.kind] = (state.roomInv[it.kind] || 0) + 1;
+          state.roomLayout.splice(idx, 1);
+          saveState();
+          renderInventory();
+          renderRoom();
+        });
+        room.appendChild(el);
+      });
+    }
+    // 방 영역 클릭 → 배치 모드라면 거기 놓기
+    room.addEventListener('click', (e) => {
+      if (!__roomPickedKind) return;
+      const inv = state.roomInv[__roomPickedKind] || 0;
+      if (inv <= 0) { __roomPickedKind = null; renderInventory(); return; }
+      const r = room.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width) * 100;
+      const y = ((e.clientY - r.top)  / r.height) * 100;
+      state.roomLayout.push({ kind: __roomPickedKind, x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(96, y)) });
+      state.roomInv[__roomPickedKind] -= 1;
+      // 더 이상 없으면 배치 모드 해제
+      if (state.roomInv[__roomPickedKind] <= 0) __roomPickedKind = null;
+      saveState();
+      renderRoom();
+      renderInventory();
+    });
+
+    // 인벤토리
+    const inv = document.createElement('div');
+    inv.className = 'room-inv';
+    body.appendChild(inv);
+
+    function renderInventory() {
+      inv.innerHTML = '';
+      const heading = document.createElement('div');
+      heading.className = 'room-inv-heading';
+      heading.textContent = __roomPickedKind
+        ? `📍 ${ROOM_ITEMS[__roomPickedKind].name} 배치할 자리 탭하세요 (취소: 다른 카드 탭)`
+        : '🎒 모은 아이템 — 카드 탭하면 배치 모드';
+      inv.appendChild(heading);
+      const grid = document.createElement('div');
+      grid.className = 'room-inv-grid';
+      inv.appendChild(grid);
+      const entries = Object.entries(state.roomInv || {}).filter(([_, c]) => c > 0);
+      if (!entries.length) {
+        const empty = document.createElement('div');
+        empty.className = 'room-inv-empty';
+        empty.textContent = '아직 모은 아이템이 없어요. 산책 가서 모아 봐요! 🚶';
+        grid.appendChild(empty);
+        return;
+      }
+      entries.forEach(([kind, count]) => {
+        const def = ROOM_ITEMS[kind];
+        if (!def) return;
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'room-inv-card' + (__roomPickedKind === kind ? ' picked' : '');
+        card.innerHTML = `<span class="emo">${def.emoji}</span><span class="name">${def.name}</span><span class="count">×${count}</span>`;
+        card.addEventListener('click', (e) => {
+          e.stopPropagation();
+          __roomPickedKind = (__roomPickedKind === kind ? null : kind);
+          renderInventory();
+        });
+        grid.appendChild(card);
+      });
+    }
+
+    renderRoom();
+    renderInventory();
+
+    openModal({
+      title: '🏠 강아지 방',
+      body,
+      onClose: () => { __roomPickedKind = null; },
+    });
   }
 
   // ----- 놀이 메뉴 + 미니게임 ------------------------------------------
@@ -1945,6 +2075,9 @@
       it.captured = true;
       const def = it.def;
       collected[def.kind] = (collected[def.kind] || 0) + 1;
+      // 방 인벤토리 누적 — 영구 저장
+      if (!state.roomInv) state.roomInv = {};
+      state.roomInv[def.kind] = (state.roomInv[def.kind] || 0) + 1;
       score += def.score;
       scoreEl.textContent = '🎯 ' + score;
       it.el.classList.add('walk-item-pop');
@@ -2483,6 +2616,7 @@
   settingsBtn.addEventListener('click', () => { SOUNDS.pop(); openSettingsModal(); });
   shopBtn.addEventListener('click', () => { SOUNDS.pop(); openShopModal(); });
   missionBtn.addEventListener('click', () => { SOUNDS.pop(); openMissionsModal(); });
+  roomBtn?.addEventListener('click', () => { SOUNDS.pop(); openRoomModal(); });
 
   // ----- visibility / lifecycle -------------------------------------------
   document.addEventListener('visibilitychange', () => {
@@ -2552,6 +2686,7 @@
     forceEvolveFx() { triggerEvolveFx(); },
     openMinigame, openShop: openShopModal, openMissions: openMissionsModal,
     openPlayMenu, openPet: openPetGame, openDance: openDanceGame, openTreat: openTreatGame,
+    openRoom: openRoomModal,
     openName: () => openNameModal({}), openBreed: () => openBreedModal({}),
     openSettings: openSettingsModal,
     openResetConfirm: openResetConfirmModal,
