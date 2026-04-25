@@ -1165,7 +1165,8 @@
 
     const avg = GAUGES.reduce((s, g) => s + state[g], 0) / GAUGES.length;
     const tod = currentTod();
-    if (tod === 'night' && state.energy <= 60) return 'sleeping';
+    // 자동 sleeping은 에너지 매우 낮을 때만 (≤20). 그 이상이면 깨어있음.
+    if (state.energy <= 20) return 'sleeping';
     if (avg >= 75) return 'happy';
     return 'idle';
   }
