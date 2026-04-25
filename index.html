@@ -47,8 +47,20 @@
 
     <section class="stage" aria-label="강아지">
       <div class="ground"></div>
-      <div class="moon" aria-hidden="true">🌙</div>
-      <div class="sun" aria-hidden="true">☀️</div>
+      <div class="window" aria-hidden="true">
+        <div class="window-sky">
+          <div class="w-sun">☀️</div>
+          <div class="w-moon">🌙</div>
+          <div class="w-star w-star1">✨</div>
+          <div class="w-star w-star2">✦</div>
+          <div class="w-star w-star3">⋆</div>
+          <div class="w-cloud w-cloud1">☁️</div>
+          <div class="w-cloud w-cloud2">☁️</div>
+        </div>
+        <div class="window-frame"></div>
+      </div>
+      <div id="decoLayerBack" class="deco-layer deco-back" aria-hidden="true"></div>
+      <div id="decoLayerFront" class="deco-layer deco-front" aria-hidden="true"></div>
       <div class="puppy-wrap">
         <img id="puppy" class="puppy" src="assets/puppy/idle.png" alt="강아지" draggable="false" />
         <div id="accHat" class="acc acc-hat" aria-hidden="true"></div>

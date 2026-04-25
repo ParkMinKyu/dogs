@@ -75,11 +75,13 @@
 
   function timeOfDayFor(date) {
     const h = date.getHours();
-    if (h >= 6 && h < 18) return 'day';
-    if (h >= 18 && h < 22) return 'evening';
+    if (h >= 4 && h < 6)   return 'dawn';
+    if (h >= 6 && h < 10)  return 'morning';
+    if (h >= 10 && h < 17) return 'day';
+    if (h >= 17 && h < 19) return 'evening';
     return 'night';
   }
-  const TOD_LABEL = { day: '☀️ 낮', evening: '🌆 저녁', night: '🌙 밤' };
+  const TOD_LABEL = { dawn: '🌄 새벽', morning: '🌅 아침', day: '☀️ 낮', evening: '🌆 저녁', night: '🌙 밤' };
 
   // ----- Storage ----------------------------------------------------------
   const STORAGE_KEY = 'dogs.p0.state.v1';
@@ -122,6 +124,7 @@
       if (!s.playLast || typeof s.playLast !== 'object') s.playLast = {};
       if (!s.roomInv || typeof s.roomInv !== 'object') s.roomInv = {};
       if (!Array.isArray(s.roomLayout)) s.roomLayout = [];
+      if (!s.lastReqTs || typeof s.lastReqTs !== 'object') s.lastReqTs = {};
       if (s.busy && typeof s.busy === 'object') {
         if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
       } else { s.busy = null; }
@@ -151,6 +154,7 @@
       playLast: {},
       roomInv: {},
       roomLayout: [],
+      lastReqTs: {},
       busy: null,
       missions: { date: '', list: [] },
     };
@@ -549,19 +553,31 @@
     const eff = ACTION_EFFECT[action];
     if (!eff) return;
     // 진행 중이면 다른 액션 차단
-    if (state.busy && Date.now() < state.busy.endsAt) return;
+    if (state.busy && state.busy.endsAt && Date.now() < state.busy.endsAt) return;
+    if (state.busy && !state.busy.endsAt) return; // wash 등 무제한 진행 중
 
-    // 거부 검사
-    const crit = criticalLowGauge();
-    if (crit && ACTION_GAUGE[action] !== crit) {
-      const mood = GAUGE_MOODS[crit];
-      btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
-      flashBubble(mood.rebellion);
-      tempFaceState = mood.sprite;
-      tempFaceUntil = Date.now() + 1200;
-      try { SOUNDS.pop(); } catch {}
-      render();
-      return;
+    // 거부 검사 (데드락 방지):
+    // - sleep은 항상 허용 (잠은 기본 회복권)
+    // - ≤20% 게이지가 있으면, 그 게이지를 회복하는 액션들은 모두 허용
+    //   (예: hunger=10, happy=15 → 먹이/놀이 둘 다 OK)
+    // - 그 외엔 거부
+    if (action !== 'sleep') {
+      const lows = GAUGES.filter(g => state[g] <= 20);
+      if (lows.length > 0) {
+        const ag = ACTION_GAUGE[action];
+        if (!lows.includes(ag)) {
+          // 가장 낮은 게이지 기준으로 mood 메시지
+          const lowest = lows.sort((a, b) => state[a] - state[b])[0];
+          const mood = GAUGE_MOODS[lowest];
+          btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+          flashBubble(mood.rebellion);
+          tempFaceState = mood.sprite;
+          tempFaceUntil = Date.now() + 1200;
+          try { SOUNDS.pop(); } catch {}
+          render();
+          return;
+        }
+      }
     }
 
     btn.classList.remove('cheer'); void btn.offsetWidth; btn.classList.add('cheer');
@@ -999,12 +1015,24 @@
       ov.className = cls.join(' ');
     } else if (ov) { ov.remove(); }
 
-    // 액션 dim — 거부 상태일 때
+    // 액션 dim — 거부 상태일 때, 요청 중이면 빨간 점
+    const reqs = activeRequests();
+    const reqByAction = {};
+    for (const [g, r] of Object.entries(reqs)) reqByAction[r.def.action] = r.severity;
+    const lows = GAUGES.filter(g => state[g] <= 20);
     actionBtns.forEach(btn => {
       const a = btn.dataset.action;
       if (!a) return;
-      const blocked = !!crit && a !== 'minigame' && ACTION_GAUGE[a] !== crit;
+      // sleep은 절대 안 막음. lows 있으면 그 게이지 회복하는 액션만 허용.
+      let blocked = false;
+      if (a !== 'sleep' && a !== 'minigame' && lows.length > 0) {
+        const ag = ACTION_GAUGE[a];
+        if (!lows.includes(ag)) blocked = true;
+      }
       btn.classList.toggle('is-blocked', blocked);
+      const sev = reqByAction[a];
+      btn.classList.toggle('has-request', !!sev);
+      btn.classList.toggle('req-critical', sev === 'hard');
     });
 
     if (root) {
@@ -1024,7 +1052,138 @@
     renderAccessories();
     renderActionCooldowns();
     renderMissionDot();
+    renderRoomDeco();
     applyTod();
+  }
+
+  // 강아지 요청 시스템 — 게이지가 임계 아래면 능동적으로 말풍선 + 사운드 발화.
+  const REQ_DEFS = {
+    hunger: { soft: 50, hard: 20, msg: '🍖 배고파!',     action: 'feed' },
+    happy:  { soft: 50, hard: 20, msg: '🎮 같이 놀자!',  action: 'play_menu' },
+    clean:  { soft: 50, hard: 20, msg: '🛁 씻고 싶어...', action: 'wash' },
+    energy: { soft: 30, hard: 20, msg: '💤 졸려...',      action: 'sleep' },
+  };
+  const REQ_INTERVAL_SOFT = 30 * 1000;
+  const REQ_INTERVAL_HARD = 15 * 1000;
+
+  function activeRequests() {
+    const out = {};
+    for (const g of GAUGES) {
+      const def = REQ_DEFS[g];
+      if (!def) continue;
+      const v = state[g];
+      if (v <= def.hard) out[g] = { def, severity: 'hard' };
+      else if (v <= def.soft) out[g] = { def, severity: 'soft' };
+    }
+    return out;
+  }
+
+  function tickRequests() {
+    if (state.busy) return; // 진행 중엔 요청 X
+    const now = Date.now();
+    if (!state.lastReqTs) state.lastReqTs = {};
+    const reqs = activeRequests();
+    // 가장 시급한 한 가지만 발화 (hard 우선, 그 중 가장 낮은 게이지)
+    let pick = null;
+    for (const [g, r] of Object.entries(reqs)) {
+      if (r.severity === 'hard' && (!pick || state[g] < state[pick.g])) pick = { g, r };
+    }
+    if (!pick) {
+      for (const [g, r] of Object.entries(reqs)) {
+        if (r.severity === 'soft' && (!pick || state[g] < state[pick.g])) pick = { g, r };
+      }
+    }
+    if (!pick) return;
+    const interval = pick.r.severity === 'hard' ? REQ_INTERVAL_HARD : REQ_INTERVAL_SOFT;
+    const last = state.lastReqTs[pick.g] || 0;
+    if (now - last < interval) return;
+    state.lastReqTs[pick.g] = now;
+    // 발화
+    const cls = pick.r.severity === 'hard' ? 'show urgent' : 'show';
+    bubbleEl.textContent = pick.r.def.msg;
+    bubbleEl.classList.remove('urgent');
+    void bubbleEl.offsetWidth;
+    bubbleEl.className = 'bubble ' + cls;
+    clearTimeout(bubbleEl._t);
+    bubbleEl._t = setTimeout(() => bubbleEl.classList.remove('show', 'urgent'), 3000);
+    try { SOUNDS.bounce(); } catch {}
+    saveState();
+  }
+
+  // 1초마다 요청 평가
+  setInterval(tickRequests, 1000);
+
+  // ----- 강아지 자율 이동 (wander) ---------------------------------------
+  // idle/happy 상태일 때만 이동. busy/거부/편집/미니게임 중 정지.
+  let wanderX = 50;
+  function wanderActive() {
+    if (state.busy) return false;
+    if (criticalLowGauge()) return false;
+    if (document.body.classList.contains('is-editing-room')) return false;
+    if (activeModal) return false;
+    const s = pickPuppyState();
+    return s === 'idle' || s === 'happy';
+  }
+  function wanderTick() {
+    if (!wanderActive()) return;
+    const oldX = wanderX;
+    wanderX = 18 + Math.random() * 64; // 18~82%
+    // 방향
+    if (puppyWrap) {
+      puppyWrap.dataset.direction = wanderX < oldX ? 'left' : 'right';
+      puppyWrap.style.left = wanderX + '%';
+      puppyWrap.style.removeProperty('right');
+      // 발자국 (간헐적)
+      const stageEl = document.querySelector('.stage');
+      if (stageEl) {
+        const fp = document.createElement('div');
+        fp.className = 'wander-footprint';
+        fp.textContent = '🐾';
+        fp.style.left = oldX + '%';
+        stageEl.appendChild(fp);
+        setTimeout(() => fp.remove(), 1800);
+      }
+    }
+  }
+  setInterval(() => {
+    // 5~10초마다 랜덤
+    if (Math.random() < 0.3) wanderTick();
+  }, 2500);
+
+  // 방 데코 — state.roomLayout을 메인 stage에 렌더 (배경/전경 분리)
+  // 종류별 z-index 분류: 바닥류는 deco-back, 떠다니는 류는 deco-front
+  const DECO_LAYER = {
+    bone: 'back', flower: 'back', gem: 'back', gift: 'back',
+    butter: 'front', bird: 'front', balloon: 'front', star: 'front',
+  };
+  function renderRoomDeco() {
+    const back = document.getElementById('decoLayerBack');
+    const front = document.getElementById('decoLayerFront');
+    if (!back || !front) return;
+    back.innerHTML = ''; front.innerHTML = '';
+    const layout = state.roomLayout || [];
+    layout.forEach((it, idx) => {
+      const def = ROOM_ITEMS[it.kind];
+      if (!def) return;
+      const layer = DECO_LAYER[it.kind] === 'front' ? front : back;
+      const el = document.createElement('div');
+      el.className = 'deco-item deco-' + it.kind;
+      el.textContent = def.emoji;
+      el.style.left = it.x + '%';
+      el.style.top  = it.y + '%';
+      el.dataset.idx = idx;
+      // 편집 모드에서만 클릭으로 회수
+      el.addEventListener('click', (e) => {
+        if (!document.body.classList.contains('is-editing-room')) return;
+        e.stopPropagation();
+        state.roomInv[it.kind] = (state.roomInv[it.kind] || 0) + 1;
+        state.roomLayout.splice(idx, 1);
+        saveState();
+        render();
+        renderEditPanel();
+      });
+      layer.appendChild(el);
+    });
   }
 
   function renderAccessories() {
@@ -1404,87 +1563,84 @@
     gift:    { emoji: '🎁', name: '선물' },
   };
 
-  let __roomPickedKind = null; // 모달 안에서 배치 모드 — 선택된 아이템 종류
+  let __roomPickedKind = null;
+  let __roomEditPanelEl = null;
 
+  // 🏠 버튼 = 편집 모드 토글. 메인 stage에서 직접 아이템 배치/회수 가능.
   function openRoomModal() {
-    const body = document.createElement('div');
-
-    // 방 영역
-    const room = document.createElement('div');
-    room.className = 'room-area';
-    body.appendChild(room);
-    // 강아지 (방 한가운데)
-    const dog = document.createElement('img');
-    dog.className = 'room-dog';
-    dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
-    room.appendChild(dog);
-    // 배치된 아이템 그리기
-    function renderRoom() {
-      // 강아지 외 모든 아이템 element 제거 후 재생성
-      room.querySelectorAll('.room-item').forEach(n => n.remove());
-      (state.roomLayout || []).forEach((it, idx) => {
-        const def = ROOM_ITEMS[it.kind];
-        if (!def) return;
-        const el = document.createElement('div');
-        el.className = 'room-item';
-        el.textContent = def.emoji;
-        el.style.left = it.x + '%';
-        el.style.top  = it.y + '%';
-        el.dataset.idx = idx;
-        // 탭 시 회수
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (__roomPickedKind) return; // 배치 모드 중엔 무시
-          state.roomInv[it.kind] = (state.roomInv[it.kind] || 0) + 1;
-          state.roomLayout.splice(idx, 1);
-          saveState();
-          renderInventory();
-          renderRoom();
-        });
-        room.appendChild(el);
-      });
+    if (document.body.classList.contains('is-editing-room')) {
+      exitRoomEdit();
+    } else {
+      enterRoomEdit();
     }
-    // 방 영역 클릭 → 배치 모드라면 거기 놓기
-    room.addEventListener('click', (e) => {
-      if (!__roomPickedKind) return;
-      const inv = state.roomInv[__roomPickedKind] || 0;
-      if (inv <= 0) { __roomPickedKind = null; renderInventory(); return; }
-      const r = room.getBoundingClientRect();
-      const x = ((e.clientX - r.left) / r.width) * 100;
-      const y = ((e.clientY - r.top)  / r.height) * 100;
-      state.roomLayout.push({ kind: __roomPickedKind, x: Math.max(2, Math.min(98, x)), y: Math.max(2, Math.min(96, y)) });
-      state.roomInv[__roomPickedKind] -= 1;
-      // 더 이상 없으면 배치 모드 해제
-      if (state.roomInv[__roomPickedKind] <= 0) __roomPickedKind = null;
-      saveState();
-      renderRoom();
-      renderInventory();
-    });
+  }
 
-    // 인벤토리
-    const inv = document.createElement('div');
-    inv.className = 'room-inv';
-    body.appendChild(inv);
+  function enterRoomEdit() {
+    document.body.classList.add('is-editing-room');
+    __roomPickedKind = null;
+    // 편집 패널 — 화면 하단 고정
+    const panel = document.createElement('div');
+    panel.id = 'roomEditPanel';
+    panel.className = 'room-edit-panel';
+    document.body.appendChild(panel);
+    __roomEditPanelEl = panel;
+    renderEditPanel();
 
-    function renderInventory() {
-      inv.innerHTML = '';
-      const heading = document.createElement('div');
-      heading.className = 'room-inv-heading';
-      heading.textContent = __roomPickedKind
-        ? `📍 ${ROOM_ITEMS[__roomPickedKind].name} 배치할 자리 탭하세요 (취소: 다른 카드 탭)`
-        : '🎒 모은 아이템 — 카드 탭하면 배치 모드';
-      inv.appendChild(heading);
-      const grid = document.createElement('div');
-      grid.className = 'room-inv-grid';
-      inv.appendChild(grid);
-      const entries = Object.entries(state.roomInv || {}).filter(([_, c]) => c > 0);
-      if (!entries.length) {
-        const empty = document.createElement('div');
-        empty.className = 'room-inv-empty';
-        empty.textContent = '아직 모은 아이템이 없어요. 산책 가서 모아 봐요! 🚶';
-        grid.appendChild(empty);
-        return;
-      }
+    // stage 클릭 핸들러 — 배치 모드일 때만 작동
+    const stageEl = document.querySelector('.stage');
+    if (stageEl && !stageEl.__roomClickBound) {
+      stageEl.addEventListener('click', stageRoomEditClick);
+      stageEl.__roomClickBound = true;
+    }
+  }
+
+  function exitRoomEdit() {
+    document.body.classList.remove('is-editing-room');
+    __roomPickedKind = null;
+    if (__roomEditPanelEl) { __roomEditPanelEl.remove(); __roomEditPanelEl = null; }
+    saveState();
+    render();
+  }
+
+  function stageRoomEditClick(e) {
+    if (!document.body.classList.contains('is-editing-room')) return;
+    if (!__roomPickedKind) return;
+    // 배치된 아이템 element 클릭은 그쪽에서 회수 처리 (e.target 검사)
+    if (e.target.classList && e.target.classList.contains('deco-item')) return;
+    const inv = state.roomInv[__roomPickedKind] || 0;
+    if (inv <= 0) { __roomPickedKind = null; renderEditPanel(); return; }
+    const stageEl = e.currentTarget;
+    const r = stageEl.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top)  / r.height) * 100;
+    state.roomLayout.push({ kind: __roomPickedKind, x: Math.max(2, Math.min(98, x)), y: Math.max(4, Math.min(94, y)) });
+    state.roomInv[__roomPickedKind] -= 1;
+    if (state.roomInv[__roomPickedKind] <= 0) __roomPickedKind = null;
+    saveState();
+    render();
+    renderEditPanel();
+  }
+
+  function renderEditPanel() {
+    const panel = __roomEditPanelEl;
+    if (!panel) return;
+    panel.innerHTML = '';
+    const head = document.createElement('div');
+    head.className = 'room-edit-head';
+    head.textContent = __roomPickedKind
+      ? `📍 ${ROOM_ITEMS[__roomPickedKind].name} 둘 자리를 탭하세요`
+      : '🏠 꾸미기 — 아이템 카드를 탭하세요';
+    panel.appendChild(head);
+
+    const grid = document.createElement('div');
+    grid.className = 'room-edit-grid';
+    const entries = Object.entries(state.roomInv || {}).filter(([_, c]) => c > 0);
+    if (!entries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'room-inv-empty';
+      empty.textContent = '아직 모은 아이템이 없어요. 산책 가서 모아 봐요! 🚶';
+      grid.appendChild(empty);
+    } else {
       entries.forEach(([kind, count]) => {
         const def = ROOM_ITEMS[kind];
         if (!def) return;
@@ -1495,20 +1651,24 @@
         card.addEventListener('click', (e) => {
           e.stopPropagation();
           __roomPickedKind = (__roomPickedKind === kind ? null : kind);
-          renderInventory();
+          renderEditPanel();
         });
         grid.appendChild(card);
       });
     }
+    panel.appendChild(grid);
 
-    renderRoom();
-    renderInventory();
+    const done = document.createElement('button');
+    done.type = 'button';
+    done.className = 'modal-btn';
+    done.textContent = '완료';
+    done.addEventListener('click', exitRoomEdit);
+    panel.appendChild(done);
 
-    openModal({
-      title: '🏠 강아지 방',
-      body,
-      onClose: () => { __roomPickedKind = null; },
-    });
+    const hint = document.createElement('p');
+    hint.className = 'modal-hint';
+    hint.textContent = '아이템 탭하면 회수돼요';
+    panel.appendChild(hint);
   }
 
   // ----- 놀이 메뉴 + 미니게임 ------------------------------------------
@@ -1652,28 +1812,32 @@
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
-      const success = count >= 15;
-      const happyGain = success ? 25 : 15;
+      // 차등 보상
+      let happyGain, careBoost, msg;
+      if (count >= 30)      { happyGain = 40; careBoost = 2; msg = '최고! 🎉'; }
+      else if (count >= 20) { happyGain = 30; careBoost = 1; msg = '잘했어요!'; }
+      else if (count >= 10) { happyGain = 20; careBoost = 1; msg = '좋아요!'; }
+      else                   { happyGain = 10; careBoost = 0; msg = '재밌었지?'; }
       state.happy = clamp(state.happy + happyGain);
-      state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
-      addCareScore();
+      for (let i = 0; i < careBoost; i++) {
+        state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+        addCareScore();
+      }
       state.points = (state.points || 0) + Math.min(20, count);
       markPlayDone('pet');
       progressMission('minigame', 1);
-      saveState();
-      render();
-      SOUNDS.fanfare();
+      saveState(); render(); SOUNDS.fanfare();
 
       const rb = document.createElement('div');
       const p = document.createElement('p'); p.className = 'modal-sub';
       const nm = state.name || '강아지';
-      p.innerHTML = `${count}번 쓰다듬었어요!<br>${nameTopic(nm)} 행복해해요 💖${success ? '<br>🎉 목표 달성!' : ''}`;
+      p.innerHTML = `${count}번 쓰다듬었어요!<br>${nameTopic(nm)} 행복해해요 💖<br><span style="color:#c47b00">${msg}</span>`;
       rb.appendChild(p);
       const ok = document.createElement('button');
       ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
       ok.addEventListener('click', () => closeModal());
       rb.appendChild(ok);
-      openModal({ title: '쓰다듬기 끝!', body: rb });
+      openModal({ title: '쓰다듬기 끝!', body: rb, mandatory: true });
     }
 
     endBtn.addEventListener('click', () => endGame());
@@ -1786,7 +1950,7 @@
       ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
       ok.addEventListener('click', () => closeModal());
       rb.appendChild(ok);
-      openModal({ title: '춤추기 끝!', body: rb });
+      openModal({ title: '춤추기 끝!', body: rb, mandatory: true });
     }
     endBtn.addEventListener('click', () => endGame());
     openModal({
@@ -1918,11 +2082,18 @@
       endedFlag = true;
       decayPaused = false;
       while (treats.length) { try { treats[0].el.remove(); } catch {}; treats.shift(); }
-      const success = got >= 5;
-      state.happy = clamp(state.happy + (success ? 30 : 18));
-      state.hunger = clamp(state.hunger + 10);
-      state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
-      addCareScore();
+      // 차등 보상
+      let happyGain, hungerGain, careBoost;
+      if (got >= 8)      { happyGain = 40; hungerGain = 20; careBoost = 2; }
+      else if (got >= 5) { happyGain = 30; hungerGain = 15; careBoost = 1; }
+      else if (got >= 3) { happyGain = 20; hungerGain = 10; careBoost = 1; }
+      else                { happyGain = 10; hungerGain = 5;  careBoost = 0; }
+      state.happy  = clamp(state.happy + happyGain);
+      state.hunger = clamp(state.hunger + hungerGain);
+      for (let i = 0; i < careBoost; i++) {
+        state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+        addCareScore();
+      }
       state.points = (state.points || 0) + got * 4;
       markPlayDone('treat');
       progressMission('minigame', 1);
@@ -1936,7 +2107,7 @@
       ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
       ok.addEventListener('click', () => closeModal());
       rb.appendChild(ok);
-      openModal({ title: '간식 받기 끝!', body: rb });
+      openModal({ title: '간식 받기 끝!', body: rb, mandatory: true });
     }
     endBtn.addEventListener('click', () => endGame());
     openModal({
@@ -2230,7 +2401,7 @@
       ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
       ok.addEventListener('click', () => closeModal());
       rb.appendChild(ok);
-      openModal({ title: '🚶 산책 끝!', body: rb });
+      openModal({ title: '🚶 산책 끝!', body: rb, mandatory: true });
     }
 
     endBtn.addEventListener('click', () => endGame());
@@ -2506,7 +2677,7 @@
       ok.textContent = '좋아요';
       ok.addEventListener('click', () => closeModal());
       resultBody.appendChild(ok);
-      openModal({ title: '공놀이 끝!', body: resultBody });
+      openModal({ title: '공놀이 끝!', body: resultBody, mandatory: true });
     }
 
     endBtn.addEventListener('click', () => endGame());
