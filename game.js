@@ -466,6 +466,92 @@
     src.stop(t0 + dur);
   }
 
+  // 강아지 짖기/낑낑 — 노이즈 + 빠른 vowel formant 시뮬
+  function dogBark({ short = false, pitch = 1 } = {}) {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime;
+    const dur = short ? 0.12 : 0.22;
+    // 배음 풍부한 sawtooth + bandpass(공명) + 짧은 envelope
+    const o = ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(360 * pitch, t0);
+    o.frequency.exponentialRampToValueAtTime(180 * pitch, t0 + dur);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(900 * pitch, t0);
+    bp.frequency.exponentialRampToValueAtTime(500 * pitch, t0 + dur);
+    bp.Q.setValueAtTime(6, t0);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.18, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    // 노이즈 살짝 — bark 거친 텍스처
+    const samples = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1) * 0.4;
+    const nsrc = ctx.createBufferSource();
+    nsrc.buffer = buf;
+    const nbp = ctx.createBiquadFilter();
+    nbp.type = 'bandpass'; nbp.frequency.value = 1200 * pitch; nbp.Q.value = 4;
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.05, t0);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(bp).connect(g).connect(ctx.destination);
+    nsrc.connect(nbp).connect(ng).connect(ctx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+    nsrc.start(t0); nsrc.stop(t0 + dur + 0.02);
+  }
+
+  function dogWhimper() {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime;
+    const dur = 0.5;
+    const o = ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(700, t0);
+    o.frequency.exponentialRampToValueAtTime(400, t0 + dur * 0.4);
+    o.frequency.exponentialRampToValueAtTime(550, t0 + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.07, t0 + 0.04);
+    g.gain.linearRampToValueAtTime(0.05, t0 + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+
+  function dogSnore() {
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime;
+    const dur = 0.7;
+    // 들이쉬는 코골이 — 노이즈 + low LPF + 천천히 swell
+    const samples = Math.floor(ctx.sampleRate * dur);
+    const buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < samples; i++) data[i] = (Math.random() * 2 - 1);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 350; lp.Q.value = 4;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(0.06, t0 + dur * 0.4);
+    g.gain.linearRampToValueAtTime(0.03, t0 + dur * 0.8);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(lp).connect(g).connect(ctx.destination);
+    src.start(t0); src.stop(t0 + dur + 0.02);
+  }
+
+  function coinPickup() {
+    // 산책 아이템 — 동전 같은 짧은 두 음 띠리링
+    richBlip({ partials: [{ f: 1568, type: 'square', g: 0.3 }, { f: 2350, type: 'sine', g: 0.15 }], dur: 0.05, vol: 0.05 });
+    setTimeout(() => richBlip({ partials: [{ f: 2093, type: 'square', g: 0.3 }, { f: 3136, type: 'sine', g: 0.15 }], dur: 0.08, vol: 0.05 }), 50);
+  }
+
   const SOUNDS = {
     eat: () => {
       // 두 번 씹는 듯한 짧은 톤 + 약간의 휨
@@ -473,18 +559,21 @@
       setTimeout(() => richBlip({ partials: [{ f: 540, type: 'triangle', g: 0.5, bend: 0.9 }, { f: 800, type: 'sine', g: 0.3 }], dur: 0.10, vol: 0.07 }), 130);
     },
     happy: () => {
-      // 상승 멜로디 + 화음
-      richBlip({ partials: [{ f: 660, type: 'triangle', g: 0.5 }, { f: 990, type: 'sine', g: 0.3 }], dur: 0.12, vol: 0.06 });
-      setTimeout(() => richBlip({ partials: [{ f: 880, type: 'triangle', g: 0.5 }, { f: 1320, type: 'sine', g: 0.3 }], dur: 0.16, vol: 0.06, vibrato: 8 }), 130);
+      // 강아지 왈왈 — 두 번 짧게
+      dogBark({ short: true, pitch: 1.1 });
+      setTimeout(() => dogBark({ short: true, pitch: 1.0 }), 180);
     },
+    bark: () => dogBark({ short: false, pitch: 1.0 }),
+    whimper: dogWhimper,
     splash: () => {
       // 노이즈 버스트 + 음정 하강 = 물 튀는 느낌
       noiseBurst({ dur: 0.22, vol: 0.04, hp: 1500 });
       richBlip({ partials: [{ f: 920, type: 'sine', g: 0.5, bend: 0.6 }, { f: 1400, type: 'sine', g: 0.3, bend: 0.6 }], dur: 0.22, vol: 0.05 });
     },
     sleep: () => {
-      // 낮은 음 가벼운 비브라토 → 졸림
-      richBlip({ partials: [{ f: 330, type: 'sine', g: 0.6 }, { f: 247, type: 'triangle', g: 0.4 }], dur: 0.32, vol: 0.05, attack: 0.04, release: 0.16, vibrato: 5 });
+      // 코고는 소리 — 낮은 노이즈 + 짧은 톤 결합
+      dogSnore();
+      setTimeout(() => richBlip({ partials: [{ f: 247, type: 'triangle', g: 0.4 }], dur: 0.18, vol: 0.04, attack: 0.04 }), 600);
     },
     evolve: () => {
       // 4음 상승 아르페지오 + 빛나는 화음 잔향
@@ -501,9 +590,10 @@
       richBlip({ partials: [{ f: 1100, type: 'square', g: 0.4, bend: 1.2 }, { f: 1650, type: 'sine', g: 0.2 }], dur: 0.06, vol: 0.05, attack: 0.002, release: 0.04 });
     },
     catch: () => {
-      // 잡았을 때 — 짧고 밝은 화음
-      richBlip({ partials: [{ f: 880, type: 'triangle', g: 0.5 }, { f: 1320, type: 'sine', g: 0.3 }, { f: 1760, type: 'sine', g: 0.2 }], dur: 0.18, vol: 0.07 });
+      // 잡았을 때 — 강아지 짧은 왈
+      dogBark({ short: true, pitch: 1.15 });
     },
+    coin: coinPickup,
     pop: () => {
       // UI 클릭 — 짧은 팝
       blip([880, 1100], 0.06, 'triangle', 0.04);
@@ -684,7 +774,7 @@
           flashBubble(mood.rebellion);
           tempFaceState = mood.sprite;
           tempFaceUntil = Date.now() + 1200;
-          try { SOUNDS.pop(); } catch {}
+          try { SOUNDS.whimper(); } catch {}
           render();
           return;
         }
@@ -2368,7 +2458,7 @@
       scoreEl.textContent = '🎯 ' + score;
       it.el.classList.add('walk-item-pop');
       setTimeout(() => { try { it.el.remove(); } catch {}; }, 240);
-      try { SOUNDS.catch(); } catch {}
+      try { SOUNDS.coin(); } catch {}
       flashBubble('💖');
       // 희귀 아이템 — 큰 축하
       if (def.rare) {
