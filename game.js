@@ -1202,16 +1202,25 @@
   // 시바 puppy 4표정 4프레임 swap (200ms) — anim 모드 표정 attribute 사용
   let shibaFrame = 0;
   const SHIBA_MOODS = ['idle', 'happy', 'eating', 'sad', 'sleeping'];
-  // sleeping은 정지 (1프레임 고정), 나머지는 4프레임 cycle
   const STATIC_MOODS = new Set(['sleeping']);
+  // 단일 src 결정 헬퍼 — render와 인터벌 양쪽에서 사용. 시바 puppy면 항상 새 sprite.
+  function decideSpriteSrc(mood, stage) {
+    const s = stage || state.stage || 'puppy';
+    const m = SHIBA_MOODS.includes(mood) ? mood : 'idle';
+    if (state.breed === 'shiba' && s === 'puppy') {
+      const f = STATIC_MOODS.has(m) ? 0 : shibaFrame;
+      return `assets/puppy/shiba_${m}_f${f}.png`;
+    }
+    return `assets/${s}/${m}.png`;
+  }
   setInterval(() => {
-    if (!puppyWrap?.classList.contains('shiba-anim')) return;
-    const mood = puppyWrap.dataset.shibaMood;
-    if (!mood || !SHIBA_MOODS.includes(mood)) return;
-    if (STATIC_MOODS.has(mood)) return; // 정지
+    if (!puppyEl) return;
+    if (state.breed !== 'shiba' || (state.stage || 'puppy') !== 'puppy') return;
+    const mood = puppyWrap?.dataset.shibaMood || 'idle';
+    if (STATIC_MOODS.has(mood)) return;
     shibaFrame = (shibaFrame + 1) % 4;
-    const next = `assets/puppy/shiba_${mood}_f${shibaFrame}.png`;
-    if (puppyEl && !puppyEl.src.endsWith(next)) puppyEl.src = next;
+    const next = decideSpriteSrc(mood);
+    if (!puppyEl.src.endsWith(next)) puppyEl.src = next;
   }, 200);
 
   function render() {
@@ -1237,19 +1246,12 @@
 
     const s = pickPuppyState();
     const stage = state.stage || 'puppy';
-    // 시바 puppy + 5표정 모두 sprite sheet animation 적용 (busy 시도 표정 따라감)
     const useShibaAnim = (state.breed === 'shiba') && (stage === 'puppy') && SHIBA_MOODS.includes(s);
-    if (useShibaAnim) {
-      // sleeping은 정지 — 항상 f0. 나머지는 현재 프레임.
-      const frame = STATIC_MOODS.has(s) ? 0 : shibaFrame;
-      const want = `assets/puppy/shiba_${s}_f${frame}.png`;
-      if (!puppyEl.src.endsWith(want)) puppyEl.src = want;
-      puppyWrap.dataset.shibaMood = s;
-    } else {
-      const src = `assets/${stage}/${s}.png`;
-      if (!puppyEl.src.endsWith(src)) puppyEl.src = src;
-      delete puppyWrap.dataset.shibaMood;
-    }
+    // src는 항상 헬퍼로 결정 — render와 인터벌 일관성 보장
+    const want = decideSpriteSrc(s, stage);
+    if (!puppyEl.src.endsWith(want)) puppyEl.src = want;
+    if (useShibaAnim) puppyWrap.dataset.shibaMood = s;
+    else delete puppyWrap.dataset.shibaMood;
 
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
