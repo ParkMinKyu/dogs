@@ -153,7 +153,8 @@
   }
 
   // 액션별 진행 시간 (ms). play_menu 는 즉시.
-  const ACTION_DURATION = { feed: 5000, wash: 6000, sleep: 8000 };
+  // wash는 무제한 — 청결 100% 도달 시 자동 종료. ACTION_DURATION에 없음.
+  const ACTION_DURATION = { feed: 5000, sleep: 8000 };
 
   function stageForCare(care) {
     // 0 또는 비정상 값은 무조건 puppy. fresh state 확실히 보호.
@@ -562,12 +563,15 @@
     const face = ACTION_FACE[action];
     if (face?.sound && SOUNDS[face.sound]) SOUNDS[face.sound]();
 
+    if (action === 'wash') {
+      // 무제한 — 청결 100 도달 또는 그만하기 버튼으로 종료
+      startBusyAction('wash');
+      return;
+    }
     const dur = ACTION_DURATION[action] || 0;
     if (dur > 0) {
-      // 진행 시간 기반 — busy 세팅 후 timer 시작
       startBusyAction(action);
     } else {
-      // 즉시 적용 (호환용 — 기본 액션엔 안 옴, 안전망)
       applyActionEffect(action);
     }
   }
@@ -613,9 +617,17 @@
 
   function startBusyAction(action) {
     const dur = ACTION_DURATION[action] || 0;
+    // wash는 무제한 — endsAt null
+    if (action === 'wash') {
+      state.busy = { action: 'wash', startedAt: Date.now(), endsAt: null };
+      tempFaceState = ACTION_FACE.wash?.state;
+      tempFaceUntil = Date.now() + 60000; // 길게 잡고, finishBusy에서 reset
+      saveState();
+      render();
+      return;
+    }
     if (!dur) return;
     state.busy = { action, startedAt: Date.now(), endsAt: Date.now() + dur };
-    // 진행 중 강아지 표정 — face state 동안 유지
     const face = ACTION_FACE[action];
     if (face) {
       tempFaceState = face.state;
@@ -704,19 +716,22 @@
       added += 1;
     }
     if (added > 0) {
-      // 거품 spawn은 너무 자주는 X — 80ms 쿨다운
       const now = performance.now();
       if (now - scrubBubbleCooldown > 80) {
         spawnScrubBubble(clientX, clientY);
         scrubBubbleCooldown = now;
       }
-      // 강아지 살짝 기울이기 — dx 부호로 좌우
       puppyWrap.style.setProperty('--scrub-tilt', (dx >= 0 ? '3deg' : '-3deg'));
       puppyWrap.classList.add('scrub-tilt');
       clearTimeout(scrubMove._t);
       scrubMove._t = setTimeout(() => puppyWrap.classList.remove('scrub-tilt'), 120);
       try { if (added >= 2) SOUNDS.splash(); } catch {}
       render();
+      // 청결 100 도달 시 자동 종료
+      if (state.clean >= 100 && state.busy?.action === 'wash') {
+        scrubReset();
+        finishBusy();
+      }
     }
   }
   function scrubReset() { scrubActive = false; scrubLastX = scrubLastY = null; }
@@ -779,7 +794,13 @@
           </div>
           <div class="bath-water"></div>
           <div class="bath-rim"></div>
+          <button type="button" class="bath-stop" aria-label="그만하기">그만하기</button>
         `;
+        // 그만하기 — 즉시 종료 (현재 청결값 그대로, 트레이드오프만 적용)
+        el.querySelector('.bath-stop').addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          if (state.busy?.action === 'wash') finishBusy();
+        });
         // 인터랙티브 — 욕조 영역에서 일어나는 pointerdown은 stage 핸들러가 흡수.
         // (별도 처리 불필요)
       } else if (desired === 'cushion') {
@@ -808,25 +829,29 @@
   setInterval(() => {
     if (state.busy) {
       const now = Date.now();
-      if (now >= state.busy.endsAt) finishBusy();
+      const { startedAt, endsAt, action } = state.busy;
+      // 시간 기반 종료 — endsAt 있을 때만
+      if (endsAt && now >= endsAt) { finishBusy(); }
       else {
-        const el = ensureBusyGauge();
-        if (el) {
-          const { startedAt, endsAt, action } = state.busy;
-          const total = endsAt - startedAt;
-          const pct = Math.max(0, Math.min(100, ((now - startedAt) / total) * 100));
-          el.querySelector('.bg-fill').style.width = pct + '%';
-          const emo = { feed: '🍖', wash: '🫧', sleep: '💤' }[action] || '⏳';
-          el.querySelector('.bg-emo').textContent = emo;
-        }
-        ensureProp(state.busy.action);
-        // 욕조 진행 중 puppy-wrap 거품 효과 + 액세서리 잠시 숨김
-        if (state.busy.action === 'wash') {
-          puppyWrap.classList.add('is-bathing');
+        if (endsAt) {
+          // 시간 진행 ring
+          const el = ensureBusyGauge();
+          if (el) {
+            const total = endsAt - startedAt;
+            const pct = Math.max(0, Math.min(100, ((now - startedAt) / total) * 100));
+            el.querySelector('.bg-fill').style.width = pct + '%';
+            const emo = { feed: '🍖', wash: '🫧', sleep: '💤' }[action] || '⏳';
+            el.querySelector('.bg-emo').textContent = emo;
+          }
         } else {
-          puppyWrap.classList.remove('is-bathing');
+          // 무제한 — 진행 ring 대신 청결 게이지 자체가 진행 표시 (wash 한정)
+          // ring 없이 깔끔히
+          removeBusyGauge();
         }
-        if (state.busy.action === 'sleep') puppyWrap.classList.add('is-on-cushion');
+        ensureProp(action);
+        if (action === 'wash') puppyWrap.classList.add('is-bathing');
+        else puppyWrap.classList.remove('is-bathing');
+        if (action === 'sleep') puppyWrap.classList.add('is-on-cushion');
         else puppyWrap.classList.remove('is-on-cushion');
       }
     } else {

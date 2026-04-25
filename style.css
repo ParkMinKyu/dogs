@@ -564,6 +564,25 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-2px); }
 }
+.prop-bathtub .bath-stop {
+  position: absolute;
+  top: -52px;
+  right: 0;
+  appearance: none;
+  background: linear-gradient(180deg, #fff 0%, #ffd6a3 100%);
+  border: 3px solid #fff;
+  border-radius: 14px;
+  padding: 6px 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: #5a2c0a;
+  box-shadow: 0 3px 0 rgba(74,58,46,0.18);
+  cursor: pointer;
+  pointer-events: auto;
+  z-index: 8;
+}
+.prop-bathtub .bath-stop:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(74,58,46,0.18); }
+
 .prop-bathtub .bath-bubbles {
   position: absolute; left: 0; right: 0; top: -30px; height: 60px;
 }
