@@ -262,13 +262,14 @@
   const PET_FIELDS = [
     'hunger', 'happy', 'clean', 'energy', 'lastTs',
     'care', 'careLastTick', 'stage',
-    'name', 'breed', 'species', // species 추가 (dog/cat/rabbit/hamster)
+    'name', 'breed', 'species',
     'equipped',
     'roomInv', 'roomLayout',
     'wallpaper', 'floor',
     'furnitureInv', 'furnitureLayout',
     'lastReqTs', 'messes', 'sick', 'lowCleanSince',
     'gaugeZeroSince', 'busy', 'minigameLastTs', 'playLast',
+    'wanderX', 'wanderY', // v2 — 펫별 위치
   ];
   function snapshotActivePet() {
     if (!Array.isArray(state.pets)) return;
@@ -294,16 +295,22 @@
     // 글로벌 잔재 즉시 청소 — 옛 펫의 임시 표정/prop/클래스가 0.1s tick 전에 잔존하지 않도록
     tempFaceState = null;
     tempFaceUntil = 0;
+    if (typeof state.wanderX !== 'number') state.wanderX = 50;
+    if (typeof state.wanderY !== 'number') state.wanderY = 86;
     if (puppyWrap) {
       puppyWrap.classList.remove('is-bathing', 'is-on-cushion', 'is-evolving',
         'is-happy', 'is-eating', 'is-sad', 'is-sleeping', 'shiba-anim', 'shiba-idle-anim');
       delete puppyWrap.dataset.shibaMood;
       delete puppyWrap.dataset.mood;
-      // 위치도 새 펫의 wander 기본값으로 reset
-      puppyWrap.style.left = '50%';
-      puppyWrap.style.bottom = '14%';
+      // 새 펫의 저장된 wander 위치로
+      puppyWrap.style.left = state.wanderX + '%';
+      puppyWrap.style.bottom = (100 - state.wanderY) + '%';
     }
-    wanderX = 50; wanderY = 86;
+    // 옛 펫의 speech bubble 즉시 제거
+    if (typeof __speechEl !== 'undefined' && __speechEl) {
+      try { __speechEl.remove(); } catch {}
+      __speechEl = null;
+    }
     // stage prop/overlay element 즉시 제거 (cushion/bathtub/bowl/mood-overlay/messes/busy-gauge)
     const stageEl = document.querySelector('.stage');
     if (stageEl) {
@@ -1072,9 +1079,9 @@
   function moveDogToActionPos(action) {
     const pos = ACTION_DOG_POS[action];
     if (!pos || !puppyWrap) return;
-    const oldX = wanderX;
-    wanderX = pos.x;
-    wanderY = pos.y;
+    const oldX = state.wanderX || 50;
+    state.wanderX = pos.x;
+    state.wanderY = pos.y;
     puppyWrap.dataset.direction = pos.x < oldX ? 'left' : 'right';
     puppyWrap.style.left = pos.x + '%';
     puppyWrap.style.bottom = (100 - pos.y) + '%';
@@ -1626,7 +1633,10 @@
 
   // ----- 강아지 자율 이동 (wander) ---------------------------------------
   // idle/happy 상태일 때만 이동. busy/거부/편집/미니게임 중 정지.
-  let wanderX = 50, wanderY = 86; // % — 바닥 영역 (78~92)
+  // wanderX/Y는 state(pet)에 저장. 글로벌 변수는 폐기.
+  // state 초기 진입 시 기본값 보장
+  if (typeof state.wanderX !== 'number') state.wanderX = 50;
+  if (typeof state.wanderY !== 'number') state.wanderY = 86;
   function wanderActive() {
     if (state.busy) return false;
     if (criticalLowGauge()) return false;
@@ -1637,13 +1647,13 @@
   }
   function wanderTick() {
     if (!wanderActive()) return;
-    const oldX = wanderX;
-    wanderX = 12 + Math.random() * 76; // 12~88%
-    wanderY = 78 + Math.random() * 14; // 78~92% — 바닥 영역만
+    const oldX = state.wanderX || 50;
+    state.wanderX = 12 + Math.random() * 76;
+    state.wanderY = 78 + Math.random() * 14;
     if (puppyWrap) {
-      puppyWrap.dataset.direction = wanderX < oldX ? 'left' : 'right';
-      puppyWrap.style.left = wanderX + '%';
-      puppyWrap.style.bottom = (100 - wanderY) + '%';
+      puppyWrap.dataset.direction = state.wanderX < oldX ? 'left' : 'right';
+      puppyWrap.style.left = state.wanderX + '%';
+      puppyWrap.style.bottom = (100 - state.wanderY) + '%';
       puppyWrap.style.removeProperty('right');
       const stageEl = document.querySelector('.stage');
       if (stageEl) {
@@ -1651,7 +1661,7 @@
         fp.className = 'wander-footprint';
         fp.textContent = '🐾';
         fp.style.left = oldX + '%';
-        fp.style.bottom = (100 - wanderY) + '%';
+        fp.style.bottom = (100 - state.wanderY) + '%';
         stageEl.appendChild(fp);
         setTimeout(() => fp.remove(), 1800);
       }
@@ -1666,7 +1676,7 @@
   // 강아지가 화면상 더 아래(=Y%가 큰)면 앞에. 위면 뒤에 가려짐.
   function updateDepthSort() {
     if (!puppyWrap) return;
-    puppyWrap.style.zIndex = Math.floor(wanderY * 10);
+    puppyWrap.style.zIndex = Math.floor((state.wanderY || 86) * 10);
     // back layer 안 deco-item / furn-item: Y 좌표 기반 z-index
     document.querySelectorAll('#decoLayerBack .deco-item, #decoLayerBack .furn-item').forEach(el => {
       const top = parseFloat(el.style.top || '50');
