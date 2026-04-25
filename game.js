@@ -1227,6 +1227,9 @@
 
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
+    // 시바 puppy idle 애니메이션 — 새 4프레임 sheet
+    const useShibaIdle = (state.breed === 'shiba') && (stage === 'puppy') && (s === 'idle');
+    puppyWrap.classList.toggle('shiba-idle-anim', useShibaIdle);
 
     // mood 데이터 — puppy-wrap에 data-mood 부여, stage에 mood-overlay 추가
     const crit = criticalLowGauge();

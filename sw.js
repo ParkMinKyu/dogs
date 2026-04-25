@@ -1,6 +1,6 @@
 /* 우리 강아지 — Service Worker
    offline-first cache. 새 버전 배포 시 CACHE 이름 bump. */
-const CACHE = 'dogs-p2-v38';
+const CACHE = 'dogs-p2-v39';
 const PRECACHE = [
   './',
   'index.html',
@@ -8,6 +8,7 @@ const PRECACHE = [
   'game.js',
   'manifest.json',
   'assets/puppy/idle.png',
+  'assets/puppy/shiba_idle_sheet.png',
   'assets/puppy/happy.png',
   'assets/puppy/eating.png',
   'assets/puppy/sad.png',

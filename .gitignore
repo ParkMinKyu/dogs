@@ -14,3 +14,6 @@ _frame*.html
 _seed*.html
 _test*.html
 _inspect*.html
+
+# 큰 원본 sprite (sheet만 트래킹)
+assets/puppy/shiba_idle.png
