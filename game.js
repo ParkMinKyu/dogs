@@ -629,8 +629,8 @@
 
   // ----- Decay ------------------------------------------------------------
   // 오프라인 catchup — 최대 4시간 분만 decay 적용 (밤새 떠나도 가출 안 됨)
-  const OFFLINE_DECAY_CAP_MS = 4 * 60 * 60 * 1000;
   function applyOfflineDecay() {
+    const OFFLINE_DECAY_CAP_MS = 4 * 60 * 60 * 1000;
     const now = Date.now();
     let elapsed = Math.max(0, now - (state.lastTs || now));
     if (elapsed > OFFLINE_DECAY_CAP_MS) elapsed = OFFLINE_DECAY_CAP_MS;
