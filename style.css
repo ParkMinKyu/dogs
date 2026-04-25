@@ -1430,8 +1430,21 @@ body.is-sick #vetBtn .dot { display: block; }
   image-rendering: pixelated;
 }
 .pet-slot-name { font-size: 11px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pet-slot-add { color: var(--ink-soft); }
+.pet-slot-add {
+  background: linear-gradient(180deg, #fff5d1 0%, #ffd1dc 100%);
+  border-color: #ffb3c1;
+  color: #5b2235;
+}
 .pet-slot-add .plus { font-size: 28px; line-height: 1; }
+.pet-slot-add.locked {
+  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%);
+  border-color: #c0c0c0;
+  color: #888;
+  filter: grayscale(0.6);
+  cursor: not-allowed;
+}
+.pet-slot-add .lock { font-size: 22px; line-height: 1; }
+.pet-slot-need { font-size: 10px; color: #b85; white-space: nowrap; }
 
 /* Breed pick grid */
 .breed-grid {

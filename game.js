@@ -890,22 +890,22 @@
 
   // mess 렌더 + 청소 핸들러
   // v2 — 헤더 펫 슬롯 카드 (현재 펫 + 다른 펫 + "추가" 버튼)
+  // 펫 슬롯 해금 임계값 (state.points 누적 기준, 차감 없음)
+  const PET_UNLOCK = [0, 100, 500, 1500]; // 1/2/3/4번 펫
+  const MAX_PETS = PET_UNLOCK.length;
+
   function renderPetSlots() {
     const wrap = document.getElementById('petSlots');
     if (!wrap) return;
     wrap.innerHTML = '';
     const pets = state.pets || [{ id: state.activePetId || 0 }];
-    const MAX_PETS = 4;
     pets.forEach(pet => {
       const isActive = pet.id === state.activePetId;
-      // 펫 데이터 — 활성이면 state, 아니면 pet 자체
       const data = isActive ? state : pet;
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'pet-slot' + (isActive ? ' active' : '');
       const breed = data.breed || 'shiba';
-      const stage = data.stage || 'puppy';
-      // sprite — breeds/{breed}.png 또는 puppy/idle.png 폴백
       const spriteSrc = `assets/breeds/${breed}.png`;
       card.innerHTML = `
         <img class="pet-slot-img" src="${spriteSrc}" alt="" data-breed="${breed}"/>
@@ -917,11 +917,22 @@
       wrap.appendChild(card);
     });
     if (pets.length < MAX_PETS) {
+      const need = PET_UNLOCK[pets.length] || 0;
+      const have = state.points || 0;
+      const unlocked = have >= need;
       const add = document.createElement('button');
       add.type = 'button';
-      add.className = 'pet-slot pet-slot-add';
-      add.innerHTML = '<span class="plus">+</span><span class="pet-slot-name">추가</span>';
-      add.addEventListener('click', () => addNewPet());
+      add.className = 'pet-slot pet-slot-add' + (unlocked ? '' : ' locked');
+      if (unlocked) {
+        add.innerHTML = '<span class="plus">+</span><span class="pet-slot-name">추가</span>';
+        add.addEventListener('click', () => addNewPet());
+      } else {
+        add.innerHTML = `<span class="lock">🔒</span><span class="pet-slot-need">🌟 ${have}/${need}</span>`;
+        add.addEventListener('click', () => {
+          flashBubble('🔒');
+          showSpeech(`더 키우면 풀려요! (🌟 ${need}점 필요)`, 2400);
+        });
+      }
       wrap.appendChild(add);
     }
   }
