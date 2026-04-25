@@ -1210,8 +1210,12 @@
   // 단일 src 결정 헬퍼 — render와 인터벌 양쪽에서 사용. 시바 puppy면 항상 새 sprite.
   function decideSpriteSrc(mood, stage) {
     const s = stage || state.stage || 'puppy';
-    const m = SHIBA_MOODS.includes(mood) ? mood : 'idle';
+    let m = SHIBA_MOODS.includes(mood) ? mood : 'idle';
     if (state.breed === 'shiba' && s === 'puppy') {
+      // 씻기 진행 중엔 happy sprite frame 1 고정
+      if (state.busy?.action === 'wash') {
+        return `assets/puppy/shiba_happy_f1.png`;
+      }
       const f = STATIC_MOODS.has(m) ? 0 : shibaFrame;
       return `assets/puppy/shiba_${m}_f${f}.png`;
     }
@@ -1224,9 +1228,15 @@
     try {
       if (!puppyEl) return;
       if (state.breed !== 'shiba' || (state.stage || 'puppy') !== 'puppy') return;
+      // 씻기 진행 중 — happy frame 1 고정, 갱신 안 함
+      if (state.busy?.action === 'wash') {
+        const fixed = `assets/puppy/shiba_happy_f1.png`;
+        if (!puppyEl.src.endsWith(fixed)) puppyEl.src = fixed;
+        return;
+      }
       const mood = puppyWrap?.dataset.shibaMood || 'idle';
       delay = SHIBA_FRAME_INTERVAL[mood] || 500;
-      if (STATIC_MOODS.has(mood) || delay <= 0) return; // 정지
+      if (STATIC_MOODS.has(mood) || delay <= 0) return;
       shibaFrame = (shibaFrame + 1) % 4;
       const next = decideSpriteSrc(mood);
       if (!puppyEl.src.endsWith(next)) puppyEl.src = next;
