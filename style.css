@@ -107,8 +107,12 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   margin: 0 auto;
   padding: 18px 18px 28px;
   display: grid;
-  grid-template-rows: auto auto auto auto;
-  gap: 18px;
+  /* topbar / stage / gauges / actions — stage가 남는 공간 다 먹음 */
+  grid-template-rows: auto 1fr auto auto;
+  gap: 14px;
+  /* 모바일: viewport 안에 모두 들어가게 */
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* ---------- Top bar ---------- */
@@ -201,7 +205,8 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 .stage {
   position: relative;
-  height: clamp(240px, 42vw, 320px);
+  /* 데스크톱은 적당한 비례, 모바일은 grid 1fr이 채움 */
+  min-height: clamp(280px, 50vw, 400px);
   border-radius: var(--radius);
   background:
     radial-gradient(120% 80% at 50% 110%, var(--stage-2) 0%, transparent 60%),
@@ -265,9 +270,9 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   animation: idle-bob 2.4s ease-in-out infinite;
   transition: width 600ms cubic-bezier(.2,1.4,.4,1), height 600ms cubic-bezier(.2,1.4,.4,1);
 }
-.app[data-stage="puppy"] .puppy-wrap { width: 192px; height: 192px; }
-.app[data-stage="teen"]  .puppy-wrap { width: 180px; height: 225px; }
-.app[data-stage="adult"] .puppy-wrap { width: 176px; height: 264px; }
+.app[data-stage="puppy"] .puppy-wrap { width: 240px; height: 240px; }
+.app[data-stage="teen"]  .puppy-wrap { width: 224px; height: 280px; }
+.app[data-stage="adult"] .puppy-wrap { width: 220px; height: 330px; }
 
 .puppy {
   position: absolute;
@@ -380,51 +385,133 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 .gauges {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.gauge-circle {
+  --size: 72px;
+  --pct: 80;
+  --col: hsl(120, 55%, 48%);
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(var(--col) calc(var(--pct) * 1%), rgba(0,0,0,0.06) 0);
+  display: grid;
+  place-items: center;
+  position: relative;
+  box-shadow: 0 4px 0 rgba(74,58,46,0.12), 0 6px 14px rgba(74,58,46,0.10);
+  transition: background 240ms ease;
+}
+.gauge-circle::before {
+  content: '';
+  position: absolute;
+  inset: 7px;
+  border-radius: 50%;
   background: var(--card);
-  border: 3px solid var(--line);
-  border-radius: 18px;
-  padding: 10px 12px 12px;
-  box-shadow: var(--shadow);
 }
-
-.gauge-label {
-  display: flex; align-items: center; gap: 8px;
-  font-size: clamp(15px, 3.6vw, 18px);
-  margin-bottom: 8px;
+.gauge-circle .emo {
+  position: relative;
+  font-size: 28px;
+  line-height: 1;
+}
+.gauge-circle .pct {
+  position: relative;
   font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 2px;
 }
-.gauge-label .emo { font-size: 22px; }
-
-.bar {
-  height: 18px;
-  border-radius: 999px;
-  background: #f3eadf;
-  overflow: hidden;
-  border: 2px solid #ffffff;
-  box-shadow: inset 0 2px 0 #00000010;
+.gauge .label {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--ink);
 }
 
-.fill {
-  height: 100%;
-  width: 80%;
-  border-radius: 999px;
-  transition: width 280ms cubic-bezier(.2,1,.4,1), background 200ms;
+/* 위험 — 진동 + 톤 */
+.gauge-circle.is-critical { animation: gauge-danger 0.9s ease-in-out infinite; }
+@keyframes gauge-danger {
+  0%, 100% { transform: scale(1) rotate(0); }
+  25%      { transform: scale(1.04) rotate(-2deg); }
+  75%      { transform: scale(1.04) rotate(2deg); }
 }
 
-.fill-hunger { background: linear-gradient(90deg, var(--pink) 0%, var(--pink-d) 100%); }
-.fill-happy  { background: linear-gradient(90deg, var(--sky)  0%, var(--sky-d)  100%); }
-.fill-clean  { background: linear-gradient(90deg, var(--mint) 0%, var(--mint-d) 100%); }
-.fill-energy { background: linear-gradient(90deg, var(--sun)  0%, var(--sun-d)  100%); }
+/* ---------- 강아지 거부 모드 오버레이 ------------------------------------ */
+/* 각 데미지 모드는 .stage[data-mood] 또는 .puppy-wrap[data-mood]로 구분 */
+.puppy-wrap[data-mood="hunger"] .puppy { filter: drop-shadow(0 6px 0 #00000018) saturate(0.85) brightness(0.95); }
+.puppy-wrap[data-mood="happy"]  .puppy { filter: drop-shadow(0 6px 0 #00000018) saturate(0.55) brightness(0.92); }
+.puppy-wrap[data-mood="clean"]  .puppy { filter: drop-shadow(0 6px 0 #00000018) sepia(0.4) saturate(1.2) hue-rotate(20deg); }
+.puppy-wrap[data-mood="energy"] .puppy { filter: drop-shadow(0 6px 0 #00000018) brightness(0.75) blur(0.3px); }
 
-.fill.is-low { animation: low-pulse 1.4s ease-in-out infinite; }
-@keyframes low-pulse {
-  0%, 100% { filter: brightness(1); }
-  50%      { filter: brightness(1.15); }
+/* 머드 점 (clean 낮을 때) */
+.mood-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.mood-overlay.dirty::before {
+  content: '🪰 ✦ ⋆ 💢';
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 18px;
+  color: #634;
+  letter-spacing: 6px;
+  animation: dirty-flies 2s ease-in-out infinite;
+}
+@keyframes dirty-flies {
+  0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.7; }
+  50%      { transform: translateX(-46%) translateY(-4px); opacity: 1; }
+}
+.mood-overlay.sleepy {
+  background: radial-gradient(50% 60% at 50% 80%, transparent, rgba(20,20,40,0.18));
+}
+.mood-overlay.hunger::before {
+  content: '🍽️';
+  position: absolute;
+  bottom: 12%;
+  right: 14%;
+  font-size: 28px;
+  opacity: 0.85;
+  animation: hunger-bowl 1.6s ease-in-out infinite;
+}
+@keyframes hunger-bowl {
+  0%, 100% { transform: rotate(-5deg); }
+  50%      { transform: rotate(5deg); }
+}
+.mood-overlay.happy::before {
+  content: '💔';
+  position: absolute;
+  top: 20%;
+  right: 22%;
+  font-size: 22px;
+  animation: gloomy-tear 2.2s ease-in-out infinite;
+}
+@keyframes gloomy-tear {
+  0%, 100% { opacity: 0.6; transform: translateY(0); }
+  50%      { opacity: 1;   transform: translateY(6px); }
+}
+
+/* 액션 버튼 dim — 거부 상태 */
+.action.is-blocked {
+  opacity: 0.45;
+  filter: grayscale(0.8);
+}
+.action.shake { animation: action-shake 0.45s ease-in-out; }
+@keyframes action-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px) rotate(-2deg); }
+  40%      { transform: translateX(6px)  rotate(2deg); }
+  60%      { transform: translateX(-4px) rotate(-1deg); }
+  80%      { transform: translateX(4px)  rotate(1deg); }
 }
 
 /* ---------- Action buttons ---------- */
@@ -992,12 +1079,20 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 /* ---------- Mobile tweaks ---------- */
 
 @media (max-width: 560px) {
-  .app { padding: 10px 10px 18px; gap: 12px; }
-  .gauges { gap: 8px; }
-  /* 5 액션 버튼 — 모바일에서 2 행: 첫 행 3개(먹이/놀기/씻기), 둘째 행 2개(재우기/공놀이) */
+  .app { padding: 8px 10px 12px; gap: 8px; }
+  .stage { min-height: 0; }
+
+  /* 원형 게이지 모바일 사이즈 */
+  .gauges { gap: 4px; }
+  .gauge-circle { --size: 64px; }
+  .gauge-circle .emo { font-size: 24px; }
+  .gauge-circle .pct { font-size: 10px; }
+  .gauge .label { font-size: 12px; }
+
+  /* 5 액션 버튼 — 첫 행 3개, 둘째 행 2개 */
   .actions {
     grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 8px;
+    gap: 6px;
   }
   .actions .action:nth-child(1) { grid-column: 1 / 3; }
   .actions .action:nth-child(2) { grid-column: 3 / 5; }
@@ -1005,36 +1100,51 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   .actions .action:nth-child(4) { grid-column: 1 / 4; }
   .actions .action:nth-child(5) { grid-column: 4 / 7; }
   .action {
-    min-height: 90px;
-    border-radius: 20px;
-    padding: 10px 4px 10px;
+    min-height: 78px;
+    border-radius: 18px;
+    padding: 6px 4px;
+    border-width: 3px;
   }
-  .action .big { font-size: clamp(28px, 7.5vw, 44px); }
-  .action .lbl { font-size: clamp(13px, 3.6vw, 18px); }
-  .puppy-wrap { width: 168px; height: 168px; }
-  .app[data-stage="teen"]  .puppy-wrap { width: 156px; height: 195px; }
-  .app[data-stage="adult"] .puppy-wrap { width: 152px; height: 228px; }
-  .gauge { padding: 8px 9px 10px; }
-  .icon-btn { width: 42px; height: 42px; font-size: 18px; border-width: 2px; }
+  .action .big { font-size: clamp(26px, 7vw, 36px); }
+  .action .lbl { font-size: clamp(12px, 3.4vw, 16px); }
+
+  /* 강아지 크기 — 큰 stage에 맞게 키움 */
+  .app[data-stage="puppy"] .puppy-wrap { width: 200px; height: 200px; }
+  .app[data-stage="teen"]  .puppy-wrap { width: 188px; height: 235px; }
+  .app[data-stage="adult"] .puppy-wrap { width: 184px; height: 276px; }
+
+  .icon-btn { width: 40px; height: 40px; font-size: 18px; border-width: 2px; }
   .header-btns { gap: 4px; }
   .title { font-size: clamp(18px, 4.8vw, 26px); }
-  .badge { font-size: 12px; padding: 3px 8px; }
+  .badge { font-size: 11px; padding: 3px 8px; }
+  .topbar { gap: 6px; }
 }
 
+/* 작은 폰 (≤380): 게이지 2×2로 떨어뜨려 폭 확보 */
 @media (max-width: 380px) {
-  .title { font-size: 18px; }
-  .icon-btn { width: 38px; height: 38px; font-size: 16px; }
-  .stage { height: 220px; }
-  .puppy-wrap { width: 144px; height: 144px; }
-  .app[data-stage="teen"]  .puppy-wrap { width: 134px; height: 168px; }
-  .app[data-stage="adult"] .puppy-wrap { width: 130px; height: 195px; }
-  .action { min-height: 88px; padding: 8px 2px; }
-  .action .big { font-size: 28px; }
-  .action .lbl { font-size: 13px; letter-spacing: 0; }
-  .gauge-label { font-size: 14px; }
+  .title { font-size: 17px; }
+  .icon-btn { width: 36px; height: 36px; font-size: 15px; }
+  .gauges {
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+  .gauge-label { flex-direction: row; gap: 6px; }
   .gauge-label .emo { font-size: 18px; }
+  .gauge-label span:not(.emo) { font-size: 12px; }
+  .bar { height: 9px; }
+  .app[data-stage="puppy"] .puppy-wrap { width: 168px; height: 168px; }
+  .app[data-stage="teen"]  .puppy-wrap { width: 156px; height: 195px; }
+  .app[data-stage="adult"] .puppy-wrap { width: 152px; height: 228px; }
+  .action { min-height: 70px; padding: 5px 3px; }
+  .action .big { font-size: 24px; }
+  .action .lbl { font-size: 11px; letter-spacing: 0; }
   .modal { padding: 16px 14px; }
   .modal-title { font-size: 18px; }
+}
+
+/* 태블릿/큰 폰 (≥768): stage 더 큼, 게이지는 2×2 카드 형태 유지 */
+@media (min-width: 768px) {
+  .stage { min-height: clamp(360px, 50vw, 500px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -298,13 +298,45 @@
   const accHatEl   = $('#accHat');
   const accNeckEl  = $('#accNeck');
   const accGlassesEl = $('#accGlasses');
-  const fills = {
-    hunger: $('.fill-hunger'),
-    happy:  $('.fill-happy'),
-    clean:  $('.fill-clean'),
-    energy: $('.fill-energy'),
-  };
+  // 새 원형 게이지 — 각 .gauge[data-key]의 .gauge-circle 과 .pct 셀렉터
+  const gaugeEls = {};
+  for (const g of GAUGES) {
+    const root = document.querySelector('.gauge[data-key="' + g + '"]');
+    if (!root) continue;
+    gaugeEls[g] = {
+      root,
+      circle: root.querySelector('.gauge-circle'),
+      pct:    root.querySelector('.pct'),
+    };
+  }
   const actionBtns = document.querySelectorAll('.action');
+
+  // 게이지별 거부/감정 모드 메타
+  const GAUGE_MOODS = {
+    hunger: { sprite: 'sad',      bubble: '🍖 배고파!',     overlay: 'hunger', rebellion: '싫어... 밥부터...' },
+    happy:  { sprite: 'sad',      bubble: '💧 같이 놀아줘...', overlay: 'happy',  rebellion: '심심해...' },
+    clean:  { sprite: 'sad',      bubble: '🛁 너무 더러워!',   overlay: 'clean',  rebellion: '씻고 나서...' },
+    energy: { sprite: 'sleeping', bubble: '💤 너무 졸려...',   overlay: 'energy', rebellion: '졸려...' },
+  };
+  // 액션 → 그 액션이 회복하는 게이지
+  const ACTION_GAUGE = { feed: 'hunger', play: 'happy', wash: 'clean', sleep: 'energy' };
+
+  // 색상: 퍼센트별 hsl 보간 (red→yellow→green)
+  function colorForGauge(key, pct) {
+    // base hue per gauge
+    const baseHue = { hunger: 350, happy: 200, clean: 150, energy: 45 }[key] || 120;
+    if (pct >= 70) return `hsl(${baseHue}, 60%, 50%)`;
+    if (pct >= 40) return `hsl(45, 90%, 55%)`;     // yellow/orange
+    if (pct >= 20) return `hsl(20, 90%, 55%)`;     // orange
+    return `hsl(0, 75%, 50%)`;                      // red
+  }
+
+  // 가장 시급한 ≤20% 게이지 (priority key)
+  function criticalLowGauge() {
+    const lows = GAUGES.filter(g => state[g] <= 20);
+    if (!lows.length) return null;
+    return lows.sort((a, b) => state[a] - state[b])[0];
+  }
 
   // ----- Audio ------------------------------------------------------------
   let audioCtx = null;
@@ -494,6 +526,22 @@
     const eff = ACTION_EFFECT[action];
     if (!eff) return;
 
+    // 거부 검사: 시급한 게이지가 있고 그것이 현재 액션이 회복하는 게이지가 아니면 거부.
+    const crit = criticalLowGauge();
+    if (crit && ACTION_GAUGE[action] !== crit) {
+      const mood = GAUGE_MOODS[crit];
+      btn.classList.remove('shake');
+      void btn.offsetWidth;
+      btn.classList.add('shake');
+      flashBubble(mood.rebellion);
+      // 강아지도 거부 sprite 잠깐 — 표정은 mood 우선
+      tempFaceState = mood.sprite;
+      tempFaceUntil = Date.now() + 1200;
+      try { SOUNDS.pop(); } catch {}
+      render();
+      return;
+    }
+
     const tod = currentTod();
     let scaled = { ...eff };
     if (action === 'sleep' && tod === 'night') {
@@ -569,24 +617,30 @@
     const now = Date.now();
     if (tempFaceState && now < tempFaceUntil) return tempFaceState;
 
-    const lows = GAUGES.filter(g => state[g] <= 20).length;
+    // 게이지 ≤30% 가장 낮은 거에 우선순위 부여
+    const lows = GAUGES.filter(g => state[g] <= 30);
+    if (lows.length) {
+      const lowest = lows.sort((a, b) => state[a] - state[b])[0];
+      return GAUGE_MOODS[lowest]?.sprite || 'sad';
+    }
+
     const avg = GAUGES.reduce((s, g) => s + state[g], 0) / GAUGES.length;
     const tod = currentTod();
-
-    if (lows >= 1) return 'sad';
     if (tod === 'night' && state.energy <= 60) return 'sleeping';
-    if (state.energy <= 25) return 'sleeping';
-    if (avg >= 75)  return 'happy';
+    if (avg >= 75) return 'happy';
     return 'idle';
   }
 
   function render() {
+    // 원형 게이지 갱신: pct, 색, critical pulse
     for (const g of GAUGES) {
       const v = state[g];
-      const el = fills[g];
-      if (!el) continue;
-      el.style.width = v + '%';
-      el.classList.toggle('is-low', v <= 25);
+      const els = gaugeEls[g];
+      if (!els) continue;
+      els.circle.style.setProperty('--pct', v);
+      els.circle.style.setProperty('--col', colorForGauge(g, v));
+      els.pct.textContent = v;
+      els.circle.classList.toggle('is-critical', v <= 20);
     }
 
     const s = pickPuppyState();
@@ -596,6 +650,29 @@
 
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
+
+    // mood 데이터 — puppy-wrap에 data-mood 부여, stage에 mood-overlay 추가
+    const crit = criticalLowGauge();
+    if (crit) {
+      puppyWrap.dataset.mood = crit;
+    } else {
+      delete puppyWrap.dataset.mood;
+    }
+    // overlay element 관리
+    const stageEl = document.querySelector('.stage');
+    let ov = stageEl.querySelector('.mood-overlay');
+    if (crit) {
+      if (!ov) { ov = document.createElement('div'); ov.className = 'mood-overlay'; stageEl.appendChild(ov); }
+      ov.className = 'mood-overlay ' + (GAUGE_MOODS[crit]?.overlay === 'happy' ? 'happy' : GAUGE_MOODS[crit]?.overlay === 'hunger' ? 'hunger' : GAUGE_MOODS[crit]?.overlay === 'clean' ? 'dirty' : 'sleepy');
+    } else if (ov) { ov.remove(); }
+
+    // 액션 dim — 거부 상태일 때
+    actionBtns.forEach(btn => {
+      const a = btn.dataset.action;
+      if (!a) return;
+      const blocked = !!crit && a !== 'minigame' && ACTION_GAUGE[a] !== crit;
+      btn.classList.toggle('is-blocked', blocked);
+    });
 
     if (root) {
       root.dataset.stage = stage;
@@ -977,6 +1054,20 @@
   }
 
   function openMinigame() {
+    // 에너지 너무 낮으면 거부
+    if (state.energy <= 20) {
+      const body = document.createElement('div');
+      const p = document.createElement('p');
+      p.className = 'modal-sub';
+      p.textContent = '💤 졸려서 놀 수 없어요. 먼저 재워 주세요.';
+      body.appendChild(p);
+      const btn = document.createElement('button');
+      btn.className = 'modal-btn'; btn.type = 'button'; btn.textContent = '알겠어요';
+      btn.addEventListener('click', () => closeModal());
+      body.appendChild(btn);
+      openModal({ title: '잠이 와요...', body });
+      return;
+    }
     if (minigameCooldownRemain() > 0) {
       const body = document.createElement('div');
       const sec = Math.ceil(minigameCooldownRemain() / 1000);
