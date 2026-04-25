@@ -39,6 +39,10 @@
         <button id="roomBtn" class="icon-btn" type="button" aria-label="강아지 방">
           <span class="icon" aria-hidden="true">🏠</span>
         </button>
+        <button id="vetBtn" class="icon-btn" type="button" aria-label="병원" hidden>
+          <span class="icon" aria-hidden="true">🏥</span>
+          <span class="dot" id="vetDot"></span>
+        </button>
         <button id="settingsBtn" class="icon-btn" type="button" aria-label="설정">
           <span class="icon" aria-hidden="true">⚙️</span>
         </button>
@@ -61,6 +65,7 @@
       </div>
       <div id="decoLayerBack" class="deco-layer deco-back" aria-hidden="true"></div>
       <div id="decoLayerFront" class="deco-layer deco-front" aria-hidden="true"></div>
+      <div id="messLayer" class="mess-layer" aria-hidden="true"></div>
       <div class="puppy-wrap">
         <img id="puppy" class="puppy" src="assets/puppy/idle.png" alt="강아지" draggable="false" />
         <div id="accHat" class="acc acc-hat" aria-hidden="true"></div>

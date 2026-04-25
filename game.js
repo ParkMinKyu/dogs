@@ -125,6 +125,13 @@
       if (!s.roomInv || typeof s.roomInv !== 'object') s.roomInv = {};
       if (!Array.isArray(s.roomLayout)) s.roomLayout = [];
       if (!s.lastReqTs || typeof s.lastReqTs !== 'object') s.lastReqTs = {};
+      if (!Array.isArray(s.messes)) s.messes = [];
+      if (s.sick && typeof s.sick === 'object') {
+        if (typeof s.sick.since !== 'number') s.sick = null;
+      } else { s.sick = null; }
+      if (typeof s.lowCleanSince !== 'number') s.lowCleanSince = 0;
+      if (!s.gaugeZeroSince || typeof s.gaugeZeroSince !== 'object') s.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null };
+      if (typeof s.gameOver !== 'boolean') s.gameOver = false;
       if (s.busy && typeof s.busy === 'object') {
         if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
       } else { s.busy = null; }
@@ -155,6 +162,11 @@
       roomInv: {},
       roomLayout: [],
       lastReqTs: {},
+      messes: [],
+      sick: null,
+      lowCleanSince: 0,
+      gaugeZeroSince: { hunger: null, happy: null, clean: null, energy: null },
+      gameOver: false,
       busy: null,
       missions: { date: '', list: [] },
     };
@@ -319,6 +331,7 @@
   const shopBtn    = $('#shopBtn');
   const missionBtn = $('#missionBtn');
   const roomBtn    = $('#roomBtn');
+  const vetBtn     = $('#vetBtn');
   const missionDot = $('#missionDot');
   const modalRoot  = $('#modalRoot');
   const accHatEl   = $('#accHat');
@@ -530,13 +543,111 @@
   function tickDecay() {
     if (decayPaused) { state.lastTs = Date.now(); return; }
     for (const g of GAUGES) {
-      state[g] = clamp(state[g] - DECAY_PER_TICK);
+      let dec = DECAY_PER_TICK;
+      // mess가 있으면 청결 추가 감소 (개수 비례)
+      if (g === 'clean' && state.messes && state.messes.length > 0) {
+        dec += state.messes.length * 2;
+      }
+      // sick — 행복 추가 감소
+      if (g === 'happy' && state.sick) dec += 2;
+      state[g] = clamp(state[g] - dec);
     }
     state.lastTs = Date.now();
+    // 청결 ≤10 추적 — 5분 이상이면 sick
+    const now = Date.now();
+    if (state.clean <= 10) {
+      if (!state.lowCleanSince) state.lowCleanSince = now;
+      if (!state.sick && now - state.lowCleanSince > 5 * 60 * 1000) {
+        state.sick = { since: now };
+      }
+    } else {
+      state.lowCleanSince = 0;
+    }
+    // 여러 게이지 동시 ≤10 → 즉시 sick
+    if (!state.sick && GAUGES.filter(g => state[g] <= 10).length >= 2) {
+      state.sick = { since: now };
+    }
+    // 무작위 5%/30분 sick
+    if (!state.sick && Math.random() < 0.05 / (30 * 60 * 1000 / TICK_MS)) {
+      state.sick = { since: now };
+    }
+    // 게이지 0 추적 (가출 게임오버용)
+    for (const g of GAUGES) {
+      if (state[g] <= 0) {
+        if (!state.gaugeZeroSince[g]) state.gaugeZeroSince[g] = now;
+      } else {
+        state.gaugeZeroSince[g] = null;
+      }
+    }
+    // 가출 조건
+    const zeroes = GAUGES.filter(g => state.gaugeZeroSince[g]);
+    let runaway = false;
+    if (!state.gameOver) {
+      // 3개 이상 동시 0 — 15분
+      if (zeroes.length >= 3) {
+        const oldest = Math.min(...zeroes.map(g => state.gaugeZeroSince[g]));
+        if (now - oldest >= 15 * 60 * 1000) runaway = true;
+      }
+      // 단일 게이지 60분
+      for (const g of zeroes) {
+        if (now - state.gaugeZeroSince[g] >= 60 * 60 * 1000) { runaway = true; break; }
+      }
+      // sick 30분 무방치
+      if (state.sick && now - state.sick.since >= 30 * 60 * 1000) runaway = true;
+    }
+    if (runaway) triggerRunaway();
     saveState();
     render();
   }
   setInterval(tickDecay, TICK_MS);
+
+  // ----- 똥/오줌 spawn (5~10분에 한 번) ----------------------------------
+  const MESS_INTERVAL_MIN = 5 * 60 * 1000;
+  const MESS_INTERVAL_RANGE = 5 * 60 * 1000; // 5~10분
+  let nextMessAt = Date.now() + MESS_INTERVAL_MIN + Math.random() * MESS_INTERVAL_RANGE;
+  function maybeSpawnMess() {
+    if (state.busy) return;
+    if (Date.now() < nextMessAt) return;
+    nextMessAt = Date.now() + MESS_INTERVAL_MIN + Math.random() * MESS_INTERVAL_RANGE;
+    if (state.messes.length >= 4) return; // 너무 많이 X
+    const type = Math.random() < 0.7 ? 'poop' : 'pee';
+    const x = 12 + Math.random() * 76;
+    const y = 70 + Math.random() * 18; // 바닥 쪽
+    state.messes.push({ type, x, y, ts: Date.now() });
+    saveState();
+    flashBubble(type === 'poop' ? '💩' : '💧');
+    render();
+  }
+  setInterval(maybeSpawnMess, 30 * 1000);
+
+  // mess 렌더 + 청소 핸들러
+  function renderMessLayer() {
+    const layer = document.getElementById('messLayer');
+    if (!layer) return;
+    layer.innerHTML = '';
+    (state.messes || []).forEach((m, idx) => {
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'mess-item';
+      el.innerHTML = (m.type === 'poop' ? '💩' : '💧') + '<span class="fly">🪰</span>';
+      el.style.left = m.x + '%';
+      el.style.top  = m.y + '%';
+      el.dataset.idx = idx;
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // 청소
+        state.messes.splice(idx, 1);
+        state.clean = clamp(state.clean + 5);
+        addCareScore();
+        try { SOUNDS.splash(); } catch {}
+        flashBubble('✨');
+        showGaugeDelta('clean', 5);
+        saveState();
+        render();
+      });
+      layer.appendChild(el);
+    });
+  }
 
   // ----- Actions ----------------------------------------------------------
   actionBtns.forEach(btn => {
@@ -1053,6 +1164,10 @@
     renderActionCooldowns();
     renderMissionDot();
     renderRoomDeco();
+    renderMessLayer();
+    // 아플 때 — 병원 버튼 노출 + sick 클래스
+    if (vetBtn) vetBtn.hidden = !state.sick;
+    document.body.classList.toggle('is-sick', !!state.sick);
     applyTod();
   }
 
@@ -2778,6 +2893,94 @@
 
   // in-app "처음부터 다시" — ?nuke=1 페이지로 navigate (가장 확실한 청소).
   // hardReset을 직접 호출하는 대신 nuke URL 진입으로 옛 IIFE/SW 메모리도 함께 폐기.
+  // ----- 게임오버 (가출) ----------------------------------------------------
+  function triggerRunaway() {
+    if (state.gameOver) return;
+    state.gameOver = true;
+    saveState();
+    // 가출 연출 — 강아지 화면 밖으로
+    if (puppyWrap) {
+      puppyWrap.dataset.direction = 'right';
+      puppyWrap.style.transition = 'left 4s linear, opacity 4s';
+      puppyWrap.style.left = '120%';
+      puppyWrap.style.opacity = '0';
+    }
+    setTimeout(() => openGameOverModal(), 3500);
+  }
+  function openGameOverModal() {
+    const body = document.createElement('div');
+    const p = document.createElement('p');
+    p.className = 'modal-sub';
+    const nm = state.name || '강아지';
+    p.innerHTML = `${nameWithSubject(nm)} 너무 외로워서 떠나갔어요...<br><br>
+      함께한 추억:<br>
+      🌟 케어포인트 ${state.points || 0}점<br>
+      🐾 ${state.care} 진화점수<br>
+      🛍 보유 액세서리 ${Object.keys(state.inventory||{}).length}개`;
+    body.appendChild(p);
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'modal-btn danger'; btn.textContent = '🔄 다시 시작';
+    btn.addEventListener('click', () => { performReset(); });
+    body.appendChild(btn);
+    openModal({ title: '강아지가 떠났어요', body, mandatory: true });
+  }
+
+  // ----- 병원 -------------------------------------------------------------
+  const VET_COST = 50;
+  function openVetModal() {
+    const body = document.createElement('div');
+    const p = document.createElement('p');
+    p.className = 'modal-sub';
+    const nm = state.name || '강아지';
+    if (!state.sick) {
+      p.textContent = '강아지가 건강해요! 😊';
+      body.appendChild(p);
+      const ok = document.createElement('button');
+      ok.type = 'button'; ok.className = 'modal-btn'; ok.textContent = '확인';
+      ok.addEventListener('click', () => closeModal());
+      body.appendChild(ok);
+      openModal({ title: '🏥 병원', body });
+      return;
+    }
+    p.innerHTML = `${nameWithSubject(nm)} 아파요 🤒<br>병원에 갈까요?<br><br>케어 점수 ${VET_COST} 소모`;
+    body.appendChild(p);
+    const yes = document.createElement('button');
+    yes.type = 'button'; yes.className = 'modal-btn';
+    yes.textContent = '네, 병원 가요';
+    yes.addEventListener('click', () => {
+      if ((state.points || 0) < VET_COST) {
+        flashBubble('💸 점수 부족!');
+        return;
+      }
+      state.points -= VET_COST;
+      // 5초 진행 — busy 시뮬
+      closeModal();
+      const stageEl = document.querySelector('.stage');
+      if (stageEl) {
+        const cel = document.createElement('div');
+        cel.className = 'wash-celebrate';
+        cel.textContent = '🏥 진료 중...';
+        stageEl.appendChild(cel);
+        setTimeout(() => cel.remove(), 4500);
+      }
+      setTimeout(() => {
+        state.sick = null;
+        state.happy = clamp(state.happy + 20);
+        for (const g of GAUGES) state[g] = clamp(state[g] + 10);
+        saveState(); render();
+        SOUNDS.fanfare();
+        flashBubble('💖 다 나았어요!');
+      }, 5000);
+    });
+    body.appendChild(yes);
+    const no = document.createElement('button');
+    no.type = 'button'; no.className = 'modal-btn secondary'; no.textContent = '나중에';
+    no.style.marginTop = '8px';
+    no.addEventListener('click', () => closeModal());
+    body.appendChild(no);
+    openModal({ title: '🏥 병원', body });
+  }
+
   function performReset() {
     try { location.replace(location.pathname + '?nuke=1&t=' + Date.now()); }
     catch { hardReset(); }
@@ -2788,6 +2991,7 @@
   shopBtn.addEventListener('click', () => { SOUNDS.pop(); openShopModal(); });
   missionBtn.addEventListener('click', () => { SOUNDS.pop(); openMissionsModal(); });
   roomBtn?.addEventListener('click', () => { SOUNDS.pop(); openRoomModal(); });
+  vetBtn?.addEventListener('click', () => { SOUNDS.pop(); openVetModal(); });
 
   // ----- visibility / lifecycle -------------------------------------------
   document.addEventListener('visibilitychange', () => {
