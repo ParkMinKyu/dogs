@@ -1199,14 +1199,16 @@
     return 'idle';
   }
 
-  // 시바 puppy idle 4프레임 swap (200ms)
+  // 시바 puppy 4표정 4프레임 swap (200ms) — anim 모드 표정 attribute 사용
   let shibaFrame = 0;
+  const SHIBA_MOODS = ['idle', 'happy', 'eating', 'sad', 'sleeping'];
   setInterval(() => {
-    if (puppyWrap?.classList.contains('shiba-idle-anim')) {
-      shibaFrame = (shibaFrame + 1) % 4;
-      const next = `assets/puppy/shiba_idle_f${shibaFrame}.png`;
-      if (puppyEl && !puppyEl.src.endsWith(next)) puppyEl.src = next;
-    }
+    if (!puppyWrap?.classList.contains('shiba-anim')) return;
+    const mood = puppyWrap.dataset.shibaMood;
+    if (!mood || !SHIBA_MOODS.includes(mood)) return;
+    shibaFrame = (shibaFrame + 1) % 4;
+    const next = `assets/puppy/shiba_${mood}_f${shibaFrame}.png`;
+    if (puppyEl && !puppyEl.src.endsWith(next)) puppyEl.src = next;
   }, 200);
 
   function render() {
@@ -1232,19 +1234,23 @@
 
     const s = pickPuppyState();
     const stage = state.stage || 'puppy';
-    const useShibaIdle = (state.breed === 'shiba') && (stage === 'puppy') && (s === 'idle');
-    // 시바 puppy idle 시 frame swap interval이 src 관리 — render는 frame0으로만 init
-    if (useShibaIdle) {
-      const want = `assets/puppy/shiba_idle_f${shibaFrame}.png`;
+    // 시바 puppy + 5표정 모두 sprite sheet animation 적용 (busy 시도 표정 따라감)
+    const useShibaAnim = (state.breed === 'shiba') && (stage === 'puppy') && SHIBA_MOODS.includes(s);
+    if (useShibaAnim) {
+      const want = `assets/puppy/shiba_${s}_f${shibaFrame}.png`;
       if (!puppyEl.src.endsWith(want)) puppyEl.src = want;
+      puppyWrap.dataset.shibaMood = s;
     } else {
       const src = `assets/${stage}/${s}.png`;
       if (!puppyEl.src.endsWith(src)) puppyEl.src = src;
+      delete puppyWrap.dataset.shibaMood;
     }
 
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
-    puppyWrap.classList.toggle('shiba-idle-anim', useShibaIdle);
+    puppyWrap.classList.toggle('shiba-anim', useShibaAnim);
+    // 하위 호환: 옛 클래스명 유지 (CSS는 shiba-anim로 통일)
+    puppyWrap.classList.toggle('shiba-idle-anim', useShibaAnim && s === 'idle');
 
     // mood 데이터 — puppy-wrap에 data-mood 부여, stage에 mood-overlay 추가
     const crit = criticalLowGauge();

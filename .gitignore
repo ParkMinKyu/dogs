@@ -15,5 +15,9 @@ _seed*.html
 _test*.html
 _inspect*.html
 
-# 큰 원본 sprite (sheet만 트래킹)
+# 큰 원본 sprite (다운샘플 결과만 트래킹)
 assets/puppy/shiba_idle.png
+assets/puppy/shiba_happy.png
+assets/puppy/shiba_eating.png
+assets/puppy/shiba_sad.png
+assets/puppy/shiba_sleeping.png
