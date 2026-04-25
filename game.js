@@ -2838,11 +2838,9 @@
   }
 
   function openMinigame() {
-    // 에너지 너무 낮으면 거부
     if (state.energy <= 20) {
       const body = document.createElement('div');
-      const p = document.createElement('p');
-      p.className = 'modal-sub';
+      const p = document.createElement('p'); p.className = 'modal-sub';
       p.textContent = '💤 졸려서 놀 수 없어요. 먼저 재워 주세요.';
       body.appendChild(p);
       const btn = document.createElement('button');
@@ -2871,13 +2869,11 @@
     decayPaused = true;
     const body = document.createElement('div');
 
-    // 안내 박스
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🎾 공이 떨어지지 않게 <b>톡톡!</b> 눌러요';
+    guide.innerHTML = '🎾 강아지를 움직여서 <b>공을 머리로 받아요!</b>';
     body.appendChild(guide);
 
-    // 통계 (시간/콤보/점수) + 타이머 막대
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
     const timeEl = document.createElement('span');
@@ -2891,18 +2887,15 @@
     stats.appendChild(scoreEl);
     body.appendChild(stats);
 
-    const tBar = document.createElement('div');
-    tBar.className = 'mg-timebar';
-    const tFill = document.createElement('div');
-    tFill.className = 'mg-timebar-fill';
-    tBar.appendChild(tFill);
-    body.appendChild(tBar);
+    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill); body.appendChild(tBar);
 
     const arena = document.createElement('div');
-    arena.className = 'minigame-arena big';
+    arena.className = 'minigame-arena big keepup-arena';
     arena.dataset.breed = state.breed || 'shiba';
     const dog = document.createElement('img');
-    dog.className = 'mg-dog';
+    dog.className = 'mg-dog keepup-dog';
     dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
     arena.appendChild(dog);
 
@@ -2910,6 +2903,10 @@
     ball.className = 'mg-ball';
     ball.textContent = '🎾';
     arena.appendChild(ball);
+
+    const shadow = document.createElement('div');
+    shadow.className = 'keepup-shadow';
+    arena.appendChild(shadow);
 
     const comboPop = document.createElement('div');
     comboPop.className = 'mg-combo-pop';
@@ -2924,41 +2921,39 @@
     endBtn.style.marginTop = '6px';
     body.appendChild(endBtn);
 
-    // 게임 상태
     let score = 0;
     let combo = 0;
-    let lastTapMs = 0;
+    let lastBounceMs = 0;
     const COMBO_WINDOW_MS = 1000;
     const TOTAL_MS = 30000;
     let endedFlag = false;
 
-    // 공 물리: arena 내 좌표(x: center, y: center). px / sec 단위 속도.
+    // 공 물리 — arena 좌표
     let bx = 0, by = 0, vx = 0, vy = 0;
-    const GRAVITY = 1100;       // px/s^2
-    const TAP_VY = -680;        // 위로 튀어오를 때 vy
-    const TAP_VX_RANGE = 220;   // 좌우 랜덤 ±
-    const BALL_RADIUS = 26;
+    const GRAVITY = 700;
+    const BOUNCE_VY = -560;
+    const BALL_R = 26;
+    let dogX = null;
+    const DOG_HALF = 50;
+
     let lastFrame = performance.now();
     let started = lastFrame;
-    let dogX = null;
-    let scaredUntil = 0; // 공 떨어진 직후 강아지 "어어!" 표정
 
     function arenaRect() { return arena.getBoundingClientRect(); }
 
+    function spawnBall() {
+      const r = arenaRect();
+      bx = 60 + Math.random() * (r.width - 120);
+      by = -10;
+      vx = (Math.random() - 0.5) * 80;
+      vy = 0;
+      ball.classList.remove('mg-ball-popped','mg-ball-fade','mg-ball-thrown');
+      ball.style.opacity = '1';
+      placeBall();
+    }
     function placeBall() {
       ball.style.left = bx + 'px';
       ball.style.top  = by + 'px';
-    }
-
-    function spawnBall() {
-      const r = arenaRect();
-      bx = r.width / 2;
-      by = r.height * 0.4;
-      vx = 0;
-      vy = TAP_VY * 0.6; // 부드럽게 살짝 띄움
-      ball.classList.remove('mg-ball-popped', 'mg-ball-fade');
-      ball.style.opacity = '1';
-      placeBall();
     }
 
     function showCombo(text, big) {
@@ -2969,39 +2964,27 @@
       if (big) comboPop.classList.add('big');
     }
 
-    function onTap(e) {
-      if (e) { e.stopPropagation(); if (e.preventDefault) e.preventDefault(); }
-      if (endedFlag) return;
-      // 콤보 갱신
-      const now = performance.now();
-      if (now - lastTapMs <= COMBO_WINDOW_MS) combo += 1;
-      else combo = 1;
-      lastTapMs = now;
-      const mul = combo >= 5 ? 5 : combo >= 3 ? 3 : combo >= 2 ? 2 : 1;
-      score += mul;
-      scoreEl.textContent = '🎯 ' + score;
-      comboEl.textContent = combo >= 2 ? `🔥 ${combo}` : '';
-      if (combo >= 2) showCombo(`콤보 ×${mul}!`, mul >= 3);
-      // 공 위로 튕김
-      vy = TAP_VY - Math.random() * 80;
-      vx = (Math.random() - 0.5) * TAP_VX_RANGE;
-      ball.classList.remove('mg-ball-thrown');
-      void ball.offsetWidth;
-      ball.classList.add('mg-ball-thrown');
-      // 사운드
-      SOUNDS.bounce();
-      // 작은 sparkle
-      const sp = document.createElement('div');
-      sp.className = 'mg-sparkle';
-      sp.textContent = '✨';
-      sp.style.left = bx + 'px';
-      sp.style.top = by + 'px';
-      arena.appendChild(sp);
-      setTimeout(() => sp.remove(), 400);
+    // 사용자 입력 — 강아지 target X 업데이트
+    function setDogTarget(clientX) {
+      const r = arenaRect();
+      const x = clientX - r.left;
+      dogX = Math.max(DOG_HALF, Math.min(r.width - DOG_HALF, x));
     }
-
-    ball.addEventListener('click', onTap);
-    ball.addEventListener('touchstart', onTap, { passive: false });
+    function onPointer(e) {
+      if (endedFlag) return;
+      e.preventDefault();
+      setDogTarget(e.clientX);
+    }
+    function onTouchMove(e) {
+      if (endedFlag) return;
+      const t = e.touches[0]; if (!t) return;
+      e.preventDefault();
+      setDogTarget(t.clientX);
+    }
+    arena.addEventListener('pointerdown', onPointer);
+    arena.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType !== 'mouse') onPointer(e); });
+    arena.addEventListener('touchstart', onTouchMove, { passive: false });
+    arena.addEventListener('touchmove', onTouchMove, { passive: false });
 
     function step(now) {
       if (endedFlag) return;
@@ -3009,60 +2992,78 @@
       lastFrame = now;
       const elapsed = now - started;
       const remain = Math.max(0, TOTAL_MS - elapsed);
-
       timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
       tFill.style.width = (remain / TOTAL_MS * 100) + '%';
-      if (remain < 10000) tFill.classList.add('low');
-      else tFill.classList.remove('low');
+      if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
 
-      // 콤보 만료
-      if (combo > 0 && now - lastTapMs > COMBO_WINDOW_MS) {
-        combo = 0;
-        comboEl.textContent = '';
-      }
+      const r = arenaRect();
+      if (dogX === null) dogX = r.width / 2;
+
+      // 강아지 부드럽게 target으로 이동
+      dog.style.left = dogX + 'px';
+      dog.style.transform = 'translateX(-50%)';
 
       // 공 물리
-      const r = arenaRect();
       vy += GRAVITY * dt;
       bx += vx * dt;
       by += vy * dt;
       // 좌우 벽
-      if (bx < BALL_RADIUS) { bx = BALL_RADIUS; vx = Math.abs(vx) * 0.6; }
-      if (bx > r.width - BALL_RADIUS) { bx = r.width - BALL_RADIUS; vx = -Math.abs(vx) * 0.6; }
-      // 위쪽 천장
-      if (by < BALL_RADIUS) { by = BALL_RADIUS; vy = Math.abs(vy) * 0.4; }
-      placeBall();
+      if (bx < BALL_R) { bx = BALL_R; vx = Math.abs(vx) * 0.6; }
+      if (bx > r.width - BALL_R) { bx = r.width - BALL_R; vx = -Math.abs(vx) * 0.6; }
+      // 위 천장
+      if (by < BALL_R) { by = BALL_R; vy = Math.abs(vy) * 0.4; }
 
-      // 강아지 시선 따라가기 — dog x를 ball x 쪽으로 부드럽게
-      if (dogX === null) dogX = r.width / 2;
-      const targetDX = bx;
-      const dxd = targetDX - dogX;
-      dogX += Math.sign(dxd) * Math.min(Math.abs(dxd), 240 * dt);
-      dog.style.left = dogX + 'px';
-      dog.style.transform = 'translateX(-50%)';
-      // 공이 강아지 머리 위 zone에 있으면 happy, 떨어지는 중이면 평소
-      if (now < scaredUntil) {
-        dog.src = `assets/${state.stage || 'puppy'}/sad.png`;
-      } else {
-        dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+      // 그림자 — 공 X에 따라 바닥에 표시
+      const shadowSize = Math.max(20, 50 - by * 0.04);
+      shadow.style.left = bx + 'px';
+      shadow.style.width = shadowSize + 'px';
+      shadow.style.opacity = Math.max(0.2, Math.min(0.6, 1 - by / r.height));
+
+      // 충돌 감지 — 공이 떨어지는 중이고 강아지 머리 zone에 들어옴
+      const headY = r.height - 110; // 강아지 머리 대략 높이
+      if (vy > 0 && by >= headY - 20 && by <= headY + 30) {
+        const dx = bx - dogX;
+        if (Math.abs(dx) < DOG_HALF + BALL_R - 6) {
+          // 자동 튕김
+          vy = BOUNCE_VY - Math.random() * 60;
+          vx = (Math.random() - 0.5) * 220 + dx * 4;
+          by = headY - 22;
+          // 콤보
+          if (now - lastBounceMs <= COMBO_WINDOW_MS) combo += 1;
+          else combo = 1;
+          lastBounceMs = now;
+          const mul = combo >= 5 ? 5 : combo >= 3 ? 3 : combo >= 2 ? 2 : 1;
+          score += mul;
+          scoreEl.textContent = '🎯 ' + score;
+          comboEl.textContent = combo >= 2 ? `🔥 ${combo}` : '';
+          if (combo >= 2) showCombo(`콤보 ×${mul}!`, mul >= 3);
+          try { SOUNDS.bounce(); } catch {}
+          // 강아지 살짝 점프
+          dog.classList.remove('keepup-jump'); void dog.offsetWidth; dog.classList.add('keepup-jump');
+          // sparkle
+          const sp = document.createElement('div');
+          sp.className = 'mg-sparkle';
+          sp.textContent = '✨';
+          sp.style.left = bx + 'px';
+          sp.style.top = headY + 'px';
+          arena.appendChild(sp);
+          setTimeout(() => sp.remove(), 400);
+        }
       }
 
-      // 바닥 충돌
-      const floor = r.height - BALL_RADIUS - 10;
-      if (by >= floor) {
-        // 공 떨어짐 — round 종료, 새 공 등장
-        scaredUntil = now + 700;
-        ball.classList.add('mg-ball-popped');
-        SOUNDS.pop();
+      placeBall();
+
+      // 콤보 만료
+      if (combo > 0 && now - lastBounceMs > COMBO_WINDOW_MS) {
+        combo = 0;
+        comboEl.textContent = '';
+      }
+
+      // 바닥 — 새 공
+      if (by > r.height - BALL_R - 10) {
+        try { SOUNDS.pop(); } catch {}
         flashBubble('😯');
-        setTimeout(() => {
-          if (endedFlag) return;
-          spawnBall();
-        }, 600);
-        // 잠시 ball을 멈춰둠
-        vx = 0; vy = 0;
-        by = floor;
-        placeBall();
+        spawnBall();
       }
 
       if (remain <= 0) { endGame(); return; }
@@ -3073,11 +3074,11 @@
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
-      // 보상
       let happyGain, careBoost, msg;
-      if (score >= 25) { happyGain = 50; careBoost = 3; msg = '최고! 🎉'; }
-      else if (score >= 10) { happyGain = 30; careBoost = 2; msg = '잘했어요! 💖'; }
-      else { happyGain = 20; careBoost = 1; msg = '재밌었지? 🐾'; }
+      if (score >= 25)      { happyGain = 50; careBoost = 3; msg = '최고! 🎉'; }
+      else if (score >= 15) { happyGain = 35; careBoost = 2; msg = '잘했어요!'; }
+      else if (score >= 5)  { happyGain = 25; careBoost = 1; msg = '좋아요!'; }
+      else                   { happyGain = 15; careBoost = 0; msg = '재밌었지?'; }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
         state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
@@ -3086,23 +3087,18 @@
       state.points = (state.points || 0) + score;
       markPlayDone('ball');
       progressMission('minigame', 1);
-      saveState();
-      render();
-      SOUNDS.fanfare();
+      saveState(); render(); SOUNDS.fanfare();
 
-      const resultBody = document.createElement('div');
-      const p = document.createElement('p');
-      p.className = 'modal-sub';
+      const rb = document.createElement('div');
+      const p = document.createElement('p'); p.className = 'modal-sub';
       const nm = state.name || '강아지';
-      p.innerHTML = `🎉 <b>${score}점!</b><br>${nameTopic(nm)} 행복해해요 💖<br><span style="color:#c47b00">${msg}</span>`;
-      resultBody.appendChild(p);
+      p.innerHTML = `🎉 <b>${score}점!</b><br>${nameTopic(nm)} 행복해해요 💖<br><span style="color:#c47b00">${msg}</span><br><span style="font-size:13px;color:#836a55">행복 +${happyGain}${careBoost ? `, 케어 +${careBoost}` : ''}</span>`;
+      rb.appendChild(p);
       const ok = document.createElement('button');
-      ok.className = 'modal-btn';
-      ok.type = 'button';
-      ok.textContent = '좋아요';
+      ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
       ok.addEventListener('click', () => closeModal());
-      resultBody.appendChild(ok);
-      openModal({ title: '공놀이 끝!', body: resultBody, mandatory: true });
+      rb.appendChild(ok);
+      openModal({ title: '공놀이 끝!', body: rb, mandatory: true });
     }
 
     endBtn.addEventListener('click', () => endGame());
@@ -3127,6 +3123,7 @@
       requestAnimationFrame(step);
     }, 80);
   }
+
 
 
   // ----- 설정 모달 --------------------------------------------------------

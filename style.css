@@ -1372,6 +1372,26 @@ body.is-sick #vetBtn .dot { display: block; }
   touch-action: none;
 }
 .minigame-arena.big { height: 360px; }
+
+/* 공놀이 keep-up — 자동 충돌 방식 */
+.minigame-arena.keepup-arena { background: linear-gradient(180deg, #d9efff 0%, #fff7ec 60%, #f6c993 100%); cursor: pointer; touch-action: none; }
+.keepup-dog { bottom: 16%; width: 100px; height: 100px; transition: left 100ms linear; }
+.keepup-dog.keepup-jump { animation: keepup-jump 280ms ease; }
+@keyframes keepup-jump {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(-22px); }
+}
+.keepup-shadow {
+  position: absolute;
+  bottom: 8%;
+  width: 40px;
+  height: 8px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  filter: blur(2px);
+}
 .minigame-arena .mg-dog {
   position: absolute;
   bottom: 8px;
