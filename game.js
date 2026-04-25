@@ -1188,6 +1188,9 @@
     const now = Date.now();
     if (tempFaceState && now < tempFaceUntil) return tempFaceState;
 
+    // 아플 때 — sad sprite 우선 (게이지 정상이어도 슬픔)
+    if (state.sick) return 'sad';
+
     // 게이지 ≤30% 가장 낮은 거에 우선순위 부여
     const lows = GAUGES.filter(g => state[g] <= 30);
     if (lows.length) {
