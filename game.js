@@ -858,13 +858,33 @@
   // ----- Busy / 진행 시스템 ----------------------------------------------
   let busyTimerId = null;
 
+  // 액션별 강아지 이동 목표 위치 (prop 위치와 일치)
+  const ACTION_DOG_POS = {
+    feed:  { x: 36, y: 86 }, // 그릇이 left:30%, 강아지는 옆에
+    wash:  { x: 50, y: 82 }, // 욕조 중앙
+    sleep: { x: 50, y: 86 }, // 쿠션 위
+  };
+  function moveDogToActionPos(action) {
+    const pos = ACTION_DOG_POS[action];
+    if (!pos || !puppyWrap) return;
+    const oldX = wanderX;
+    wanderX = pos.x;
+    wanderY = pos.y;
+    puppyWrap.dataset.direction = pos.x < oldX ? 'left' : 'right';
+    puppyWrap.style.left = pos.x + '%';
+    puppyWrap.style.bottom = (100 - pos.y) + '%';
+    updateDepthSort();
+  }
+
   function startBusyAction(action) {
     const dur = ACTION_DURATION[action] || 0;
+    // 강아지를 액션 prop 위치로 이동 (wash/sleep/feed)
+    moveDogToActionPos(action);
     // wash는 무제한 — endsAt null
     if (action === 'wash') {
       state.busy = { action: 'wash', startedAt: Date.now(), endsAt: null };
       tempFaceState = ACTION_FACE.wash?.state;
-      tempFaceUntil = Date.now() + 60000; // 길게 잡고, finishBusy에서 reset
+      tempFaceUntil = Date.now() + 60000;
       saveState();
       render();
       return;
