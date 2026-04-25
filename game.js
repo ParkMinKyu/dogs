@@ -95,17 +95,21 @@
       if (typeof s.lastTs !== 'number') s.lastTs = Date.now();
       if (typeof s.care !== 'number') s.care = 0;
       if (typeof s.careLastTick !== 'number') s.careLastTick = 0;
-      // 마이그레이션 — 임계값이 올라옴: 30/100 → 60/300 → 180/900.
-      // care === 0 은 fresh state. 절대 건드리지 않는다 (reset 후 무조건 아기).
-      // 0 < care < 30 (옛 아기): 그대로
-      // 30 <= care < 100 (옛 청소년): 180 으로 boost — 새 임계값에서 청소년 유지
-      // care >= 100 (옛/현 어른): 900 으로 boost — 어른 유지
-      if (s.care > 0) {
-        if (s.care >= 100) s.care = Math.max(s.care, 900);
-        else if (s.care >= 30) s.care = Math.max(s.care, 180);
+      // 마이그레이션 — 한 번만! schemaVersion 으로 가드.
+      // 옛 임계값 30/100 또는 60/300 → 새 180/900으로 옮길 때만 boost.
+      // care === 0 fresh state는 절대 건드리지 않음 (reset 후 무조건 아기).
+      const SCHEMA = 3;
+      if (typeof s.schemaVer !== 'number') s.schemaVer = 0;
+      if (s.schemaVer < SCHEMA && s.care > 0) {
+        // care=180 이상은 이미 새 스케일 → 건드리지 않음.
+        // 100~179 (옛 어른): 900 으로
+        // 30~99 (옛 청소년): 180 으로
+        if (s.care >= 100 && s.care < 180) s.care = 900;
+        else if (s.care >= 30 && s.care < 100) s.care = 180;
       }
-      if (typeof s.stage !== 'string') s.stage = stageForCare(s.care);
-      else s.stage = stageForCare(s.care); // 마이그레이션 후 stage 재계산 보장
+      s.schemaVer = SCHEMA;
+      // stage는 항상 care로부터 재계산 (이전 stage 무시 — care가 source of truth)
+      s.stage = stageForCare(s.care);
       // P2 보강
       if (typeof s.name !== 'string') s.name = '';
       if (typeof s.breed !== 'string') s.breed = '';
@@ -132,6 +136,7 @@
       lastTs: Date.now(),
       care: 0,
       careLastTick: 0,
+      schemaVer: 3,
       stage: 'puppy',
       name: '',
       breed: '',
@@ -623,9 +628,14 @@
   function finishBusy() {
     if (!state.busy) return;
     const action = state.busy.action;
+    const scrub = state.washScrub || 0;
     state.busy = null;
+    state.washScrub = 0;
     applyActionEffect(action);
-    // 끝난 직후 happy 표정 잠깐
+    // 씻기 보너스 — 문지른 횟수만큼 청결 추가 (최대 +15)
+    if (action === 'wash' && scrub > 0) {
+      state.clean = clamp(state.clean + Math.min(15, scrub * 2));
+    }
     tempFaceState = 'happy';
     tempFaceUntil = Date.now() + 700;
     saveState();
@@ -654,6 +664,65 @@
     busyGaugeEl = null;
   }
 
+  // 액션별 prop (욕조/쿠션/그릇) 관리
+  function ensureProp(action) {
+    const stageEl = document.querySelector('.stage');
+    if (!stageEl) return null;
+    let el = stageEl.querySelector('.action-prop');
+    const desired = { feed: 'bowl', wash: 'bathtub', sleep: 'cushion' }[action];
+    if (!desired) { if (el) el.remove(); return null; }
+    if (!el || el.dataset.kind !== desired) {
+      if (el) el.remove();
+      el = document.createElement('div');
+      el.className = 'action-prop prop-' + desired;
+      el.dataset.kind = desired;
+      if (desired === 'bathtub') {
+        el.innerHTML = `
+          <div class="bath-bubbles">
+            <span style="left:8%;animation-delay:.1s">✨</span>
+            <span style="left:24%;animation-delay:.5s">✨</span>
+            <span style="left:42%;animation-delay:.2s">✨</span>
+            <span style="left:62%;animation-delay:.7s">✨</span>
+            <span style="left:80%;animation-delay:.3s">✨</span>
+          </div>
+          <div class="bath-water"></div>
+          <div class="bath-rim"></div>
+        `;
+        // 인터랙티브 — 강아지 탭하면 거품 +
+        el.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          if (!state.busy || state.busy.action !== 'wash') return;
+          state.washScrub = (state.washScrub || 0) + 1;
+          const sp = document.createElement('span');
+          sp.className = 'bath-scrub';
+          sp.textContent = ['✨','🫧','💧'][Math.floor(Math.random()*3)];
+          sp.style.left = (10 + Math.random()*80) + '%';
+          sp.style.top  = (Math.random()*30) + '%';
+          el.appendChild(sp);
+          setTimeout(() => sp.remove(), 600);
+        });
+      } else if (desired === 'cushion') {
+        el.innerHTML = `
+          <div class="cushion-zzz">
+            <span class="z z1">Z</span><span class="z z2">Z</span><span class="z z3">Z</span>
+          </div>
+          <div class="cushion-pad"></div>
+        `;
+      } else if (desired === 'bowl') {
+        el.innerHTML = `
+          <div class="bowl-rim"></div>
+          <div class="bowl-food"></div>
+        `;
+      }
+      stageEl.appendChild(el);
+    }
+    return el;
+  }
+  function removeProp() {
+    const el = document.querySelector('.stage .action-prop');
+    if (el) el.remove();
+  }
+
   // 매 100ms render 갱신용 tick
   setInterval(() => {
     if (state.busy) {
@@ -669,11 +738,21 @@
           const emo = { feed: '🍖', wash: '🫧', sleep: '💤' }[action] || '⏳';
           el.querySelector('.bg-emo').textContent = emo;
         }
+        ensureProp(state.busy.action);
+        // 욕조 진행 중 puppy-wrap 거품 효과 + 액세서리 잠시 숨김
+        if (state.busy.action === 'wash') {
+          puppyWrap.classList.add('is-bathing');
+        } else {
+          puppyWrap.classList.remove('is-bathing');
+        }
+        if (state.busy.action === 'sleep') puppyWrap.classList.add('is-on-cushion');
+        else puppyWrap.classList.remove('is-on-cushion');
       }
     } else {
       removeBusyGauge();
+      removeProp();
+      puppyWrap.classList.remove('is-bathing', 'is-on-cushion');
     }
-    // busy 상태에 따라 액션/헤더 disable
     const busy = !!state.busy && Date.now() < state.busy.endsAt;
     document.querySelectorAll('.action').forEach(b => b.classList.toggle('is-busy', busy));
     document.querySelectorAll('.icon-btn').forEach(b => b.classList.toggle('is-busy', busy));
@@ -751,12 +830,27 @@
     } else {
       delete puppyWrap.dataset.mood;
     }
-    // overlay element 관리
+    // 청결 레벨 4단계 — 점진적 더러움 (clean이 critical이 아니어도 50/30 단계 표현)
+    const cleanLevel = state.clean >= 70 ? 'clean'
+      : state.clean >= 50 ? 'mild'
+      : state.clean >= 30 ? 'dirty'
+      : 'filthy';
+    puppyWrap.dataset.cleanLevel = cleanLevel;
+
+    // overlay element 관리 — clean 레벨도 반영
     const stageEl = document.querySelector('.stage');
     let ov = stageEl.querySelector('.mood-overlay');
-    if (crit) {
+    let needOverlay = !!crit || cleanLevel === 'dirty' || cleanLevel === 'filthy';
+    if (needOverlay) {
       if (!ov) { ov = document.createElement('div'); ov.className = 'mood-overlay'; stageEl.appendChild(ov); }
-      ov.className = 'mood-overlay ' + (GAUGE_MOODS[crit]?.overlay === 'happy' ? 'happy' : GAUGE_MOODS[crit]?.overlay === 'hunger' ? 'hunger' : GAUGE_MOODS[crit]?.overlay === 'clean' ? 'dirty' : 'sleepy');
+      const cls = ['mood-overlay'];
+      if (crit === 'hunger') cls.push('hunger');
+      else if (crit === 'happy') cls.push('happy');
+      else if (crit === 'energy') cls.push('sleepy');
+      // 청결 별도 레벨
+      if (cleanLevel === 'filthy') cls.push('filthy');
+      else if (cleanLevel === 'dirty') cls.push('dirty');
+      ov.className = cls.join(' ');
     } else if (ov) { ov.remove(); }
 
     // 액션 dim — 거부 상태일 때
