@@ -39,18 +39,16 @@
 .app[data-breed="shiba"]   .puppy { filter: drop-shadow(0 6px 0 #00000018); }
 
 /* 시바 puppy idle — 4프레임 sprite sheet 애니메이션
-   shiba-idle-anim 활성화 시 원본 .puppy img는 가리고 ::after에 sheet 표시 */
-.puppy-wrap.shiba-idle-anim .puppy { visibility: hidden; }
-.puppy-wrap.shiba-idle-anim::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: url('assets/puppy/shiba_idle_sheet.png');
-  background-size: 400% 100%;
-  background-repeat: no-repeat;
+   .puppy <img> 자체에 background-image 덮어쓰고 src는 가린다 */
+.puppy-wrap.shiba-idle-anim .puppy {
+  background-image: url('assets/puppy/shiba_idle_sheet.png') !important;
+  background-size: 400% 100% !important;
+  background-repeat: no-repeat !important;
+  background-position: 0 0;
   image-rendering: pixelated;
-  animation: shiba-idle-cycle 0.8s steps(4) infinite;
-  pointer-events: none;
+  /* src 이미지 안 보이게 */
+  content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>') !important;
+  animation: shiba-idle-cycle 0.8s steps(4) infinite !important;
 }
 @keyframes shiba-idle-cycle {
   from { background-position: 0% 0%; }
