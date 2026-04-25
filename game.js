@@ -95,13 +95,15 @@
       if (typeof s.lastTs !== 'number') s.lastTs = Date.now();
       if (typeof s.care !== 'number') s.care = 0;
       if (typeof s.careLastTick !== 'number') s.careLastTick = 0;
-      // 마이그레이션 — 임계값이 점진적으로 올라옴: 30/100 → 60/300 → 180/900.
-      // 기존 단계를 유지하기 위한 보정:
-      //   어른이었던 사람(care >= 300, 또는 옛 100~299): care = 900 으로 어른 유지
-      //   청소년이었던 사람(care 60~299, 또는 옛 30~99): care = 180 으로 청소년 유지
-      //   아기는 그대로
-      if (s.care >= 100) s.care = Math.max(s.care, 900);
-      else if (s.care >= 30) s.care = Math.max(s.care, 180);
+      // 마이그레이션 — 임계값이 올라옴: 30/100 → 60/300 → 180/900.
+      // care === 0 은 fresh state. 절대 건드리지 않는다 (reset 후 무조건 아기).
+      // 0 < care < 30 (옛 아기): 그대로
+      // 30 <= care < 100 (옛 청소년): 180 으로 boost — 새 임계값에서 청소년 유지
+      // care >= 100 (옛/현 어른): 900 으로 boost — 어른 유지
+      if (s.care > 0) {
+        if (s.care >= 100) s.care = Math.max(s.care, 900);
+        else if (s.care >= 30) s.care = Math.max(s.care, 180);
+      }
       if (typeof s.stage !== 'string') s.stage = stageForCare(s.care);
       else s.stage = stageForCare(s.care); // 마이그레이션 후 stage 재계산 보장
       // P2 보강
@@ -969,20 +971,32 @@
 
     decayPaused = true;
     const body = document.createElement('div');
+
+    // 사용법 안내 박스 — 어린이도 한눈에
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = '🐾 노란 공을 <b>톡!</b> 누르면 강아지에게 던져요';
+    body.appendChild(guide);
+
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
     const timeEl = document.createElement('span');
+    const ballsEl = document.createElement('span');
     const scoreEl = document.createElement('span');
     timeEl.textContent = '⏱ 30';
+    ballsEl.textContent = '🎾 5';
     scoreEl.textContent = '🎯 0';
     stats.appendChild(timeEl);
+    stats.appendChild(ballsEl);
     stats.appendChild(scoreEl);
     body.appendChild(stats);
 
     const arena = document.createElement('div');
     arena.className = 'minigame-arena';
+    arena.dataset.breed = state.breed || 'shiba';
     const dog = document.createElement('img');
     dog.className = 'mg-dog';
+    // 메인 화면과 동일한 stage/표정 — happy 픽셀아트에 종별 색감 필터는 CSS에서
     dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
     arena.appendChild(dog);
 
@@ -991,13 +1005,15 @@
     ball.textContent = '🎾';
     arena.appendChild(ball);
 
-    body.appendChild(arena);
+    // 첫 진입 안내 화살표 — 3초 후 자동 사라짐
+    const tutArrow = document.createElement('div');
+    tutArrow.className = 'mg-tutorial';
+    tutArrow.innerHTML = '<span class="arrow">⬇</span><span class="word">여기 톡!</span>';
+    arena.appendChild(tutArrow);
+    setTimeout(() => tutArrow.classList.add('fade-out'), 2800);
+    setTimeout(() => tutArrow.remove(), 3500);
 
-    const hint = document.createElement('p');
-    hint.className = 'modal-hint';
-    hint.textContent = '공을 탭하면 강아지가 잡아요!';
-    hint.style.marginTop = '8px';
-    body.appendChild(hint);
+    body.appendChild(arena);
 
     const endBtn = document.createElement('button');
     endBtn.className = 'modal-btn secondary';
@@ -1041,6 +1057,7 @@
       };
       ballState = 'flying';
       throwsLeft -= 1;
+      ballsEl.textContent = '🎾 ' + throwsLeft;
       SOUNDS.bounce();
     }
 

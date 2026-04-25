@@ -57,6 +57,12 @@
 .app[data-breed="poodle"]  .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
 .app[data-breed="husky"]   .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
 
+/* 미니게임 강아지도 메인 강아지와 동일한 종별 색감 필터 */
+.minigame-arena[data-breed="shiba"]   .mg-dog { filter: drop-shadow(0 4px 0 #00000018); }
+.minigame-arena[data-breed="maltese"] .mg-dog { filter: drop-shadow(0 4px 0 #00000018) hue-rotate(-30deg) saturate(0.25) brightness(1.2); }
+.minigame-arena[data-breed="poodle"]  .mg-dog { filter: drop-shadow(0 4px 0 #00000018) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
+.minigame-arena[data-breed="husky"]   .mg-dog { filter: drop-shadow(0 4px 0 #00000018) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -821,10 +827,64 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 .minigame-stats {
   display: flex;
-  justify-content: space-between;
+  justify-content: space-around;
+  font-family: var(--font-display);
+  font-size: 16px;
+  padding: 6px 4px;
+  background: #fff7ec;
+  border-radius: 12px;
+  border: 2px solid #f1d9c2;
+  margin-bottom: 4px;
+}
+.minigame-stats span { white-space: nowrap; }
+
+.mg-guide {
+  background: linear-gradient(180deg, #fff5d1 0%, #ffe28a 100%);
+  border: 2px solid #f4c849;
+  border-radius: 14px;
+  padding: 8px 12px;
   font-family: var(--font-display);
   font-size: 14px;
-  padding: 0 6px;
+  color: #5b4a14;
+  text-align: center;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.mg-guide b { color: #c47b00; font-size: 16px; }
+
+.mg-tutorial {
+  position: absolute;
+  left: 50%;
+  bottom: 130px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  animation: mg-tut-bounce 0.7s ease-in-out infinite;
+  z-index: 5;
+}
+.mg-tutorial .arrow {
+  font-size: 32px;
+  color: #ff6633;
+  filter: drop-shadow(0 2px 0 #fff) drop-shadow(0 0 4px #ffd66e);
+  font-weight: bold;
+}
+.mg-tutorial .word {
+  background: #ff8855;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 0 rgba(0,0,0,0.15);
+}
+.mg-tutorial.fade-out { opacity: 0; transition: opacity 600ms ease; }
+@keyframes mg-tut-bounce {
+  0%, 100% { transform: translate(-50%, 0); }
+  50%      { transform: translate(-50%, -8px); }
 }
 
 /* ---------- Mobile tweaks ---------- */
