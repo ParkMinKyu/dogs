@@ -140,6 +140,8 @@
   }
 
   function stageForCare(care) {
+    // 0 또는 비정상 값은 무조건 puppy. fresh state 확실히 보호.
+    if (!Number.isFinite(care) || care <= 0) return STAGES[0].id;
     let cur = STAGES[0].id;
     for (const s of STAGES) {
       if (care >= s.threshold) cur = s.id;
@@ -183,11 +185,32 @@
   function nameTopic(name)        { return name + josa(name, '은', '는'); }
 
   // ----- 풀 하드 리셋 (재사용) -------------------------------------------
-  // localStorage / sessionStorage / SW caches / SW 등록 모두 정리 후 클린 reload.
-  // ?nuke=1 / ?reset=1 / ?clear=1 URL 진입과 in-app "처음부터 다시" 모두 같은 함수 호출.
+  // localStorage / sessionStorage / IndexedDB / cookies / SW caches / SW 등록 모두 정리.
+  // ?nuke=1 / ?reset=1 / ?clear=1 URL 진입과 in-app "처음부터 다시" 모두 동일.
   async function hardReset() {
     try { localStorage.clear(); } catch {}
     try { sessionStorage.clear(); } catch {}
+    try {
+      if (typeof indexedDB !== 'undefined' && indexedDB.databases) {
+        const dbs = await indexedDB.databases();
+        await Promise.all((dbs || []).map(db => new Promise(res => {
+          if (!db.name) return res();
+          const req = indexedDB.deleteDatabase(db.name);
+          req.onsuccess = req.onerror = req.onblocked = () => res();
+        })));
+      }
+    } catch {}
+    try {
+      // 모든 쿠키 만료 — path/domain 모두 시도
+      document.cookie.split(';').forEach(c => {
+        const eq = c.indexOf('=');
+        const name = (eq > -1 ? c.slice(0, eq) : c).trim();
+        if (!name) return;
+        const exp = '; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        document.cookie = name + '=' + exp;
+        document.cookie = name + '=' + exp + '; domain=' + location.hostname;
+      });
+    } catch {}
     try {
       if ('caches' in window) {
         const ks = await caches.keys();
@@ -200,7 +223,9 @@
         await Promise.all(regs.map(r => r.unregister()));
       }
     } catch {}
-    try { location.replace(location.pathname); } catch { location.reload(); }
+    // cache-busted URL로 새 진입 — SW 우회 + 옛 IIFE 메모리 완전 폐기
+    try { location.replace(location.pathname + '?_=' + Date.now()); }
+    catch { location.reload(); }
   }
 
   // 강제 리셋 비상구 — 폰에서 UI reset 버튼이 안 눌릴 때 URL로 진입.
@@ -953,7 +978,6 @@
 
   function openMinigame() {
     if (minigameCooldownRemain() > 0) {
-      // 토스트 대신 모달
       const body = document.createElement('div');
       const sec = Math.ceil(minigameCooldownRemain() / 1000);
       const min = Math.floor(sec / 60); const ss = sec % 60;
@@ -972,46 +996,46 @@
     decayPaused = true;
     const body = document.createElement('div');
 
-    // 사용법 안내 박스 — 어린이도 한눈에
+    // 안내 박스
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🐾 노란 공을 <b>톡!</b> 누르면 강아지에게 던져요';
+    guide.innerHTML = '🎾 공이 나오면 <b>톡!</b> 누르세요. 강아지가 받으러 가요!';
     body.appendChild(guide);
 
+    // 타이머 막대 + 점수
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
     const timeEl = document.createElement('span');
-    const ballsEl = document.createElement('span');
     const scoreEl = document.createElement('span');
+    const comboEl = document.createElement('span');
     timeEl.textContent = '⏱ 30';
-    ballsEl.textContent = '🎾 5';
     scoreEl.textContent = '🎯 0';
+    comboEl.textContent = '';
     stats.appendChild(timeEl);
-    stats.appendChild(ballsEl);
+    stats.appendChild(comboEl);
     stats.appendChild(scoreEl);
     body.appendChild(stats);
 
+    const tBar = document.createElement('div');
+    tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div');
+    tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill);
+    body.appendChild(tBar);
+
+    // arena
     const arena = document.createElement('div');
-    arena.className = 'minigame-arena';
+    arena.className = 'minigame-arena big';
     arena.dataset.breed = state.breed || 'shiba';
     const dog = document.createElement('img');
     dog.className = 'mg-dog';
-    // 메인 화면과 동일한 stage/표정 — happy 픽셀아트에 종별 색감 필터는 CSS에서
     dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
     arena.appendChild(dog);
 
-    const ball = document.createElement('div');
-    ball.className = 'mg-ball';
-    ball.textContent = '🎾';
-    arena.appendChild(ball);
-
-    // 첫 진입 안내 화살표 — 3초 후 자동 사라짐
-    const tutArrow = document.createElement('div');
-    tutArrow.className = 'mg-tutorial';
-    tutArrow.innerHTML = '<span class="arrow">⬇</span><span class="word">여기 톡!</span>';
-    arena.appendChild(tutArrow);
-    setTimeout(() => tutArrow.classList.add('fade-out'), 2800);
-    setTimeout(() => tutArrow.remove(), 3500);
+    // 콤보 텍스트 오버레이
+    const comboPop = document.createElement('div');
+    comboPop.className = 'mg-combo-pop';
+    arena.appendChild(comboPop);
 
     body.appendChild(arena);
 
@@ -1022,138 +1046,204 @@
     endBtn.style.marginTop = '6px';
     body.appendChild(endBtn);
 
+    // 게임 상태
     let score = 0;
-    let timeLeft = MINIGAME_DURATION_MS;
-    let throwsLeft = 5;
-    let ballState = 'idle'; // idle | flying | popping
-    let ballPos = { x: 0, y: 0 };
-    let ballVel = { vx: 0, vy: 0 };
-    let lastFrame = performance.now();
+    let combo = 0;
+    let comboMul = 1; // 표시용 배수
+    let lastCatchTs = 0;
+    const COMBO_WINDOW_MS = 1200;
+    const TOTAL_MS = 30000;
+    let started = performance.now();
     let endedFlag = false;
+    let dogX = null; // null이면 arena 폭/2로 초기화
+    const dogTargetSpeed = 380; // px/sec — 강아지가 공으로 이동하는 속도
+    let dogTarget = null;       // 추적 중인 공 element 또는 null
+    let lastFrame = performance.now();
 
-    function placeBall(x, y) {
-      // arena 내부 좌표 (left, top)
-      ball.style.left = x + 'px';
-      ball.style.top = y + 'px';
-      ball.style.bottom = 'auto';
-      ball.style.transform = 'translate(-50%, -50%)';
-    }
+    // 공 spawn 관리
+    /** active balls: { el, x, y, born, expireMs, captured } */
+    const balls = [];
+    let spawnAccum = 0;
+    let nextSpawnMs = 600 + Math.random() * 400; // 0.6~1초 후 첫 공
+    const BALL_LIFE_MS = 3000;
 
-    function resetBall() {
-      const r = arena.getBoundingClientRect();
-      ballPos = { x: r.width / 2, y: r.height - 60 };
-      ballVel = { vx: 0, vy: 0 };
-      ballState = 'idle';
-      ball.classList.remove('popped');
-      placeBall(ballPos.x, ballPos.y);
-    }
+    function arenaRect() { return arena.getBoundingClientRect(); }
 
-    function throwUp() {
-      if (ballState !== 'idle' || throwsLeft <= 0 || endedFlag) return;
-      const r = arena.getBoundingClientRect();
-      ballVel = {
-        vx: (Math.random() - 0.5) * 220,
-        vy: -650 - Math.random() * 80,
+    function spawnBall() {
+      const r = arenaRect();
+      const margin = 30;
+      const minY = 30;
+      const maxY = r.height - 110; // dog 영역 위
+      const x = margin + Math.random() * (r.width - margin * 2);
+      const y = minY + Math.random() * (maxY - minY);
+      const el = document.createElement('div');
+      el.className = 'mg-ball mg-ball-spawn';
+      el.textContent = '🎾';
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      arena.appendChild(el);
+      const born = performance.now();
+      const data = { el, x, y, born, expireMs: BALL_LIFE_MS, captured: false, thrown: false };
+      balls.push(data);
+      const onTap = (e) => {
+        e.stopPropagation();
+        if (data.captured || data.thrown || endedFlag) return;
+        data.thrown = true;
+        el.classList.add('mg-ball-thrown');
+        SOUNDS.bounce();
+        // 강아지 타깃 설정 (가장 최근 던진 공)
+        dogTarget = data;
       };
-      ballState = 'flying';
-      throwsLeft -= 1;
-      ballsEl.textContent = '🎾 ' + throwsLeft;
-      SOUNDS.bounce();
+      el.addEventListener('click', onTap);
+      el.addEventListener('touchstart', (e) => { e.preventDefault(); onTap(e); }, { passive: false });
+      // 공 등장 사운드
+      try { richBlip({ partials: [{ f: 1320, type: 'square', g: 0.3 }, { f: 1980, type: 'sine', g: 0.15 }], dur: 0.05, vol: 0.04 }); } catch {}
     }
 
-    ball.addEventListener('click', (e) => { e.stopPropagation(); throwUp(); });
-    ball.addEventListener('touchstart', (e) => { e.preventDefault(); throwUp(); }, { passive: false });
+    function removeBall(b) {
+      try { b.el.remove(); } catch {}
+      const idx = balls.indexOf(b);
+      if (idx >= 0) balls.splice(idx, 1);
+      if (dogTarget === b) dogTarget = null;
+    }
+
+    function showCombo(text, mul) {
+      comboPop.textContent = text;
+      comboPop.classList.remove('show');
+      void comboPop.offsetWidth;
+      comboPop.classList.add('show');
+      if (mul >= 3) comboPop.classList.add('big'); else comboPop.classList.remove('big');
+    }
+
+    function onCatch(b) {
+      if (b.captured) return;
+      b.captured = true;
+      // 콤보 처리
+      const now = performance.now();
+      if (now - lastCatchTs <= COMBO_WINDOW_MS) {
+        combo += 1;
+      } else {
+        combo = 1;
+      }
+      lastCatchTs = now;
+      comboMul = combo >= 5 ? 5 : combo >= 3 ? 3 : combo >= 2 ? 2 : 1;
+      score += comboMul;
+      scoreEl.textContent = '🎯 ' + score;
+      comboEl.textContent = combo >= 2 ? `🔥 ${combo} 콤보` : '';
+      if (combo >= 2) showCombo(`콤보 +${comboMul}!`, comboMul);
+      SOUNDS.catch();
+      flashBubble('💖');
+      // 잡았다! 말풍선
+      const sb = document.createElement('div');
+      sb.className = 'mg-catch-bubble';
+      sb.textContent = '잡았다!';
+      arena.appendChild(sb);
+      setTimeout(() => sb.remove(), 700);
+      // 공 제거
+      b.el.classList.add('mg-ball-popped');
+      setTimeout(() => removeBall(b), 200);
+      // 강아지 게이지/포인트
+      state.happy = clamp(state.happy + 1);
+      state.points = (state.points || 0) + 1;
+      addCareScore();
+    }
 
     function step(now) {
       if (endedFlag) return;
-      const dt = Math.min(40, now - lastFrame) / 1000;
+      const dt = Math.min(50, now - lastFrame) / 1000;
       lastFrame = now;
-      timeLeft -= (now - (step._lastT || now));
-      step._lastT = now;
-      const r = arena.getBoundingClientRect();
+      const elapsed = now - started;
+      const remain = Math.max(0, TOTAL_MS - elapsed);
 
-      if (ballState === 'flying') {
-        ballVel.vy += 1500 * dt; // gravity
-        ballPos.x += ballVel.vx * dt;
-        ballPos.y += ballVel.vy * dt;
+      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
+      tFill.style.width = (remain / TOTAL_MS * 100) + '%';
+      if (remain < 10000) tFill.classList.add('low');
+      else tFill.classList.remove('low');
 
-        // walls
-        if (ballPos.x < 24) { ballPos.x = 24; ballVel.vx = Math.abs(ballVel.vx) * 0.6; }
-        if (ballPos.x > r.width - 24) { ballPos.x = r.width - 24; ballVel.vx = -Math.abs(ballVel.vx) * 0.6; }
-
-        // dog catch zone — bottom center
-        const dogCx = r.width / 2;
-        const dogCy = r.height - 50;
-        const dx = ballPos.x - dogCx;
-        const dy = ballPos.y - dogCy;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        if (dist < 60 && ballVel.vy > 0 && ballPos.y > r.height * 0.55) {
-          // caught
-          ballState = 'popping';
-          ball.classList.add('popped');
-          score += 1;
-          state.happy = clamp(state.happy + Math.round(MINIGAME_HAPPY_BOOST / 5));
-          state.points = (state.points || 0) + 2;
-          addCareScore(); // 동일하게 분당 5점 cap
-          SOUNDS.catch();
-          flashBubble('💖');
-          scoreEl.textContent = '🎯 ' + score;
-          setTimeout(() => {
-            if (endedFlag) return;
-            resetBall();
-            if (throwsLeft <= 0) endGame(true);
-          }, 280);
-          return;
-        }
-
-        // floor — miss
-        if (ballPos.y > r.height - 30) {
-          ballPos.y = r.height - 30;
-          ballVel.vy = -Math.abs(ballVel.vy) * 0.4;
-          ballVel.vx *= 0.7;
-          if (Math.abs(ballVel.vy) < 80) {
-            ballState = 'idle';
-            ballVel = { vx: 0, vy: 0 };
-            ballPos.x = r.width / 2;
-            ballPos.y = r.height - 60;
-            placeBall(ballPos.x, ballPos.y);
-            if (throwsLeft <= 0) {
-              setTimeout(() => endGame(true), 200);
-            }
-            requestAnimationFrame(step);
-            return;
-          }
-        }
-
-        placeBall(ballPos.x, ballPos.y);
+      // 콤보 만료
+      if (combo > 0 && now - lastCatchTs > COMBO_WINDOW_MS) {
+        combo = 0;
+        comboEl.textContent = '';
       }
 
-      timeEl.textContent = '⏱ ' + Math.max(0, Math.ceil(timeLeft / 1000));
-      if (timeLeft <= 0) { endGame(false); return; }
+      // 공 spawn
+      spawnAccum += (now - (step._lastT || now));
+      step._lastT = now;
+      if (spawnAccum >= nextSpawnMs && balls.length < 3) {
+        spawnAccum = 0;
+        nextSpawnMs = 800 + Math.random() * 700;
+        spawnBall();
+      }
+
+      // 공 lifetime — 시간 지나면 사라짐
+      for (let i = balls.length - 1; i >= 0; i--) {
+        const b = balls[i];
+        const age = now - b.born;
+        if (b.captured) continue;
+        if (!b.thrown && age > b.expireMs) {
+          b.el.classList.add('mg-ball-fade');
+          setTimeout(() => removeBall(b), 250);
+          if (b === dogTarget) dogTarget = null;
+        }
+      }
+
+      // 강아지 이동 — 타깃이 있으면 그쪽으로 슬라이드
+      const r = arenaRect();
+      if (dogX === null) dogX = r.width / 2;
+      if (dogTarget && !dogTarget.captured) {
+        const dx = dogTarget.x - dogX;
+        const move = Math.sign(dx) * Math.min(Math.abs(dx), dogTargetSpeed * dt);
+        dogX += move;
+        // 도착 — catch zone
+        const dy = (r.height - 60) - dogTarget.y;
+        const dist = Math.sqrt((dogTarget.x - dogX) ** 2 + dy * dy);
+        if (Math.abs(dogTarget.x - dogX) < 36) {
+          onCatch(dogTarget);
+          dogTarget = null;
+        }
+      } else {
+        // 타깃 없으면 중앙으로 천천히 복귀
+        const dx = (r.width / 2) - dogX;
+        if (Math.abs(dx) > 1) {
+          dogX += Math.sign(dx) * Math.min(Math.abs(dx), 200 * dt);
+        }
+      }
+      dog.style.left = dogX + 'px';
+      dog.style.transform = 'translateX(-50%)';
+
+      if (remain <= 0) { endGame(true); return; }
       requestAnimationFrame(step);
     }
 
-    function endGame(natural) {
+    function endGame() {
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
-      // 보상
-      const happyGain = Math.min(MINIGAME_HAPPY_BOOST, score * 8);
-      state.happy = clamp(state.happy + happyGain - Math.round(MINIGAME_HAPPY_BOOST / 5) * score); // 누적 만큼 차감 보정
-      // 단순화: 그냥 마무리 보너스
-      state.happy = clamp(state.happy + 5);
+      // 잔여 공 정리
+      while (balls.length) removeBall(balls[0]);
+      // 보상 — 점수 구간별
+      let happyGain, careBoost, msg;
+      if (score >= 20) { happyGain = 50; careBoost = 3; msg = '최고! 🎉'; }
+      else if (score >= 10) { happyGain = 30; careBoost = 2; msg = '잘했어요! 💖'; }
+      else { happyGain = 20; careBoost = 1; msg = '재밌었지? 🐾'; }
+      state.happy = clamp(state.happy + happyGain);
+      // careBoost 만큼 careLastTick을 뒤로 옮겨 즉시 적립 효과
+      for (let i = 0; i < careBoost; i++) {
+        state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+        addCareScore();
+      }
+      state.points = (state.points || 0) + score; // 점수 그대로 케어포인트
       state.minigameLastTs = Date.now();
       progressMission('minigame', 1);
       saveState();
       render();
       SOUNDS.fanfare();
 
-      // 결과 모달
       const resultBody = document.createElement('div');
       const p = document.createElement('p');
       p.className = 'modal-sub';
       const nm = state.name || '강아지';
-      p.textContent = `${score}번 잡았어요! ${nameTopic(nm)} 행복해해요 💖`;
+      p.innerHTML = `🎉 <b>${score}점!</b><br>${nameTopic(nm)} 행복해해요 💖<br><span style="color:#c47b00">${msg}</span>`;
       resultBody.appendChild(p);
       const ok = document.createElement('button');
       ok.className = 'modal-btn';
@@ -1164,22 +1254,25 @@
       openModal({ title: '공놀이 끝!', body: resultBody });
     }
 
+    endBtn.addEventListener('click', () => endGame());
+
     openModal({
-      title: '🎯 공놀이',
+      title: '🎾 공놀이',
       body,
       onClose: () => {
         if (!endedFlag) {
           endedFlag = true;
           decayPaused = false;
-          state.minigameLastTs = Date.now() - MINIGAME_COOLDOWN_MS + 30 * 1000; // 짧은 쿨타임
+          while (balls.length) removeBall(balls[0]);
+          state.minigameLastTs = Date.now() - MINIGAME_COOLDOWN_MS + 30 * 1000;
           saveState();
         }
       },
     });
 
     setTimeout(() => {
-      resetBall();
-      lastFrame = performance.now();
+      started = performance.now();
+      lastFrame = started;
       step._lastT = lastFrame;
       requestAnimationFrame(step);
     }, 80);
@@ -1257,8 +1350,12 @@
     openModal({ title: '처음부터 다시 시작?', body });
   }
 
-  // in-app "처음부터 다시" — URL ?nuke=1과 동일한 풀 청소
-  function performReset() { return hardReset(); }
+  // in-app "처음부터 다시" — ?nuke=1 페이지로 navigate (가장 확실한 청소).
+  // hardReset을 직접 호출하는 대신 nuke URL 진입으로 옛 IIFE/SW 메모리도 함께 폐기.
+  function performReset() {
+    try { location.replace(location.pathname + '?nuke=1&t=' + Date.now()); }
+    catch { hardReset(); }
+  }
 
   // ----- 헤더 버튼 핸들러 -------------------------------------------------
   settingsBtn.addEventListener('click', () => { SOUNDS.pop(); openSettingsModal(); });
