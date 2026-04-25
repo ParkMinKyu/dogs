@@ -291,6 +291,25 @@
     if (petId === state.activePetId) return;
     snapshotActivePet();
     loadPetIntoState(petId);
+    // 글로벌 잔재 즉시 청소 — 옛 펫의 임시 표정/prop/클래스가 0.1s tick 전에 잔존하지 않도록
+    tempFaceState = null;
+    tempFaceUntil = 0;
+    if (puppyWrap) {
+      puppyWrap.classList.remove('is-bathing', 'is-on-cushion', 'is-evolving',
+        'is-happy', 'is-eating', 'is-sad', 'is-sleeping', 'shiba-anim', 'shiba-idle-anim');
+      delete puppyWrap.dataset.shibaMood;
+      delete puppyWrap.dataset.mood;
+      // 위치도 새 펫의 wander 기본값으로 reset
+      puppyWrap.style.left = '50%';
+      puppyWrap.style.bottom = '14%';
+    }
+    wanderX = 50; wanderY = 86;
+    // stage prop/overlay element 즉시 제거 (cushion/bathtub/bowl/mood-overlay/messes/busy-gauge)
+    const stageEl = document.querySelector('.stage');
+    if (stageEl) {
+      stageEl.querySelectorAll('.action-prop, .mood-overlay, .busy-gauge, .wander-footprint').forEach(n => n.remove());
+    }
+    document.body.classList.remove('is-sick');
     saveState();
     render();
   }
