@@ -61,5 +61,29 @@
 
 ## 마이그레이션 호환
 - 기존 단일 state가 있으면 첫 진입 시 자동으로 pets[0]로 변환
-- schemaVer 4로 bump
 - v1 데이터 그대로 유지 + activePetId = 0
+- 옛 액세서리 id (hat_red 등) → 새 id (hat_01 등) 자동 매핑
+
+## 완료 상태 (2026-04-26)
+✅ v1.0-stable 태그 + feat/v2-multi-pet 브랜치 (main에 머지됨)
+✅ 멀티 펫 state + snapshotActivePet/loadPetIntoState/switchToPet/addNewPet
+✅ 헤더 펫 슬롯 행 (#petSlots) + "+ 추가" 카드 + 활성 펫 분홍 강조
+✅ 6 새 동물 head sprite (cat_yellow/cat_black/cat_gray/rabbit_white/rabbit_brown/hamster)
+✅ BREEDS 카탈로그 4 → 10, species 필드 + 종 선택 모달 3-col grid
+✅ 50 액세서리 (5 부위 × 10) — assets/_gen_acc50.py
+✅ 상점 모달 5 부위 탭 — 부위별 10개 카드
+✅ equipped 슬롯 5개로 확장 (back/feet 추가)
+✅ acc-back / acc-feet CSS 위치 매핑
+✅ 옛 acc id 마이그레이션 (hat_red→hat_01 등)
+✅ sw v50 / manifest 5.0.0-beta
+✅ stage area 1fr 보존 (.pet-slots height 78px 고정)
+✅ 헤드리스 캡처 검증 — JS 에러 없음, 레이아웃 정상
+
+## 알려진 한계 / TODO
+- 다른 펫의 wander/요청/sick 자동 진행은 현재 활성 펫만 — 백그라운드 멀티펫 simulation X
+  (현재 결정: 활성 1마리만 활동, 다른 펫은 정적 snapshot)
+- 새 동물(cat/rabbit/hamster)은 head sprite만 — stage별 표정 sprite는 강아지 generated 톤에 hue-rotate filter로 대체
+  (시바처럼 4프레임 sprite sheet 받으면 별도 통합 필요)
+- 액세서리 50개 모두 32×32 단순 픽셀 — 디자인 다양성은 한정적
+- 미니게임 보상 흐름은 활성 펫에만 적용
+
