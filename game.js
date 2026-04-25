@@ -2250,7 +2250,7 @@
 
     endBtn.addEventListener('click', () => endGame());
     openModal({
-      title: '✋ 쓰다듬기', body,
+      title: '✋ 쓰다듬기', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('pet'); saveState(); } },
     });
     setTimeout(() => requestAnimationFrame(step), 80);
@@ -2362,7 +2362,7 @@
     }
     endBtn.addEventListener('click', () => endGame());
     openModal({
-      title: '🎵 춤추기', body,
+      title: '🎵 춤추기', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('dance'); saveState(); } },
     });
     setTimeout(() => requestAnimationFrame(step), 80);
@@ -2525,7 +2525,7 @@
     }
     endBtn.addEventListener('click', () => endGame());
     openModal({
-      title: '🦴 간식 받기', body,
+      title: '🦴 간식 받기', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('treat'); saveState(); } },
     });
     setTimeout(() => { lastFrame = performance.now(); step._lastT = lastFrame; requestAnimationFrame(step); }, 80);
@@ -2890,7 +2890,7 @@
 
     endBtn.addEventListener('click', () => endGame());
     openModal({
-      title: '🚶 산책', body,
+      title: '🚶 산책', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('walk'); saveState(); } },
     });
     setTimeout(() => { lastFrame = performance.now(); step._lastT = lastFrame; requestAnimationFrame(step); }, 80);
@@ -3165,6 +3165,7 @@
     openModal({
       title: '🎾 공놀이',
       body,
+      mandatory: true,
       onClose: () => {
         if (!endedFlag) {
           endedFlag = true;
