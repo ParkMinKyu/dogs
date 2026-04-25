@@ -18,7 +18,7 @@
   const ACTION_EFFECT = {
     feed:  { hunger: +35, happy:  +5, clean:  -5, energy:  +0 },
     play:  { hunger:  -5, happy: +35, clean:  -5, energy: -10 },
-    wash:  { hunger:   0, happy:  -3, clean: +40, energy:  -3 },
+    wash:  { hunger:   0, happy:  -3, clean:  +5, energy:  -3 },
     sleep: { hunger:  -5, happy:  +0, clean:   0, energy: +50 },
   };
 
@@ -628,14 +628,9 @@
   function finishBusy() {
     if (!state.busy) return;
     const action = state.busy.action;
-    const scrub = state.washScrub || 0;
     state.busy = null;
     state.washScrub = 0;
     applyActionEffect(action);
-    // 씻기 보너스 — 문지른 횟수만큼 청결 추가 (최대 +15)
-    if (action === 'wash' && scrub > 0) {
-      state.clean = clamp(state.clean + Math.min(15, scrub * 2));
-    }
     tempFaceState = 'happy';
     tempFaceUntil = Date.now() + 700;
     saveState();
@@ -664,6 +659,82 @@
     busyGaugeEl = null;
   }
 
+  // 씻기 인터랙티브 — 문지르기(드래그) 누적 거리 30px당 청결 +1
+  const SCRUB_PIXELS_PER_POINT = 30;
+  let scrubLastX = null, scrubLastY = null, scrubAccum = 0, scrubBubbleCooldown = 0;
+
+  function spawnScrubBubble(clientX, clientY) {
+    const stageEl = document.querySelector('.stage');
+    const tub = stageEl?.querySelector('.prop-bathtub');
+    const host = tub || stageEl;
+    if (!host) return;
+    const r = host.getBoundingClientRect();
+    const sp = document.createElement('span');
+    sp.className = 'bath-scrub';
+    sp.textContent = ['✨','🫧','💧'][Math.floor(Math.random()*3)];
+    sp.style.left = ((clientX - r.left) / r.width * 100) + '%';
+    sp.style.top  = ((clientY - r.top)  / r.height * 100) + '%';
+    host.appendChild(sp);
+    setTimeout(() => sp.remove(), 600);
+  }
+
+  function scrubMove(clientX, clientY) {
+    if (!state.busy || state.busy.action !== 'wash') return;
+    if (scrubLastX === null) { scrubLastX = clientX; scrubLastY = clientY; return; }
+    const dx = clientX - scrubLastX, dy = clientY - scrubLastY;
+    const dist = Math.hypot(dx, dy);
+    scrubLastX = clientX; scrubLastY = clientY;
+    if (dist <= 0) return;
+    scrubAccum += dist;
+    let added = 0;
+    while (scrubAccum >= SCRUB_PIXELS_PER_POINT) {
+      state.clean = clamp(state.clean + 1);
+      scrubAccum -= SCRUB_PIXELS_PER_POINT;
+      added += 1;
+    }
+    if (added > 0) {
+      // 거품 spawn은 너무 자주는 X — 80ms 쿨다운
+      const now = performance.now();
+      if (now - scrubBubbleCooldown > 80) {
+        spawnScrubBubble(clientX, clientY);
+        scrubBubbleCooldown = now;
+      }
+      // 강아지 살짝 기울이기 — dx 부호로 좌우
+      puppyWrap.style.setProperty('--scrub-tilt', (dx >= 0 ? '3deg' : '-3deg'));
+      puppyWrap.classList.add('scrub-tilt');
+      clearTimeout(scrubMove._t);
+      scrubMove._t = setTimeout(() => puppyWrap.classList.remove('scrub-tilt'), 120);
+      try { if (added >= 2) SOUNDS.splash(); } catch {}
+      render();
+    }
+  }
+  function scrubReset() { scrubLastX = scrubLastY = null; }
+
+  const stageEl_ = document.querySelector('.stage');
+  if (stageEl_) {
+    stageEl_.addEventListener('pointerdown', (e) => {
+      if (state.busy?.action !== 'wash') return;
+      e.preventDefault();
+      scrubLastX = e.clientX; scrubLastY = e.clientY;
+    });
+    stageEl_.addEventListener('pointermove', (e) => {
+      if (state.busy?.action !== 'wash') return;
+      // 버튼이 눌려있어야 (마우스) 또는 터치 항상
+      if (e.pointerType === 'mouse' && e.buttons === 0) return;
+      scrubMove(e.clientX, e.clientY);
+    });
+    stageEl_.addEventListener('pointerup', scrubReset);
+    stageEl_.addEventListener('pointerleave', scrubReset);
+    stageEl_.addEventListener('pointercancel', scrubReset);
+    // 보조: touch 명시적
+    stageEl_.addEventListener('touchmove', (e) => {
+      if (state.busy?.action !== 'wash') return;
+      e.preventDefault();
+      const t = e.touches[0];
+      if (t) scrubMove(t.clientX, t.clientY);
+    }, { passive: false });
+  }
+
   // 액션별 prop (욕조/쿠션/그릇) 관리
   function ensureProp(action) {
     const stageEl = document.querySelector('.stage');
@@ -688,19 +759,8 @@
           <div class="bath-water"></div>
           <div class="bath-rim"></div>
         `;
-        // 인터랙티브 — 강아지 탭하면 거품 +
-        el.addEventListener('pointerdown', (e) => {
-          e.stopPropagation();
-          if (!state.busy || state.busy.action !== 'wash') return;
-          state.washScrub = (state.washScrub || 0) + 1;
-          const sp = document.createElement('span');
-          sp.className = 'bath-scrub';
-          sp.textContent = ['✨','🫧','💧'][Math.floor(Math.random()*3)];
-          sp.style.left = (10 + Math.random()*80) + '%';
-          sp.style.top  = (Math.random()*30) + '%';
-          el.appendChild(sp);
-          setTimeout(() => sp.remove(), 600);
-        });
+        // 인터랙티브 — 욕조 영역에서 일어나는 pointerdown은 stage 핸들러가 흡수.
+        // (별도 처리 불필요)
       } else if (desired === 'cushion') {
         el.innerHTML = `
           <div class="cushion-zzz">
