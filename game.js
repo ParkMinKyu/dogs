@@ -628,18 +628,24 @@
   };
 
   // ----- Decay ------------------------------------------------------------
+  // 오프라인 catchup — 최대 4시간 분만 decay 적용 (밤새 떠나도 가출 안 됨)
+  const OFFLINE_DECAY_CAP_MS = 4 * 60 * 60 * 1000;
   function applyOfflineDecay() {
     const now = Date.now();
-    const elapsed = Math.max(0, now - (state.lastTs || now));
+    let elapsed = Math.max(0, now - (state.lastTs || now));
+    if (elapsed > OFFLINE_DECAY_CAP_MS) elapsed = OFFLINE_DECAY_CAP_MS;
     const ticks = Math.floor(elapsed / TICK_MS);
     if (ticks > 0) {
       for (const g of GAUGES) {
         state[g] = clamp(state[g] - DECAY_PER_TICK * ticks);
       }
-      state.lastTs = state.lastTs + ticks * TICK_MS;
-    } else if (!state.lastTs) {
-      state.lastTs = now;
+      // 오프라인 동안의 게이지 0 카운트는 0으로 — 가출 안 일어남
+      state.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null };
+      // sick.since도 오프라인 시간 빼고 재시작 (현재 시점부터 카운트)
+      if (state.sick) state.sick.since = now;
     }
+    // lastTs는 항상 now로 업데이트 (실제 경과 시간 기록)
+    state.lastTs = now;
   }
 
   function tickDecay() {
@@ -1337,7 +1343,7 @@
 
   // ----- 강아지 자율 이동 (wander) ---------------------------------------
   // idle/happy 상태일 때만 이동. busy/거부/편집/미니게임 중 정지.
-  let wanderX = 50, wanderY = 80; // % — Y는 바닥 영역 (60~95)
+  let wanderX = 50, wanderY = 86; // % — 바닥 영역 (78~92)
   function wanderActive() {
     if (state.busy) return false;
     if (criticalLowGauge()) return false;
@@ -1350,7 +1356,7 @@
     if (!wanderActive()) return;
     const oldX = wanderX;
     wanderX = 12 + Math.random() * 76; // 12~88%
-    wanderY = 65 + Math.random() * 28; // 65~93% (바닥 영역)
+    wanderY = 78 + Math.random() * 14; // 78~92% — 바닥 영역만
     if (puppyWrap) {
       puppyWrap.dataset.direction = wanderX < oldX ? 'left' : 'right';
       puppyWrap.style.left = wanderX + '%';
