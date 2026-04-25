@@ -337,6 +337,8 @@ body.is-sick .puppy-wrap::before {
   filter: drop-shadow(0 0 4px #fff);
   z-index: 5;
 }
+#vetBtn { display: none; }
+body.is-sick #vetBtn { display: grid; }
 #vetBtn .dot {
   position: absolute;
   top: 4px; right: 4px;
@@ -345,7 +347,9 @@ body.is-sick .puppy-wrap::before {
   background: #ff4055;
   border: 2px solid #fff;
   animation: req-pulse 1s ease-in-out infinite;
+  display: none;
 }
+body.is-sick #vetBtn .dot { display: block; }
 
 /* wander 발자국 */
 .wander-footprint {

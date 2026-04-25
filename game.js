@@ -641,6 +641,8 @@
   }
 
   function tickDecay() {
+    // setup-pending: 이름/종 미설정 상태에선 모든 자동 시스템 정지
+    if (!state.name || !state.breed) { state.lastTs = Date.now(); return; }
     if (decayPaused) { state.lastTs = Date.now(); return; }
     for (const g of GAUGES) {
       let dec = DECAY_PER_TICK;
@@ -706,6 +708,7 @@
   const MESS_INTERVAL_RANGE = 5 * 60 * 1000; // 5~10분
   let nextMessAt = Date.now() + MESS_INTERVAL_MIN + Math.random() * MESS_INTERVAL_RANGE;
   function maybeSpawnMess() {
+    if (!state.name || !state.breed) return; // setup-pending
     if (state.busy) return;
     if (Date.now() < nextMessAt) return;
     nextMessAt = Date.now() + MESS_INTERVAL_MIN + Math.random() * MESS_INTERVAL_RANGE;
@@ -1294,6 +1297,7 @@
   }
 
   function tickRequests() {
+    if (!state.name || !state.breed) return; // setup-pending
     if (state.busy) return; // 진행 중엔 요청 X
     const now = Date.now();
     if (!state.lastReqTs) state.lastReqTs = {};
