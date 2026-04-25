@@ -632,6 +632,11 @@
     input.maxLength = 12;
     input.placeholder = '예: 콩이, 뽀삐';
     input.value = initial || '';
+    input.autocomplete = 'off';
+    input.autocapitalize = 'off';
+    input.spellcheck = false;
+    input.setAttribute('inputmode', 'text');
+    input.setAttribute('enterkeyhint', 'done');
     body.appendChild(input);
     const btn = document.createElement('button');
     btn.className = 'modal-btn';

@@ -66,6 +66,18 @@ html, body {
   -webkit-user-select: none; -moz-user-select: none; user-select: none;
 }
 
+/* form 요소는 user-select 복원 — 모바일에서 입력/탭 가능해야 함 */
+input, textarea, button, select {
+  -webkit-user-select: auto;
+  -moz-user-select: auto;
+  user-select: auto;
+}
+input, textarea {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
+
 body {
   font-family: var(--font-body);
   color: var(--ink);
@@ -479,20 +491,27 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 .modal-root {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 9999;
   display: grid;
   place-items: center;
   background: rgba(40, 30, 60, 0.55);
   padding: 16px;
   animation: backdrop-in 200ms ease;
 }
+/* hidden 상태에서는 무조건 화면에서 제거 + 클릭 차단 */
+.modal-root[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
 .modal-root:not([hidden])::before {
   content: '';
   position: absolute;
   inset: 0;
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
   pointer-events: none;
+  /* backdrop-filter는 일부 모바일 chrome에서 layer 위 터치 가로채는 보고가 있어 약하게만 */
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 @keyframes backdrop-in {
   from { opacity: 0; }
