@@ -1124,7 +1124,65 @@
       }
       body.appendChild(div);
     });
+
+    // 처음부터 다시 시작 — 설정 맨 아래 위험 액션 영역
+    const danger = document.createElement('div');
+    danger.className = 'settings-danger';
+    const dangerBtn = document.createElement('button');
+    dangerBtn.type = 'button';
+    dangerBtn.className = 'modal-btn danger';
+    dangerBtn.textContent = '🔄 처음부터 다시';
+    dangerBtn.addEventListener('click', () => { SOUNDS.pop(); openResetConfirmModal(); });
+    danger.appendChild(dangerBtn);
+    body.appendChild(danger);
+
     openModal({ title: '⚙️ 설정', body });
+  }
+
+  // ----- 리셋 확인 + 핸들러 -----------------------------------------------
+  function openResetConfirmModal() {
+    const body = document.createElement('div');
+    const p = document.createElement('p');
+    p.className = 'modal-sub reset-warn';
+    const nm = state.name || '강아지';
+    p.textContent = `정말 처음부터 다시 시작할까요? 그동안 키운 ${nameWithSubject(nm)} 사라져요.`;
+    body.appendChild(p);
+
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'modal-btn danger';
+    yes.textContent = '네, 다시 시작할게요';
+    yes.addEventListener('click', () => { performReset(); });
+    body.appendChild(yes);
+
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'modal-btn secondary';
+    no.textContent = '아니요, 취소';
+    no.style.marginTop = '8px';
+    no.addEventListener('click', () => { SOUNDS.pop(); closeModal(); openSettingsModal(); });
+    body.appendChild(no);
+
+    openModal({ title: '처음부터 다시 시작?', body });
+  }
+
+  async function performReset() {
+    // localStorage — dogs.* 네임스페이스 제거 (다른 앱 영향 X)
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('dogs.')) localStorage.removeItem(k);
+      }
+    } catch {}
+    // service worker cache 비움 — 다음 로드에서 새 자산
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+    } catch {}
+    // 하드 새로고침 (쿼리 스트립으로 ?demo=1 같은 파라미터도 제거)
+    try { location.replace(location.pathname); } catch { location.reload(); }
   }
 
   // ----- 헤더 버튼 핸들러 -------------------------------------------------
@@ -1194,6 +1252,8 @@
     forceEvolveFx() { triggerEvolveFx(); },
     openMinigame, openShop: openShopModal, openMissions: openMissionsModal,
     openName: () => openNameModal({}), openBreed: () => openBreedModal({}),
+    openSettings: openSettingsModal,
+    openResetConfirm: openResetConfirmModal,
     josa,
     completeAllMissions() {
       ensureTodayMissions();

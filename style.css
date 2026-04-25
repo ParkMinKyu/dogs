@@ -585,7 +585,30 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   background: linear-gradient(180deg, #fff 0%, #f1f1f1 100%);
   color: #4a3a2e;
 }
+.modal-btn.danger {
+  background: linear-gradient(180deg, #ffd6a3 0%, #ff9a55 100%);
+  color: #5a2c0a;
+  border-color: #fff3e0;
+}
 .modal-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+.settings-danger {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 2px dashed #f1d9c2;
+}
+
+.modal-sub.reset-warn {
+  background: #fff3e0;
+  color: #7a3a10;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid #ffd6a3;
+  margin: 6px 0 14px;
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+}
 
 .modal-hint {
   font-size: 12px;
