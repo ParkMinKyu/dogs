@@ -1,0 +1,26 @@
+{
+  "name": "우리 강아지",
+  "short_name": "강아지",
+  "description": "어린이를 위한 다마고치 스타일 강아지 키우기 게임",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fde9d9",
+  "theme_color": "#ffb3c1",
+  "icons": [
+    {
+      "src": "assets/icons/icon-256.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
