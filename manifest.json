@@ -1,8 +1,8 @@
 {
   "name": "우리 강아지",
   "short_name": "강아지",
-  "version": "4.1.0",
-  "id": "dogs-p2-v41",
+  "version": "4.2.0",
+  "id": "dogs-p2-v42",
   "description": "어린이를 위한 다마고치 스타일 강아지 키우기 게임",
   "lang": "ko",
   "start_url": "./",

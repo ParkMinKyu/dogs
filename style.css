@@ -38,7 +38,13 @@
 /* Breed color tints — applied via filter on .puppy */
 .app[data-breed="shiba"]   .puppy { filter: drop-shadow(0 6px 0 #00000018); }
 
-/* 시바 puppy idle — JS가 200ms마다 img.src를 4프레임 사이로 교체 */
+/* 시바 puppy idle — JS가 200ms마다 img.src를 4프레임 사이로 교체.
+   원본 64×96 비율 보존을 위해 object-fit: contain. */
+.puppy-wrap.shiba-idle-anim .puppy {
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+}
 .app[data-breed="maltese"] .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-30deg) saturate(0.25) brightness(1.2); }
 .app[data-breed="poodle"]  .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
 .app[data-breed="husky"]   .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
