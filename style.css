@@ -1,0 +1,306 @@
+/* ======================================================================
+   강아지 키우기 — P0 스타일
+   파스텔 / 큰 둥근 버튼 / 어린이용 한글 폰트 / 터치 우선
+   ====================================================================== */
+
+:root {
+  --bg-1: #fde9d9;          /* warm peach */
+  --bg-2: #d9efff;          /* sky */
+  --card: #ffffff;
+  --ink: #4a3a2e;           /* warm dark brown — softer than pure black */
+  --ink-soft: #836a55;
+  --line: #f1d9c2;
+
+  --pink: #ffb3c1;          /* hunger */
+  --sky:  #9fd6ff;          /* happy */
+  --mint: #b5e8c6;          /* clean */
+  --sun:  #ffe28a;          /* energy */
+
+  --pink-d: #ff8aa0;
+  --sky-d:  #6cbff7;
+  --mint-d: #82d29e;
+  --sun-d:  #f4c849;
+
+  --shadow: 0 6px 0 rgba(74, 58, 46, 0.12), 0 12px 24px rgba(74, 58, 46, 0.10);
+  --radius: 22px;
+
+  --font-display: 'Jua', 'Gowun Dodum', system-ui, sans-serif;
+  --font-body:    'Gowun Dodum', 'Jua', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, var(--bg-2) 0%, transparent 60%),
+    linear-gradient(180deg, var(--bg-1) 0%, #fff7ec 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+img { image-rendering: pixelated; image-rendering: crisp-edges; }
+
+/* ---------- Layout ---------- */
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 18px 18px 28px;
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  gap: 18px;
+}
+
+/* ---------- Top bar ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(28px, 6vw, 40px);
+  margin: 0;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 0 #ffffffaa;
+}
+
+.icon-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  background: var(--card);
+  font-size: 26px;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 80ms ease;
+}
+.icon-btn:active { transform: translateY(2px) scale(0.96); }
+.icon-btn[aria-pressed="true"] { background: #f1f1f1; opacity: 0.75; }
+
+/* ---------- Stage (puppy area) ---------- */
+
+.stage {
+  position: relative;
+  height: clamp(240px, 42vw, 320px);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(120% 80% at 50% 110%, #ffd9b8 0%, transparent 60%),
+    linear-gradient(180deg, #fff7ec 0%, #ffe7cc 100%);
+  border: 4px solid #ffd6ad;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.ground {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 28%;
+  background: linear-gradient(180deg, #f6c993 0%, #e6a86a 100%);
+  border-top: 4px dashed #ffffff66;
+}
+
+.puppy {
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  width: 192px;   /* 32 * 6 */
+  height: 192px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 6px 0 #00000018);
+  animation: idle-bob 2.4s ease-in-out infinite;
+}
+
+@keyframes idle-bob {
+  0%, 100% { transform: translate(-50%, 0); }
+  50%      { transform: translate(-50%, -6px); }
+}
+
+/* state-specific tweaks */
+.puppy.is-happy   { animation: happy-bounce 0.55s ease-in-out infinite; }
+.puppy.is-eating  { animation: eat-nod 0.6s ease-in-out infinite; }
+.puppy.is-sad     { animation: sad-sway 3.2s ease-in-out infinite; }
+.puppy.is-sleeping{ animation: sleep-breathe 3s ease-in-out infinite; }
+
+@keyframes happy-bounce {
+  0%, 100% { transform: translate(-50%, 0)    rotate(-2deg); }
+  50%      { transform: translate(-50%, -18px) rotate(2deg); }
+}
+@keyframes eat-nod {
+  0%, 100% { transform: translate(-50%, 0); }
+  50%      { transform: translate(-50%, 4px); }
+}
+@keyframes sad-sway {
+  0%, 100% { transform: translate(-50%, 2px) rotate(-1deg); }
+  50%      { transform: translate(-50%, 4px) rotate(1deg); }
+}
+@keyframes sleep-breathe {
+  0%, 100% { transform: translate(-50%, 0)   scale(1); }
+  50%      { transform: translate(-50%, -2px) scale(1.04); }
+}
+
+/* speech/heart bubble */
+.bubble {
+  position: absolute;
+  left: 50%;
+  top: 10%;
+  transform: translateX(-50%) scale(0.6);
+  font-size: 40px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease, transform 240ms cubic-bezier(.2,1.4,.4,1);
+  filter: drop-shadow(0 2px 0 #ffffffcc);
+}
+.bubble.show {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* ---------- Gauges ---------- */
+
+.gauges {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.gauge {
+  background: var(--card);
+  border: 3px solid var(--line);
+  border-radius: 18px;
+  padding: 10px 12px 12px;
+  box-shadow: var(--shadow);
+}
+
+.gauge-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: clamp(15px, 3.6vw, 18px);
+  margin-bottom: 8px;
+  font-family: var(--font-display);
+}
+.gauge-label .emo { font-size: 22px; }
+
+.bar {
+  height: 18px;
+  border-radius: 999px;
+  background: #f3eadf;
+  overflow: hidden;
+  border: 2px solid #ffffff;
+  box-shadow: inset 0 2px 0 #00000010;
+}
+
+.fill {
+  height: 100%;
+  width: 80%;
+  border-radius: 999px;
+  transition: width 280ms cubic-bezier(.2,1,.4,1), background 200ms;
+}
+
+.fill-hunger { background: linear-gradient(90deg, var(--pink) 0%, var(--pink-d) 100%); }
+.fill-happy  { background: linear-gradient(90deg, var(--sky)  0%, var(--sky-d)  100%); }
+.fill-clean  { background: linear-gradient(90deg, var(--mint) 0%, var(--mint-d) 100%); }
+.fill-energy { background: linear-gradient(90deg, var(--sun)  0%, var(--sun-d)  100%); }
+
+/* low state -> gentle wiggle (no scary red) */
+.fill.is-low {
+  animation: low-pulse 1.4s ease-in-out infinite;
+}
+@keyframes low-pulse {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.15); }
+}
+
+/* ---------- Action buttons ---------- */
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.action {
+  appearance: none;
+  border: 4px solid #ffffff;
+  border-radius: 22px;
+  padding: 12px 6px 10px;
+  min-height: 110px;
+  font-family: var(--font-display);
+  font-size: clamp(15px, 3.8vw, 18px);
+  color: var(--ink);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 80ms ease, box-shadow 120ms ease, background 120ms;
+}
+.action .big { font-size: clamp(34px, 8vw, 44px); line-height: 1; }
+.action .lbl { letter-spacing: 0.5px; }
+
+.action:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 rgba(74, 58, 46, 0.12);
+}
+
+.a-feed  { background: linear-gradient(180deg, #fff 0%, #ffe6ec 100%); }
+.a-play  { background: linear-gradient(180deg, #fff 0%, #e3f2ff 100%); }
+.a-wash  { background: linear-gradient(180deg, #fff 0%, #e3f7ea 100%); }
+.a-sleep { background: linear-gradient(180deg, #fff 0%, #fff5d1 100%); }
+
+.action[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: saturate(0.7);
+}
+
+/* small confetti dots when action used */
+.action.cheer { animation: cheer 0.45s ease; }
+@keyframes cheer {
+  0%   { transform: translateY(0)   rotate(0); }
+  30%  { transform: translateY(-8px) rotate(-3deg); }
+  60%  { transform: translateY(0)    rotate(3deg); }
+  100% { transform: translateY(0)    rotate(0); }
+}
+
+/* ---------- Mobile tweaks ---------- */
+
+@media (max-width: 420px) {
+  .app { padding: 12px 12px 20px; gap: 14px; }
+  .gauges { gap: 10px; }
+  .actions { gap: 8px; }
+  .action { min-height: 100px; border-radius: 18px; }
+  .puppy { width: 168px; height: 168px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puppy, .puppy.is-happy, .puppy.is-eating, .puppy.is-sad, .puppy.is-sleeping,
+  .fill.is-low, .action.cheer {
+    animation: none !important;
+  }
+}

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fde9d9" />
+  <title>강아지 키우기</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app" role="application" aria-label="강아지 키우기 게임">
+    <header class="topbar">
+      <h1 class="title">🐶 우리 강아지</h1>
+      <button id="muteBtn" class="icon-btn" type="button" aria-pressed="false" aria-label="소리 끄기">
+        <span class="icon" aria-hidden="true">🔊</span>
+      </button>
+    </header>
+
+    <section class="stage" aria-label="강아지">
+      <div class="ground"></div>
+      <img id="puppy" class="puppy" src="assets/puppy/idle.png" alt="강아지" draggable="false" />
+      <div id="bubble" class="bubble" aria-hidden="true"></div>
+    </section>
+
+    <section class="gauges" aria-label="강아지 상태">
+      <div class="gauge" data-key="hunger">
+        <div class="gauge-label"><span class="emo" aria-hidden="true">🍖</span><span>배고픔</span></div>
+        <div class="bar"><div class="fill fill-hunger" style="width:80%"></div></div>
+      </div>
+      <div class="gauge" data-key="happy">
+        <div class="gauge-label"><span class="emo" aria-hidden="true">💖</span><span>행복</span></div>
+        <div class="bar"><div class="fill fill-happy" style="width:80%"></div></div>
+      </div>
+      <div class="gauge" data-key="clean">
+        <div class="gauge-label"><span class="emo" aria-hidden="true">🫧</span><span>청결</span></div>
+        <div class="bar"><div class="fill fill-clean" style="width:80%"></div></div>
+      </div>
+      <div class="gauge" data-key="energy">
+        <div class="gauge-label"><span class="emo" aria-hidden="true">⚡</span><span>에너지</span></div>
+        <div class="bar"><div class="fill fill-energy" style="width:80%"></div></div>
+      </div>
+    </section>
+
+    <section class="actions" aria-label="할 수 있는 일">
+      <button class="action a-feed"  data-action="feed"  type="button">
+        <span class="big" aria-hidden="true">🍖</span>
+        <span class="lbl">먹이</span>
+      </button>
+      <button class="action a-play"  data-action="play"  type="button">
+        <span class="big" aria-hidden="true">🎾</span>
+        <span class="lbl">놀기</span>
+      </button>
+      <button class="action a-wash"  data-action="wash"  type="button">
+        <span class="big" aria-hidden="true">🛁</span>
+        <span class="lbl">씻기</span>
+      </button>
+      <button class="action a-sleep" data-action="sleep" type="button">
+        <span class="big" aria-hidden="true">💤</span>
+        <span class="lbl">재우기</span>
+      </button>
+    </section>
+  </main>
+
+  <script src="game.js" defer></script>
+</body>
+</html>
