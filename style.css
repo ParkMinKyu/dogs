@@ -893,6 +893,19 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   100% { opacity: 0; transform: translate(-50%, -130%) scale(0.9); }
 }
 
+.mg-sparkle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+  pointer-events: none;
+  animation: sparkle 400ms ease-out forwards;
+  filter: drop-shadow(0 0 6px #ffe28a);
+}
+@keyframes sparkle {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.6); }
+  100% { opacity: 0; transform: translate(-50%, -130%) scale(1.4); }
+}
+
 .mg-catch-bubble {
   position: absolute;
   left: 50%;
