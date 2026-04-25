@@ -1657,9 +1657,11 @@
 
   function progressMission(action, n) {
     if (!state.missions || !state.missions.list) return;
+    // 'minigame'은 'play' 미션도 같이 진행시킴 (놀아주기 카운트 포함)
+    const matchActions = action === 'minigame' ? ['minigame', 'play'] : [action];
     let any = false;
     for (const m of state.missions.list) {
-      if (m.action === action && m.progress < m.count) {
+      if (matchActions.includes(m.action) && m.progress < m.count) {
         m.progress = Math.min(m.count, m.progress + n);
         any = true;
         if (m.progress >= m.count && !m.claimed) {
