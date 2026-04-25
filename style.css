@@ -607,7 +607,9 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   50%      { transform: translateX(-50%) scale(1.08); }
 }
 /* 목욕 중 액세서리 잠시 숨김 */
-.puppy-wrap.is-bathing .acc { display: none !important; }
+.puppy-wrap.is-bathing .acc,
+.puppy-wrap.is-sleeping .acc,
+.puppy-wrap.is-on-cushion .acc { display: none !important; }
 
 /* 쿠션 */
 .prop-cushion .cushion-pad {
