@@ -687,8 +687,10 @@
     setTimeout(() => sp.remove(), 600);
   }
 
+  let scrubActive = false;
   function scrubMove(clientX, clientY) {
     if (!state.busy || state.busy.action !== 'wash') return;
+    if (!scrubActive) return; // 누른 상태에서만 인정 — hover/proximity 무시
     if (scrubLastX === null) { scrubLastX = clientX; scrubLastY = clientY; return; }
     const dx = clientX - scrubLastX, dy = clientY - scrubLastY;
     const dist = Math.hypot(dx, dy);
@@ -717,31 +719,41 @@
       render();
     }
   }
-  function scrubReset() { scrubLastX = scrubLastY = null; }
+  function scrubReset() { scrubActive = false; scrubLastX = scrubLastY = null; }
 
   const stageEl_ = document.querySelector('.stage');
   if (stageEl_) {
     stageEl_.addEventListener('pointerdown', (e) => {
       if (state.busy?.action !== 'wash') return;
       e.preventDefault();
+      scrubActive = true;
       scrubLastX = e.clientX; scrubLastY = e.clientY;
     });
     stageEl_.addEventListener('pointermove', (e) => {
       if (state.busy?.action !== 'wash') return;
-      // 버튼이 눌려있어야 (마우스) 또는 터치 항상
-      if (e.pointerType === 'mouse' && e.buttons === 0) return;
+      if (!scrubActive) return;
+      if (e.pointerType === 'mouse' && e.buttons === 0) { scrubReset(); return; }
       scrubMove(e.clientX, e.clientY);
     });
     stageEl_.addEventListener('pointerup', scrubReset);
     stageEl_.addEventListener('pointerleave', scrubReset);
     stageEl_.addEventListener('pointercancel', scrubReset);
     // 보조: touch 명시적
+    stageEl_.addEventListener('touchstart', (e) => {
+      if (state.busy?.action !== 'wash') return;
+      scrubActive = true;
+      const t = e.touches[0];
+      if (t) { scrubLastX = t.clientX; scrubLastY = t.clientY; }
+    }, { passive: false });
     stageEl_.addEventListener('touchmove', (e) => {
       if (state.busy?.action !== 'wash') return;
+      if (!scrubActive) return;
       e.preventDefault();
       const t = e.touches[0];
       if (t) scrubMove(t.clientX, t.clientY);
     }, { passive: false });
+    stageEl_.addEventListener('touchend', scrubReset);
+    stageEl_.addEventListener('touchcancel', scrubReset);
   }
 
   // 액션별 prop (욕조/쿠션/그릇) 관리
