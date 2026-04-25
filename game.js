@@ -1337,7 +1337,7 @@
 
   // ----- 강아지 자율 이동 (wander) ---------------------------------------
   // idle/happy 상태일 때만 이동. busy/거부/편집/미니게임 중 정지.
-  let wanderX = 50;
+  let wanderX = 50, wanderY = 80; // % — Y는 바닥 영역 (60~95)
   function wanderActive() {
     if (state.busy) return false;
     if (criticalLowGauge()) return false;
@@ -1349,28 +1349,45 @@
   function wanderTick() {
     if (!wanderActive()) return;
     const oldX = wanderX;
-    wanderX = 18 + Math.random() * 64; // 18~82%
-    // 방향
+    wanderX = 12 + Math.random() * 76; // 12~88%
+    wanderY = 65 + Math.random() * 28; // 65~93% (바닥 영역)
     if (puppyWrap) {
       puppyWrap.dataset.direction = wanderX < oldX ? 'left' : 'right';
       puppyWrap.style.left = wanderX + '%';
+      puppyWrap.style.bottom = (100 - wanderY) + '%';
       puppyWrap.style.removeProperty('right');
-      // 발자국 (간헐적)
       const stageEl = document.querySelector('.stage');
       if (stageEl) {
         const fp = document.createElement('div');
         fp.className = 'wander-footprint';
         fp.textContent = '🐾';
         fp.style.left = oldX + '%';
+        fp.style.bottom = (100 - wanderY) + '%';
         stageEl.appendChild(fp);
         setTimeout(() => fp.remove(), 1800);
       }
+      updateDepthSort();
     }
   }
   setInterval(() => {
-    // 5~10초마다 랜덤
     if (Math.random() < 0.3) wanderTick();
   }, 2500);
+
+  // Y 기반 depth sort — 강아지와 deco/furn 아이템 z-index를 Y 좌표로 동적 설정.
+  // 강아지가 화면상 더 아래(=Y%가 큰)면 앞에. 위면 뒤에 가려짐.
+  function updateDepthSort() {
+    if (!puppyWrap) return;
+    puppyWrap.style.zIndex = Math.floor(wanderY * 10);
+    // back layer 안 deco-item / furn-item: Y 좌표 기반 z-index
+    document.querySelectorAll('#decoLayerBack .deco-item, #decoLayerBack .furn-item').forEach(el => {
+      const top = parseFloat(el.style.top || '50');
+      el.style.zIndex = Math.floor(top * 10);
+    });
+    // front layer (나비/새/풍선/별): 항상 강아지 위 — 큰 값
+    document.querySelectorAll('#decoLayerFront .deco-item').forEach(el => {
+      el.style.zIndex = 9999;
+    });
+  }
 
   // 방 데코 — state.roomLayout을 메인 stage에 렌더 (배경/전경 분리)
   // 종류별 z-index 분류: 바닥류는 deco-back, 떠다니는 류는 deco-front
@@ -1434,6 +1451,8 @@
       stageEl.dataset.wallpaper = state.wallpaper || 'default';
       stageEl.dataset.floor = state.floor || 'default';
     }
+    // Y 기반 z-index 정렬
+    updateDepthSort();
   }
 
   function renderAccessories() {

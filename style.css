@@ -382,7 +382,7 @@ body.is-sick #vetBtn .dot { display: block; }
 
 /* puppy-wrap이 wander 시 부드럽게 이동 + 좌우 mirror */
 .puppy-wrap {
-  transition: left 2.4s ease-in-out, transform 600ms cubic-bezier(.2,1.4,.4,1);
+  transition: left 2.4s ease-in-out, bottom 2.4s ease-in-out, transform 600ms cubic-bezier(.2,1.4,.4,1);
 }
 .puppy-wrap[data-direction="left"] .puppy { transform: scaleX(-1); transition: transform 200ms; }
 /* 액세서리는 base transform: translateX(-50%) 유지하면서 scaleX만 추가
@@ -1890,8 +1890,9 @@ body.is-editing-room .furn-item:hover { transform: translate(-50%, -50%) scale(1
   inset: 0;
   pointer-events: none;
 }
-.deco-back  { z-index: 1; }
-.deco-front { z-index: 4; }
+/* layer는 inline z-index 적용을 위해 stacking 컨텍스트 만들지 않음 */
+.deco-back  { z-index: auto; }
+.deco-front { z-index: auto; }
 .deco-item {
   position: absolute;
   font-size: 28px;
