@@ -285,11 +285,43 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   transition: opacity 1.2s ease, transform 1.2s ease;
   opacity: 0;
 }
-.w-sun { right: 10%; top: 20%; font-size: 22px; }
-.w-moon { right: 18%; top: 15%; font-size: 22px; }
-.w-star1 { left: 18%; top: 18%; font-size: 12px; }
-.w-star2 { left: 60%; top: 28%; font-size: 14px; }
-.w-star3 { left: 32%; top: 42%; font-size: 11px; }
+.w-sun {
+  right: 10%; top: 16%;
+  width: 22px; height: 22px;
+  font-size: 0;
+  background: radial-gradient(circle, #ffe97a 40%, #ffd633 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 10px 4px #ffe97a88;
+}
+/* 초승달 — 원 두 개 겹쳐서 크레센트 */
+.w-moon {
+  right: 18%; top: 15%;
+  width: 20px; height: 20px;
+  font-size: 0;
+  background: #e8d88a;
+  border-radius: 50%;
+  box-shadow: 0 0 8px 2px #e8d88a66;
+  /* 오른쪽 위 어두운 원으로 초승달 컷아웃 */
+  clip-path: circle(50%);
+}
+.w-moon::after {
+  content: '';
+  position: absolute;
+  top: -3px; right: -4px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  /* night 하늘 색으로 가림 — 배경과 맞춤 */
+  background: #1a2a5c;
+}
+/* 별 — 작은 원 + glow */
+.w-star {
+  font-size: 0;
+  border-radius: 50%;
+  background: #fff;
+}
+.w-star1 { left: 18%; top: 18%; width: 4px; height: 4px; box-shadow: 0 0 4px 2px #ffffffcc; }
+.w-star2 { left: 60%; top: 28%; width: 5px; height: 5px; box-shadow: 0 0 5px 2px #ffffffcc; }
+.w-star3 { left: 32%; top: 42%; width: 3px; height: 3px; box-shadow: 0 0 3px 2px #ffffffaa; }
 .w-cloud1 { left: 12%; top: 32%; font-size: 16px; opacity: 0; animation: cloud-drift 12s linear infinite; }
 .w-cloud2 { left: 50%; top: 22%; font-size: 14px; opacity: 0; animation: cloud-drift 16s linear infinite reverse; }
 @keyframes cloud-drift {
@@ -2311,36 +2343,162 @@ body.is-editing-room .stage::after {
 }
 
 /* 산책 — 야외 배경 + 아이템 */
+/* 기존 walk-arena (하위 호환) */
 .minigame-arena.walk-arena {
   background: linear-gradient(180deg, #c8e8ff 0%, #a8e2c8 50%, #8dca96 70%, #f6c993 100%);
-  cursor: pointer;
-}
-.walk-arena .walk-sky {
-  position: absolute;
-  inset: 0 0 50% 0;
-  background: radial-gradient(50% 80% at 30% 20%, #fff7c0 0%, transparent 60%);
-  pointer-events: none;
-}
-.walk-arena .walk-grass {
-  position: absolute;
-  left: 0; right: 0; bottom: 30%;
-  height: 20%;
-  background: linear-gradient(180deg, #95da9c 0%, #6cba80 100%);
-  border-top: 3px dashed rgba(255,255,255,0.5);
-  pointer-events: none;
-}
-.walk-arena .walk-path {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 30%;
-  background: linear-gradient(180deg, #d8b48a 0%, #a8845a 100%);
-  pointer-events: none;
+  cursor: default;
+  overflow: hidden;
 }
 .walk-dog {
   bottom: 16%;
   width: 100px;
   height: 100px;
   transition: left 100ms linear;
+}
+
+/* ===== 횡스크롤 산책 ===== */
+.walk-scroll-arena {
+  background: #b8dfff;
+  overflow: hidden;
+  cursor: default;
+}
+
+/* 고정 하늘 레이어 — 태양/구름은 스크롤 안 함 */
+.wsc-sky-fixed {
+  position: absolute;
+  inset: 0 0 35% 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.wsc-sky-fixed .wsc-sky,
+.wsc-sky-fixed .wsc-sun,
+.wsc-sky-fixed .wsc-cloud { position: absolute; }
+
+/* 배경 무한 스크롤 래퍼 — 두 패널을 가로로 나열 */
+.wsc-bg-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  width: 200%;        /* 패널 2개 */
+  pointer-events: none;
+  z-index: 2;
+}
+.wsc-bg {
+  position: relative;
+  flex: 0 0 50%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent; /* 하늘은 wsc-sky-fixed가 담당 */
+}
+
+/* 하늘 */
+.wsc-sky {
+  position: absolute;
+  inset: 0 0 35% 0;
+  background: linear-gradient(180deg, #7ec8f5 0%, #c8ecff 100%);
+}
+/* 태양 */
+.wsc-sun {
+  position: absolute;
+  top: 8%; left: 72%;
+  width: 44px; height: 44px;
+  background: radial-gradient(circle, #ffe97a 40%, #ffd633 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 18px 6px #ffe97a88;
+}
+/* 구름 */
+.wsc-cloud {
+  position: absolute;
+  background: #ffffffcc;
+  border-radius: 999px;
+  pointer-events: none;
+}
+.wsc-cloud::before, .wsc-cloud::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+.wsc-cloud1 {
+  top: 12%; left: 10%;
+  width: 70px; height: 22px;
+}
+.wsc-cloud1::before { width: 36px; height: 36px; top: -18px; left: 10px; }
+.wsc-cloud1::after  { width: 28px; height: 28px; top: -14px; left: 32px; }
+.wsc-cloud2 {
+  top: 20%; left: 52%;
+  width: 54px; height: 16px;
+}
+.wsc-cloud2::before { width: 28px; height: 28px; top: -14px; left: 6px; }
+.wsc-cloud2::after  { width: 22px; height: 22px; top: -10px; left: 26px; }
+
+/* 풀밭 */
+.wsc-grass {
+  position: absolute;
+  left: 0; right: 0; bottom: 22%;
+  height: 16%;
+  background: linear-gradient(180deg, #7dd68a 0%, #52b866 100%);
+  border-top: 3px solid #a8e8b0;
+}
+/* 길 */
+.wsc-path {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 22%;
+  background: linear-gradient(180deg, #d9c49a 0%, #b89a6a 100%);
+  border-top: 2px dashed rgba(255,255,255,0.35);
+}
+/* 나무 */
+.wsc-tree {
+  position: absolute;
+  font-size: 48px;
+  bottom: 33%;
+  pointer-events: none;
+  filter: drop-shadow(2px 0 0 rgba(0,0,0,0.12));
+}
+.wsc-tree1 { left: 5%;  font-size: 52px; }
+.wsc-tree2 { left: 40%; font-size: 44px; }
+.wsc-tree3 { left: 75%; font-size: 56px; }
+/* 벤치 */
+.wsc-bench {
+  position: absolute;
+  font-size: 28px;
+  bottom: 22%;
+  left: 60%;
+  pointer-events: none;
+}
+
+/* 강아지 고정 래퍼 */
+.wsc-dog-wrap {
+  position: absolute;
+  bottom: 0;
+  width: 96px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.wsc-dog {
+  display: block;
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+  filter: drop-shadow(2px 0 0 rgba(0,0,0,0.10));
+  animation: wsc-dog-walk 0.4s steps(1) infinite;
+}
+@keyframes wsc-dog-walk {
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+.wsc-dog-shadow {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px; height: 10px;
+  background: rgba(0,0,0,0.22);
+  border-radius: 50%;
+  filter: blur(3px);
+  pointer-events: none;
 }
 .walk-item {
   position: absolute;

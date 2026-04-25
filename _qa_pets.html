@@ -1,0 +1,67 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{font:11px monospace;padding:8px;margin:0;white-space:pre-wrap}</style>
+<iframe id="f" src="/?demo=1&notrans=1" style="width:0;height:0;border:0"></iframe>
+<pre id="o"></pre>
+<script>
+addEventListener('load', async () => {
+  const f = document.getElementById('f');
+  const out = document.getElementById('o');
+  const log = [];
+  await new Promise(r => setTimeout(r, 1000));
+  const w = f.contentWindow;
+  // 2 pets seed
+  const today = '2026-04-26';
+  w.localStorage.setItem('dogs.p0.state.v1', JSON.stringify({
+    hunger: 80, happy: 80, clean: 80, energy: 80,
+    lastTs: Date.now(), care: 200, careLastTick: 0, schemaVer: 3, stage: 'puppy',
+    name: 'A', breed: 'shiba', species: 'dog', points: 200,
+    inventory: {}, equipped: { hat: null, neck: null, glasses: null, back: null, feet: null },
+    minigameLastTs: 0, playLast: {},
+    roomInv: {}, roomLayout: [], wallpaper: 'default', floor: 'default',
+    furnitureInv: {}, furnitureLayout: [],
+    styleInv: { wp_default: true, fl_default: true },
+    lastReqTs: { hunger: 1000 }, messes: [], sick: null, lowCleanSince: 0,
+    gaugeZeroSince: { hunger: null, happy: null, clean: null, energy: null }, gameOver: false,
+    busy: null, missions: { date: today, list: [] },
+    wanderX: 30, wanderY: 86,
+    pets: [
+      { id: 0 },
+      { id: 1, name: 'B', breed: 'maltese', species: 'dog',
+        hunger: 15, happy: 60, clean: 60, energy: 60, lastTs: Date.now(),
+        care: 0, careLastTick: 0, stage: 'puppy',
+        equipped: { hat: null, neck: null, glasses: null, back: null, feet: null },
+        roomInv: {}, roomLayout: [], wallpaper: 'default', floor: 'default',
+        furnitureInv: {}, furnitureLayout: [],
+        lastReqTs: { hunger: 2000 }, messes: [], sick: null, lowCleanSince: 0,
+        gaugeZeroSince: { hunger: null, happy: null, clean: null, energy: null },
+        busy: null, minigameLastTs: 0, playLast: {},
+        wanderX: 70, wanderY: 86 },
+    ],
+    activePetId: 0, nextPetId: 2,
+  }));
+  // reload
+  await new Promise(r => { f.addEventListener('load', r, { once:true }); f.src = '/?notrans=1&_=' + Date.now(); });
+  await new Promise(r => setTimeout(r, 800));
+  const w2 = f.contentWindow;
+  let s = w2.__dogs.get();
+  log.push(`pet0 active: name=${s.name} hunger=${s.hunger} wanderX=${s.wanderX}`);
+  // switch to pet 1
+  w2.__dogs.switchPet ? w2.__dogs.switchPet(1) : null;
+  // __dogs.switchPet 없으면 직접 호출 — switchToPet은 IIFE 내부, dev hook 없음
+  // 카드 클릭 시뮬
+  const cards = w2.document.querySelectorAll('.pet-slot');
+  if (cards[1]) cards[1].click();
+  await new Promise(r => setTimeout(r, 400));
+  s = w2.__dogs.get();
+  log.push(`pet1 active: name=${s.name} hunger=${s.hunger} wanderX=${s.wanderX}`);
+  const wrap = w2.document.querySelector('.puppy-wrap');
+  log.push(`puppy-wrap left: ${wrap.style.left}`);
+  // 다시 pet 0
+  cards[0].click();
+  await new Promise(r => setTimeout(r, 400));
+  s = w2.__dogs.get();
+  log.push(`pet0 again: name=${s.name} hunger=${s.hunger} wanderX=${s.wanderX}`);
+  log.push(`puppy-wrap left: ${wrap.style.left}`);
+  out.textContent = log.join('\n');
+});
+</script>

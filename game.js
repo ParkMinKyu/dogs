@@ -342,6 +342,7 @@
       lastReqTs: {}, messes: [], sick: null, lowCleanSince: 0,
       gaugeZeroSince: { hunger: null, happy: null, clean: null, energy: null },
       busy: null, minigameLastTs: 0, playLast: {},
+      wanderX: 12 + Math.random() * 76, wanderY: 78 + Math.random() * 14,
     };
     state.pets.push(fresh);
     loadPetIntoState(id);
@@ -943,7 +944,7 @@
   // mess 렌더 + 청소 핸들러
   // v2 — 헤더 펫 슬롯 카드 (현재 펫 + 다른 펫 + "추가" 버튼)
   // 펫 슬롯 해금 임계값 (state.points 누적 기준, 차감 없음)
-  const PET_UNLOCK = [0, 100, 500, 1500]; // 1/2/3/4번 펫
+  const PET_UNLOCK = [0, 1000, 5000, 15000]; // 1/2/3/4번 펫
   const MAX_PETS = PET_UNLOCK.length;
 
   function renderPetSlots() {
@@ -1023,6 +1024,12 @@
   actionBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
+      if (state.sick && action !== 'vet') {
+        btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+        showSpeech('🤒 아파서 못 해요... 병원에 데려가 주세요!');
+        try { SOUNDS.whimper(); } catch {}
+        return;
+      }
       if (action === 'play_menu') { openPlayMenu(); return; }
       if (action === 'minigame')  { openMinigame(); return; } // 하위 호환
       onAction(btn);
@@ -1033,6 +1040,13 @@
     const action = btn.dataset.action;
     const eff = ACTION_EFFECT[action];
     if (!eff) return;
+    // 아플 때는 병원(vet) 외 모든 액션 차단
+    if (state.sick && action !== 'vet') {
+      btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+      showSpeech('🤒 아파서 못 해요... 병원에 데려가 주세요!');
+      try { SOUNDS.whimper(); } catch {}
+      return;
+    }
     // 진행 중이면 다른 액션 차단
     if (state.busy && state.busy.endsAt && Date.now() < state.busy.endsAt) return;
     if (state.busy && !state.busy.endsAt) return; // wash 등 무제한 진행 중
@@ -1137,8 +1151,8 @@
 
   function startBusyAction(action) {
     const dur = ACTION_DURATION[action] || 0;
-    // 강아지를 액션 prop 위치로 이동 (wash/sleep/feed)
     moveDogToActionPos(action);
+    updateDepthSort();
     // wash는 무제한 — endsAt null
     if (action === 'wash') {
       state.busy = { action: 'wash', startedAt: Date.now(), endsAt: null };
@@ -1173,9 +1187,20 @@
     const action = state.busy.action;
     state.busy = null;
     state.washScrub = 0;
+    updateDepthSort();
     applyActionEffect(action);
     tempFaceState = 'happy';
     tempFaceUntil = Date.now() + 700;
+    // 밥 먹고 나면 5~10초 안에 용변
+    if (action === 'feed') {
+      const delay = 5000 + Math.random() * 5000;
+      setTimeout(() => {
+        if (_spawnMessOn(state)) {
+          flashBubble(state.messes[state.messes.length - 1].type === 'poop' ? '💩' : '💧');
+          saveState(); render();
+        }
+      }, delay);
+    }
     saveState();
     render();
   }
@@ -1552,7 +1577,9 @@
       delete puppyWrap.dataset.mood;
     }
     // 청결 레벨 4단계 — 점진적 더러움 (clean이 critical이 아니어도 50/30 단계 표현)
-    const cleanLevel = state.clean >= 70 ? 'clean'
+    // 씻는 중엔 더러움 표현 OFF
+    const cleanLevel = isWashing ? 'clean'
+      : state.clean >= 70 ? 'clean'
       : state.clean >= 50 ? 'mild'
       : state.clean >= 30 ? 'dirty'
       : 'filthy';
@@ -1575,7 +1602,7 @@
     } else if (ov) { ov.remove(); }
 
     // 액션 dim — 거부 상태일 때, 요청 중이면 빨간 점
-    const reqs = activeRequests();
+    const reqs = activeRequestsFor(state);
     const reqByAction = {};
     for (const [g, r] of Object.entries(reqs)) reqByAction[r.def.action] = r.severity;
     const lows = GAUGES.filter(g => state[g] <= 20);
@@ -1632,34 +1659,57 @@
   const REQ_INTERVAL_SOFT = 30 * 1000;
   const REQ_INTERVAL_HARD = 15 * 1000;
 
-  function activeRequests() {
+  function activeRequestsFor(pet) {
     const out = {};
     for (const g of GAUGES) {
       const def = REQ_DEFS[g];
       if (!def) continue;
-      const v = state[g];
+      const v = pet[g];
       if (v <= def.hard) out[g] = { def, severity: 'hard' };
       else if (v <= def.soft) out[g] = { def, severity: 'soft' };
     }
     return out;
   }
 
+  function pickRequest(pet, reqs) {
+    let pick = null;
+    for (const [g, r] of Object.entries(reqs)) {
+      if (r.severity === 'hard' && (!pick || pet[g] < pet[pick.g])) pick = { g, r };
+    }
+    if (!pick) {
+      for (const [g, r] of Object.entries(reqs)) {
+        if (r.severity === 'soft' && (!pick || pet[g] < pet[pick.g])) pick = { g, r };
+      }
+    }
+    return pick;
+  }
+
   function tickRequests() {
     if (!state.name || !state.breed) return; // setup-pending
     if (state.busy) return; // 진행 중엔 요청 X
     const now = Date.now();
-    if (!state.lastReqTs) state.lastReqTs = {};
-    const reqs = activeRequests();
-    // 가장 시급한 한 가지만 발화 (hard 우선, 그 중 가장 낮은 게이지)
-    let pick = null;
-    for (const [g, r] of Object.entries(reqs)) {
-      if (r.severity === 'hard' && (!pick || state[g] < state[pick.g])) pick = { g, r };
-    }
-    if (!pick) {
-      for (const [g, r] of Object.entries(reqs)) {
-        if (r.severity === 'soft' && (!pick || state[g] < state[pick.g])) pick = { g, r };
+
+    // 비활성 펫: lastReqTs만 조용히 갱신 (말풍선/사운드 X, 단 타이밍은 개별 추적)
+    if (Array.isArray(state.pets)) {
+      for (const pet of state.pets) {
+        if (pet.id === state.activePetId) continue;
+        if (!pet.name || !pet.breed) continue;
+        if (!pet.lastReqTs) pet.lastReqTs = {};
+        const reqs = activeRequestsFor(pet);
+        const pick = pickRequest(pet, reqs);
+        if (!pick) continue;
+        const interval = pick.r.severity === 'hard' ? REQ_INTERVAL_HARD : REQ_INTERVAL_SOFT;
+        const last = pet.lastReqTs[pick.g] || 0;
+        if (now - last >= interval) {
+          pet.lastReqTs[pick.g] = now; // 타이밍 기록만, 표시 X
+        }
       }
     }
+
+    // 활성 펫: 말풍선 + 사운드 발화
+    if (!state.lastReqTs) state.lastReqTs = {};
+    const reqs = activeRequestsFor(state);
+    const pick = pickRequest(state, reqs);
     if (!pick) return;
     const interval = pick.r.severity === 'hard' ? REQ_INTERVAL_HARD : REQ_INTERVAL_SOFT;
     const last = state.lastReqTs[pick.g] || 0;
@@ -1723,7 +1773,10 @@
   // 강아지가 화면상 더 아래(=Y%가 큰)면 앞에. 위면 뒤에 가려짐.
   function updateDepthSort() {
     if (!puppyWrap) return;
-    puppyWrap.style.zIndex = Math.floor((state.wanderY || 86) * 10);
+    // 씻는 중 or 방 편집 중: action-prop(z:6) / room-edit-panel(z:90) 아래로
+    const isBusy = !!state.busy;
+    const isEditing = document.body.classList.contains('is-editing-room');
+    puppyWrap.style.zIndex = (isBusy || isEditing) ? '3' : String(Math.floor((state.wanderY || 86) * 10));
     // back layer 안 deco-item / furn-item: Y 좌표 기반 z-index
     document.querySelectorAll('#decoLayerBack .deco-item, #decoLayerBack .furn-item').forEach(el => {
       const top = parseFloat(el.style.top || '50');
@@ -2295,6 +2348,7 @@
 
   function enterRoomEdit() {
     document.body.classList.add('is-editing-room');
+    updateDepthSort();
     __roomPickedKind = null;
     // 편집 패널 — 화면 하단 고정
     const panel = document.createElement('div');
@@ -2314,6 +2368,7 @@
 
   function exitRoomEdit() {
     document.body.classList.remove('is-editing-room');
+    updateDepthSort();
     __roomPickedKind = null;
     if (__roomEditPanelEl) { __roomEditPanelEl.remove(); __roomEditPanelEl = null; }
     saveState();
@@ -2912,9 +2967,8 @@
     setTimeout(() => { lastFrame = performance.now(); step._lastT = lastFrame; requestAnimationFrame(step); }, 80);
   }
 
-  // ----- 산책: 30초 동안 야외 배경 + 아이템 등장 + 수집 -----------------
+  // ----- 산책: 횡스크롤 — 배경이 흘러가고 아이템이 오른쪽에서 등장, 강아지가 점프해서 수집 ---------
   function openWalkGame() {
-    // 거부: 에너지/배고픔 너무 낮으면 거부
     if (state.energy <= 30) {
       const body = document.createElement('div');
       const p = document.createElement('p'); p.className = 'modal-sub'; p.textContent = '💤 너무 졸려서 산책 못 가요. 먼저 재워 주세요.';
@@ -2937,7 +2991,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🐾 아이템을 <b>탭!</b> 해서 모아요';
+    guide.innerHTML = '🐾 탭하면 점프! 아이템을 모아요';
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -2952,43 +3006,68 @@
     const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
     tBar.appendChild(tFill); body.appendChild(tBar);
 
+    // 아레나
     const arena = document.createElement('div');
-    arena.className = 'minigame-arena big walk-arena';
+    arena.className = 'minigame-arena big walk-arena walk-scroll-arena';
     arena.dataset.breed = state.breed || 'shiba';
-    // 야외 배경 요소
-    arena.innerHTML = `
-      <div class="walk-sky"></div>
-      <div class="walk-grass"></div>
-      <div class="walk-path"></div>
-    `;
-    const dog = document.createElement('img');
-    dog.className = 'mg-dog walk-dog';
-    dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
-    arena.appendChild(dog);
-    body.appendChild(arena);
 
+    // 고정 하늘 레이어 — 태양/구름은 스크롤 안 함
+    const skyFixed = document.createElement('div'); skyFixed.className = 'wsc-sky-fixed';
+    skyFixed.innerHTML = `
+      <div class="wsc-sky"></div>
+      <div class="wsc-sun"></div>
+      <div class="wsc-cloud wsc-cloud1"></div>
+      <div class="wsc-cloud wsc-cloud2"></div>
+    `;
+    arena.appendChild(skyFixed);
+
+    // 파노라마 배경 레이어 (두 복사본을 이어붙여 무한 스크롤)
+    const bgWrap = document.createElement('div'); bgWrap.className = 'wsc-bg-wrap';
+    for (let i = 0; i < 2; i++) {
+      const bg = document.createElement('div'); bg.className = 'wsc-bg';
+      bg.innerHTML = `
+        <div class="wsc-tree wsc-tree1">🌳</div>
+        <div class="wsc-tree wsc-tree2">🌲</div>
+        <div class="wsc-tree wsc-tree3">🌳</div>
+        <div class="wsc-bench">🪑</div>
+        <div class="wsc-grass"></div>
+        <div class="wsc-path"></div>
+      `;
+      bgWrap.appendChild(bg);
+    }
+    arena.appendChild(bgWrap);
+
+    // 강아지 (고정 위치, 왼쪽 25%)
+    const dogWrap = document.createElement('div'); dogWrap.className = 'wsc-dog-wrap';
+    const dogShadow = document.createElement('div'); dogShadow.className = 'wsc-dog-shadow';
+    const dog = document.createElement('img');
+    dog.className = 'wsc-dog';
+    dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
+    dogWrap.appendChild(dogShadow);
+    dogWrap.appendChild(dog);
+    arena.appendChild(dogWrap);
+
+    body.appendChild(arena);
     const endBtn = document.createElement('button');
     endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
     endBtn.style.marginTop = '6px';
     body.appendChild(endBtn);
 
-    // 아이템 카탈로그 — gift는 가구/벽지/바닥 랜덤 박스, furn/wp/fl은 희귀 직접 등장
+    // 아이템 카탈로그
     const ITEM_DEFS = [
-      { kind: 'bone',    emoji: '🦴', score: 5,  weight: 30, rare: false },
-      { kind: 'flower',  emoji: '🌸', score: 3,  weight: 22, rare: false },
-      { kind: 'butter',  emoji: '🦋', score: 5,  weight: 14, rare: false, moves: true },
-      { kind: 'bird',    emoji: '🐦', score: 5,  weight: 10, rare: false, moves: true },
-      { kind: 'balloon', emoji: '🎈', score: 10, weight: 5,  rare: true },
-      { kind: 'star',    emoji: '⭐', score: 20, weight: 3,  rare: true, careBonus: 1 },
-      { kind: 'gem',     emoji: '💎', score: 30, weight: 1,  rare: true, careBonus: 5 },
-      { kind: 'gift',    emoji: '🎁', score: 15, weight: 2,  rare: true, gift: true },
-      // 가구 직접 (전체 확률 ~1.5%)
-      { kind: 'furn_chair',  emoji: '🪑', score: 25, weight: 0.5, rare: true, furn: 'chair' },
-      { kind: 'furn_plant',  emoji: '🪴', score: 25, weight: 0.5, rare: true, furn: 'plant' },
-      { kind: 'furn_lamp',   emoji: '🪔', score: 25, weight: 0.4, rare: true, furn: 'lamp' },
-      // 두루마리 (벽지/바닥, ~0.6%)
-      { kind: 'wp_roll',     emoji: '🎨', score: 30, weight: 0.3, rare: true, wpRoll: true },
-      { kind: 'fl_roll',     emoji: '🟫', score: 30, weight: 0.3, rare: true, flRoll: true },
+      { kind: 'bone',   emoji: '🦴', score: 5,  weight: 30, rare: false },
+      { kind: 'flower', emoji: '🌸', score: 3,  weight: 22, rare: false },
+      { kind: 'butter', emoji: '🦋', score: 5,  weight: 14, rare: false },
+      { kind: 'bird',   emoji: '🐦', score: 5,  weight: 10, rare: false },
+      { kind: 'balloon',emoji: '🎈', score: 10, weight: 5,  rare: true },
+      { kind: 'star',   emoji: '⭐', score: 20, weight: 3,  rare: true, careBonus: 1 },
+      { kind: 'gem',    emoji: '💎', score: 30, weight: 1,  rare: true, careBonus: 5 },
+      { kind: 'gift',   emoji: '🎁', score: 15, weight: 2,  rare: true, gift: true },
+      { kind: 'furn_chair', emoji: '🪑', score: 25, weight: 0.5, rare: true, furn: 'chair' },
+      { kind: 'furn_plant', emoji: '🪴', score: 25, weight: 0.5, rare: true, furn: 'plant' },
+      { kind: 'furn_lamp',  emoji: '🪔', score: 25, weight: 0.4, rare: true, furn: 'lamp' },
+      { kind: 'wp_roll',    emoji: '🎨', score: 30, weight: 0.3, rare: true, wpRoll: true },
+      { kind: 'fl_roll',    emoji: '🟫', score: 30, weight: 0.3, rare: true, flRoll: true },
     ];
     const totalWeight = ITEM_DEFS.reduce((s, d) => s + d.weight, 0);
     function pickItemDef() {
@@ -2997,50 +3076,62 @@
       return ITEM_DEFS[0];
     }
 
-    const items = []; // {el, def, x, y, vx, born, life}
-    const collected = {}; // kind -> count
+    // 상태
+    const items = []; // { el, def, x, baseY, captured }
+    const collected = {};
     let score = 0;
     let endedFlag = false;
-    let dogX = null;
-    let dogTarget = null;
+    const TOTAL_MS = 30000;
+    const SCROLL_SPEED = 120; // px/s — 배경 스크롤 속도
+    const ITEM_SPEED  = 110; // px/s — 아이템이 왼쪽으로 이동하는 속도
+    let bgOffset = 0;        // 배경 스크롤 누적값
     let lastFrame = performance.now();
     let started = lastFrame;
     let spawnAccum = 0;
-    let nextSpawn = 700 + Math.random() * 500;
-    const TOTAL_MS = 30000;
-    let lastFootprintTs = 0;
+    let nextSpawn = 1200 + Math.random() * 800;
+
+    // 점프 상태
+    let jumping = false;
+    let jumpVy = 0;
+    let dogY = 0; // 0 = 지면, 양수 = 공중 (px)
+    const JUMP_VY = -320;   // 더 강하게 → 최고점 ~73px
+    const GRAVITY = 700;
+    const GROUND_Y = 0;
+    const DOG_GROUND_BOTTOM = 52; // px from arena bottom
+    const DOG_X_PCT = 22;         // 고정 X (%)
+    // 점프 최고점 = JUMP_VY² / (2 * GRAVITY) ≈ 73px
 
     function arenaRect() { return arena.getBoundingClientRect(); }
 
-    function spawnItem() {
+    function applyDogPos(r) {
+      const bottomPx = DOG_GROUND_BOTTOM + dogY;
+      dogWrap.style.bottom = bottomPx + 'px';
+      dogShadow.style.transform = `translateX(-50%) scaleX(${Math.max(0.4, 1 - dogY / 160)})`;
+      dogShadow.style.opacity = String(Math.max(0.15, 0.55 - dogY / 260));
+    }
+
+    function triggerJump() {
+      if (jumping) return;
+      jumping = true;
+      jumpVy = JUMP_VY;
+      dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    }
+
+    function spawnItem(r) {
       const def = pickItemDef();
-      const r = arenaRect();
-      const margin = 30;
-      const y = 30 + Math.random() * (r.height - 130);
-      const fromLeft = Math.random() < 0.5;
-      const x = def.moves ? (fromLeft ? -20 : r.width + 20) : margin + Math.random() * (r.width - margin * 2);
+      // 점프 최고점 ~73px 범위 안에 공중 아이템 배치
+      const airborne = Math.random() < 0.45;
+      const jumpPeak = (JUMP_VY * JUMP_VY) / (2 * GRAVITY); // ≈73px
+      const baseY = airborne
+        ? DOG_GROUND_BOTTOM + 20 + Math.random() * (jumpPeak - 24) // 20~69px 위
+        : DOG_GROUND_BOTTOM + 4;
       const el = document.createElement('div');
       el.className = 'walk-item' + (def.rare ? ' rare' : '');
       el.textContent = def.emoji;
-      el.style.left = x + 'px';
-      el.style.top = y + 'px';
+      el.style.right = '-40px';
+      el.style.bottom = baseY + 'px';
       arena.appendChild(el);
-      const data = {
-        el, def, x, y,
-        vx: def.moves ? (fromLeft ? 70 + Math.random() * 50 : -(70 + Math.random() * 50)) : 0,
-        born: performance.now(),
-        life: def.moves ? 8000 : 4500 + Math.random() * 1500,
-        captured: false,
-      };
-      items.push(data);
-      const onTap = (e) => {
-        e.stopPropagation();
-        if (data.captured || endedFlag) return;
-        // 강아지가 그쪽으로 가도록 target 지정
-        dogTarget = data;
-      };
-      el.addEventListener('click', onTap);
-      el.addEventListener('touchstart', (e) => { e.preventDefault(); onTap(e); }, { passive: false });
+      items.push({ el, def, x: r.width + 40, baseY, captured: false, airborne });
     }
 
     function captureItem(it) {
@@ -3051,41 +3142,32 @@
       score += def.score;
       scoreEl.textContent = '🎯 ' + score;
       it.el.classList.add('walk-item-pop');
-      setTimeout(() => { try { it.el.remove(); } catch {}; }, 240);
+      setTimeout(() => { try { it.el.remove(); } catch {} }, 240);
       try { SOUNDS.coin(); } catch {}
       flashBubble('💖');
       let extraMsg = null;
 
-      // 가구 직접 등장
       if (def.furn) {
         if (!state.furnitureInv) state.furnitureInv = {};
         state.furnitureInv[def.furn] = (state.furnitureInv[def.furn] || 0) + 1;
         extraMsg = `🪴 ${FURNITURE[def.furn].name} 발견!`;
       } else if (def.wpRoll) {
-        // 미보유 벽지 랜덤 추가
         const all = Object.keys(WALLPAPERS).filter(k => k !== 'default');
-        const owned = state.styleInv || {};
-        const candidates = all.filter(k => !owned['wp_' + k]);
+        const candidates = all.filter(k => !(state.styleInv || {})['wp_' + k]);
         if (candidates.length) {
           const pick = candidates[Math.floor(Math.random() * candidates.length)];
           state.styleInv['wp_' + pick] = true;
           extraMsg = `🎨 ${WALLPAPERS[pick].name} 벽지 발견!`;
-        } else {
-          extraMsg = `🎨 모든 벽지 보유 중`;
-        }
+        } else { extraMsg = `🎨 모든 벽지 보유 중`; }
       } else if (def.flRoll) {
         const all = Object.keys(FLOORS).filter(k => k !== 'default');
-        const owned = state.styleInv || {};
-        const candidates = all.filter(k => !owned['fl_' + k]);
+        const candidates = all.filter(k => !(state.styleInv || {})['fl_' + k]);
         if (candidates.length) {
           const pick = candidates[Math.floor(Math.random() * candidates.length)];
           state.styleInv['fl_' + pick] = true;
           extraMsg = `🟫 ${FLOORS[pick].name} 바닥 발견!`;
-        } else {
-          extraMsg = `🟫 모든 바닥 보유 중`;
-        }
+        } else { extraMsg = `🟫 모든 바닥 보유 중`; }
       } else if (def.gift) {
-        // 선물상자 — 가구/벽지/바닥/액세서리 중 랜덤
         const buckets = ['furn', 'wp', 'fl', 'acc'];
         const bucket = buckets[Math.floor(Math.random() * buckets.length)];
         if (bucket === 'furn') {
@@ -3096,62 +3178,31 @@
           extraMsg = `🎁 ${FURNITURE[pick].name} 받았어요!`;
         } else if (bucket === 'wp') {
           const all = Object.keys(WALLPAPERS).filter(k => k !== 'default');
-          const cand = all.filter(k => !(state.styleInv||{})['wp_'+k]);
-          if (cand.length) {
-            const pick = cand[Math.floor(Math.random()*cand.length)];
-            state.styleInv['wp_'+pick] = true;
-            extraMsg = `🎁 ${WALLPAPERS[pick].name} 벽지!`;
-          }
+          const cand = all.filter(k => !(state.styleInv || {})['wp_' + k]);
+          if (cand.length) { const pick = cand[Math.floor(Math.random() * cand.length)]; state.styleInv['wp_' + pick] = true; extraMsg = `🎁 ${WALLPAPERS[pick].name} 벽지!`; }
         } else if (bucket === 'fl') {
           const all = Object.keys(FLOORS).filter(k => k !== 'default');
-          const cand = all.filter(k => !(state.styleInv||{})['fl_'+k]);
-          if (cand.length) {
-            const pick = cand[Math.floor(Math.random()*cand.length)];
-            state.styleInv['fl_'+pick] = true;
-            extraMsg = `🎁 ${FLOORS[pick].name} 바닥!`;
-          }
+          const cand = all.filter(k => !(state.styleInv || {})['fl_' + k]);
+          if (cand.length) { const pick = cand[Math.floor(Math.random() * cand.length)]; state.styleInv['fl_' + pick] = true; extraMsg = `🎁 ${FLOORS[pick].name} 바닥!`; }
         } else {
-          // 액세서리 — 미보유 우선
           const owned = state.inventory || {};
           const cand = ACCESSORIES.filter(a => !owned[a.id]);
-          if (cand.length) {
-            const pick = cand[Math.floor(Math.random()*cand.length)];
-            state.inventory[pick.id] = true;
-            extraMsg = `🎁 ${pick.name} 받았어요!`;
-          }
+          if (cand.length) { const pick = cand[Math.floor(Math.random() * cand.length)]; state.inventory[pick.id] = true; extraMsg = `🎁 ${pick.name} 받았어요!`; }
         }
       } else {
-        // 일반 장식품 (꽃/뼈/별/보석 등) — roomInv에 누적
         if (ROOM_ITEMS[def.kind]) {
           if (!state.roomInv) state.roomInv = {};
           state.roomInv[def.kind] = (state.roomInv[def.kind] || 0) + 1;
         }
       }
 
-      // 희귀 아이템 — 큰 축하
-      if (def.rare) {
+      if (def.rare || extraMsg) {
         const cel = document.createElement('div');
         cel.className = 'walk-celebrate';
         cel.textContent = extraMsg || `와! ${def.emoji} 발견!`;
         arena.appendChild(cel);
-        setTimeout(() => cel.remove(), 1500);
-      } else if (extraMsg) {
-        const cel = document.createElement('div');
-        cel.className = 'walk-celebrate';
-        cel.textContent = extraMsg;
-        arena.appendChild(cel);
-        setTimeout(() => cel.remove(), 1300);
+        setTimeout(() => cel.remove(), 1400);
       }
-    }
-
-    function spawnFootprint(x, y) {
-      const fp = document.createElement('div');
-      fp.className = 'walk-footprint';
-      fp.textContent = '🐾';
-      fp.style.left = (x - 8) + 'px';
-      fp.style.top = (y + 30) + 'px';
-      arena.appendChild(fp);
-      setTimeout(() => fp.remove(), 1400);
     }
 
     function step(now) {
@@ -3165,55 +3216,64 @@
       if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
 
       const r = arenaRect();
-      // spawn
-      spawnAccum += (now - (step._lastT || now));
-      step._lastT = now;
-      if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length < 5) {
+      const bgW = r.width; // 각 bg 패널 너비 = 아레나 너비
+
+      // 배경 스크롤
+      bgOffset = (bgOffset + SCROLL_SPEED * dt) % bgW;
+      bgWrap.style.transform = `translateX(-${bgOffset}px)`;
+
+      // 아이템 스폰
+      spawnAccum += dt * 1000;
+      if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length < 4) {
         spawnAccum = 0;
-        nextSpawn = 700 + Math.random() * 600;
-        spawnItem();
+        nextSpawn = 1000 + Math.random() * 900;
+        spawnItem(r);
       }
-      // 아이템 업데이트
+
+      // 아이템 이동 + 수집 판정
+      const dogPixelX = r.width * DOG_X_PCT / 100;
+      // 강아지 몸통 범위 (bottom 기준 px)
+      const dogFeetY = DOG_GROUND_BOTTOM + dogY;       // 발 bottom
+      const dogHeadY = dogFeetY + 88;                  // 머리 bottom
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
         if (it.captured) continue;
-        const age = now - it.born;
-        if (it.def.moves) {
-          it.x += it.vx * dt;
-          it.el.style.left = it.x + 'px';
-          if (it.x < -40 || it.x > r.width + 40) {
-            try { it.el.remove(); } catch {}
-            items.splice(i, 1);
-            if (it === dogTarget) dogTarget = null;
-            continue;
-          }
-        }
-        if (age > it.life) {
-          it.el.classList.add('walk-item-fade');
-          setTimeout(() => { try { it.el.remove(); } catch {}; }, 300);
-          if (it === dogTarget) dogTarget = null;
+        it.x -= ITEM_SPEED * dt;
+        it.el.style.left = it.x + 'px';
+        it.el.style.right = 'auto';
+        if (it.x < -50) {
+          try { it.el.remove(); } catch {}
           items.splice(i, 1);
+          continue;
+        }
+        const xOk = Math.abs(it.x - dogPixelX) < 52;
+        // 아이템 범위 (bottom 기준 px)
+        const itemBot = it.baseY;
+        const itemTop = it.baseY + 36;
+        // 강아지 몸통과 아이템이 Y축으로 겹치는지
+        const yOk = dogFeetY < itemTop && dogHeadY > itemBot;
+        if (xOk && yOk) {
+          captureItem(it);
+          items.splice(i, 1);
+        } else if (it.airborne && !jumping && dogY < 5) {
+          // 공중 아이템이 강아지 앞 80px 이내 접근 → 점프 유도
+          if (it.x > dogPixelX && it.x - dogPixelX < 80) triggerJump();
         }
       }
-      // 강아지 이동
-      if (dogX === null) dogX = r.width / 2;
-      let targetX = r.width / 2;
-      if (dogTarget && !dogTarget.captured) targetX = dogTarget.x;
-      const dx = targetX - dogX;
-      const move = Math.sign(dx) * Math.min(Math.abs(dx), 260 * dt);
-      dogX += move;
-      dog.style.left = dogX + 'px';
-      dog.style.transform = 'translateX(-50%)';
-      // 발자국 200ms마다
-      if (Math.abs(move) > 0.5 && now - lastFootprintTs > 220) {
-        spawnFootprint(dogX, r.height - 70);
-        lastFootprintTs = now;
+
+      // 점프 물리
+      if (jumping) {
+        jumpVy += GRAVITY * dt;
+        dogY -= jumpVy * dt; // y 증가 = 위로
+        if (dogY <= GROUND_Y) {
+          dogY = GROUND_Y;
+          jumping = false;
+          jumpVy = 0;
+          dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
+        }
       }
-      // 도착 시 capture
-      if (dogTarget && !dogTarget.captured && Math.abs(dogTarget.x - dogX) < 40) {
-        captureItem(dogTarget);
-        dogTarget = null;
-      }
+      applyDogPos(r);
+
       if (remain <= 0) { endGame(); return; }
       requestAnimationFrame(step);
     }
@@ -3222,10 +3282,8 @@
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
-      // 정리
       for (const it of items) { try { it.el.remove(); } catch {} }
       items.length = 0;
-      // 보상 — 트레이드오프
       const before = {};
       for (const g of GAUGES) before[g] = state[g];
       state.happy  = clamp(state.happy  + 40);
@@ -3236,7 +3294,6 @@
         const d = state[g] - before[g];
         if (d !== 0) showGaugeDelta(g, d);
       }
-      // 케어 보너스 — 잡은 별/보석 만큼
       let careBoost = 1;
       for (const def of ITEM_DEFS) {
         const c = collected[def.kind] || 0;
@@ -3251,11 +3308,9 @@
       progressMission('minigame', 1);
       saveState(); render(); SOUNDS.fanfare();
 
-      // 결과 모달
       const rb = document.createElement('div');
-      const p = document.createElement('p');
-      p.className = 'modal-sub';
-      const lines = ['🐾 산책 완료!', '잡은 것:'];
+      const p = document.createElement('p'); p.className = 'modal-sub';
+      const lines = ['🐾 산책 완료!', '주운 것:'];
       const collectedItems = ITEM_DEFS.filter(d => (collected[d.kind] || 0) > 0)
         .map(d => `${d.emoji} ×${collected[d.kind]}`);
       lines.push(collectedItems.length ? collectedItems.join(', ') : '(없음)');
@@ -3269,12 +3324,24 @@
       openModal({ title: '🚶 산책 끝!', body: rb, mandatory: true });
     }
 
+    // 아레나 탭 → 점프
+    arena.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (!endedFlag) triggerJump();
+    });
+
     endBtn.addEventListener('click', () => endGame());
     openModal({
       title: '🚶 산책', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('walk'); saveState(); } },
     });
-    setTimeout(() => { lastFrame = performance.now(); step._lastT = lastFrame; requestAnimationFrame(step); }, 80);
+    setTimeout(() => {
+      lastFrame = performance.now(); started = lastFrame;
+      const r = arenaRect();
+      dogWrap.style.left = DOG_X_PCT + '%';
+      applyDogPos(r);
+      requestAnimationFrame(step);
+    }, 80);
   }
 
   function openMinigame() {
