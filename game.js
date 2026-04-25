@@ -2147,14 +2147,14 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '✋ 강아지를 <b>15번 쓰다듬어요!</b>';
+    guide.innerHTML = '✋ 강아지를 <b>많이 쓰다듬어요!</b> (30초)';
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
     const timeEl = document.createElement('span');
     const cntEl = document.createElement('span');
     timeEl.textContent = '⏱ 30';
-    cntEl.textContent = '❤️ 0/15';
+    cntEl.textContent = '❤️ 0';
     stats.appendChild(timeEl);
     stats.appendChild(cntEl);
     body.appendChild(stats);
@@ -2187,8 +2187,7 @@
       if (e) { e.stopPropagation(); if (e.preventDefault) e.preventDefault(); }
       if (endedFlag) return;
       count += 1;
-      cntEl.textContent = '❤️ ' + count + '/15';
-      // 하트 떠오름
+      cntEl.textContent = '❤️ ' + count;
       const h = document.createElement('div');
       h.className = 'pet-heart';
       h.textContent = '❤️';
@@ -2199,7 +2198,7 @@
       setTimeout(() => h.remove(), 700);
       dog.classList.remove('wiggle'); void dog.offsetWidth; dog.classList.add('wiggle');
       try { SOUNDS.happy(); } catch {}
-      if (count >= 15) endGame();
+      // 30초 타이머가 끝까지 — 더 많이 쓰다듬으면 더 좋은 등급 (10/20/30+)
     }
     dog.addEventListener('click', onPet);
     dog.addEventListener('touchstart', onPet, { passive: false });
@@ -2374,14 +2373,14 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🦴 화면 아래로 옮겨서 <b>간식 5개</b> 받아요';
+    guide.innerHTML = '🦴 강아지로 옮겨서 <b>간식 많이 받아요!</b> (30초)';
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
     const timeEl = document.createElement('span');
     const gotEl = document.createElement('span');
     timeEl.textContent = '⏱ 30';
-    gotEl.textContent = '🦴 0/5';
+    gotEl.textContent = '🦴 0';
     stats.appendChild(timeEl);
     stats.appendChild(gotEl);
     body.appendChild(stats);
@@ -2469,13 +2468,13 @@
         const dogY = r.height - 60;
         if (t.y >= dogY - 30 && Math.abs(t.x - dogX) < 50) {
           got += 1;
-          gotEl.textContent = '🦴 ' + got + '/5';
+          gotEl.textContent = '🦴 ' + got;
           state.hunger = clamp(state.hunger + 2);
           try { SOUNDS.eat(); } catch {}
           flashBubble('😋');
           t.el.remove();
           treats.splice(i, 1);
-          if (got >= 5) { endGame(); return; }
+          // 30초 타이머 끝까지 — 더 많이 받을수록 더 좋은 등급
           continue;
         }
         if (t.y > r.height + 40) { t.el.remove(); treats.splice(i, 1); }
