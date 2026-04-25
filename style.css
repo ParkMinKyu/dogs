@@ -505,6 +505,58 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   opacity: 0.45;
   filter: grayscale(0.8);
 }
+.action.is-busy, .icon-btn.is-busy {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(0.6);
+}
+
+/* 진행 게이지 — 강아지 위 큰 ring */
+.busy-gauge {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 10;
+  filter: drop-shadow(0 4px 0 rgba(0,0,0,0.15));
+}
+.busy-gauge .bg-emo {
+  font-size: 38px;
+  background: rgba(255,247,236,0.95);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 0 rgba(74,58,46,0.18);
+  animation: busy-bob 0.8s ease-in-out infinite;
+}
+@keyframes busy-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+.busy-gauge .bg-bar {
+  width: 180px;
+  height: 14px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 999px;
+  border: 2px solid #fff;
+  box-shadow: inset 0 2px 0 rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+.busy-gauge .bg-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #ffd66e 0%, #ff9a55 100%);
+  border-radius: 999px;
+  transition: width 100ms linear;
+}
 .action.shake { animation: action-shake 0.45s ease-in-out; }
 @keyframes action-shake {
   0%, 100% { transform: translateX(0); }
@@ -518,7 +570,7 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 .actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -1089,18 +1141,13 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   .gauge-circle .pct { font-size: 10px; }
   .gauge .label { font-size: 12px; }
 
-  /* 5 액션 버튼 — 첫 행 3개, 둘째 행 2개 */
+  /* 액션 4개 한 줄 */
   .actions {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
   }
-  .actions .action:nth-child(1) { grid-column: 1 / 3; }
-  .actions .action:nth-child(2) { grid-column: 3 / 5; }
-  .actions .action:nth-child(3) { grid-column: 5 / 7; }
-  .actions .action:nth-child(4) { grid-column: 1 / 4; }
-  .actions .action:nth-child(5) { grid-column: 4 / 7; }
   .action {
-    min-height: 78px;
+    min-height: 84px;
     border-radius: 18px;
     padding: 6px 4px;
     border-width: 3px;
@@ -1145,6 +1192,101 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 /* 태블릿/큰 폰 (≥768): stage 더 큼, 게이지는 2×2 카드 형태 유지 */
 @media (min-width: 768px) {
   .stage { min-height: clamp(360px, 50vw, 500px); }
+}
+
+/* ---------- 놀이 메뉴 카드 ---------- */
+.play-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 4px 0 0;
+}
+.play-card {
+  appearance: none;
+  border: 3px solid #f1d9c2;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff 0%, #fff5e6 100%);
+  padding: 14px 10px 12px;
+  font-family: var(--font-display);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  box-shadow: 0 4px 0 rgba(74,58,46,0.12);
+  transition: transform 100ms ease;
+}
+.play-card:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(74,58,46,0.12); }
+.play-card .emo { font-size: 38px; line-height: 1; }
+.play-card .name { font-size: 16px; color: var(--ink); }
+.play-card .desc { font-size: 12px; color: var(--ink-soft); }
+.play-card.is-cooling { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.4); }
+.play-card .cd {
+  position: absolute;
+  top: 6px; right: 8px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: #b06000;
+  background: rgba(255, 240, 200, 0.9);
+  border-radius: 8px;
+  padding: 2px 6px;
+}
+
+/* 쓰다듬기: 강아지 wiggle + 떠오르는 하트 */
+.minigame-arena.pet-arena .pet-dog { cursor: pointer; }
+.pet-dog.wiggle { animation: pet-wiggle 0.35s ease; }
+@keyframes pet-wiggle {
+  0%, 100% { transform: translateX(-50%) rotate(0); }
+  30%      { transform: translateX(-50%) rotate(-6deg) scale(1.06); }
+  70%      { transform: translateX(-50%) rotate(6deg) scale(1.06); }
+}
+.pet-heart {
+  position: absolute;
+  font-size: 26px;
+  pointer-events: none;
+  animation: pet-heart 700ms ease-out forwards;
+}
+@keyframes pet-heart {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
+  20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -80px) scale(1.4); }
+}
+
+/* 춤추기: 강아지 박자 점프 */
+.minigame-arena.dance-arena { cursor: pointer; background: linear-gradient(180deg, #ffe4f3 0%, #fff7ec 60%, #f6c993 100%); }
+.dance-dog.beat { animation: dance-beat 800ms ease-in-out infinite; }
+@keyframes dance-beat {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(0); }
+  20%      { transform: translateX(-50%) translateY(-30px) rotate(-6deg); }
+  50%      { transform: translateX(-50%) translateY(0) rotate(0); }
+  70%      { transform: translateX(-50%) translateY(-20px) rotate(6deg); }
+}
+.dance-note {
+  position: absolute;
+  font-size: 28px;
+  pointer-events: none;
+  animation: dance-note 700ms ease-out forwards;
+  filter: drop-shadow(0 0 4px #fff);
+}
+@keyframes dance-note {
+  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.6) rotate(-10deg); }
+  20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -90px) scale(1.4) rotate(20deg); }
+}
+
+/* 간식 받기 */
+.minigame-arena.treat-arena { cursor: pointer; }
+.treat-item {
+  position: absolute;
+  font-size: 30px;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18));
+  animation: treat-spawn 200ms ease-out;
+}
+@keyframes treat-spawn {
+  0%   { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {

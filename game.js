@@ -113,6 +113,10 @@
       if (!s.inventory || typeof s.inventory !== 'object') s.inventory = {};
       if (!s.equipped || typeof s.equipped !== 'object') s.equipped = { hat: null, neck: null, glasses: null };
       if (typeof s.minigameLastTs !== 'number') s.minigameLastTs = 0;
+      if (!s.playLast || typeof s.playLast !== 'object') s.playLast = {};
+      if (s.busy && typeof s.busy === 'object') {
+        if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
+      } else { s.busy = null; }
       if (!s.missions || typeof s.missions !== 'object') s.missions = { date: '', list: [] };
       return s;
     } catch { return null; }
@@ -135,9 +139,14 @@
       inventory: {},
       equipped: { hat: null, neck: null, glasses: null },
       minigameLastTs: 0,
+      playLast: {},
+      busy: null,
       missions: { date: '', list: [] },
     };
   }
+
+  // 액션별 진행 시간 (ms). play_menu 는 즉시.
+  const ACTION_DURATION = { feed: 5000, wash: 6000, sleep: 8000 };
 
   function stageForCare(care) {
     // 0 또는 비정상 값은 무조건 puppy. fresh state 확실히 보호.
@@ -319,7 +328,7 @@
     energy: { sprite: 'sleeping', bubble: '💤 너무 졸려...',   overlay: 'energy', rebellion: '졸려...' },
   };
   // 액션 → 그 액션이 회복하는 게이지
-  const ACTION_GAUGE = { feed: 'hunger', play: 'happy', wash: 'clean', sleep: 'energy' };
+  const ACTION_GAUGE = { feed: 'hunger', play: 'happy', play_menu: 'happy', wash: 'clean', sleep: 'energy' };
 
   // 색상: 퍼센트별 hsl 보간 (red→yellow→green)
   function colorForGauge(key, pct) {
@@ -516,7 +525,8 @@
   actionBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
-      if (action === 'minigame') { openMinigame(); return; }
+      if (action === 'play_menu') { openPlayMenu(); return; }
+      if (action === 'minigame')  { openMinigame(); return; } // 하위 호환
       onAction(btn);
     });
   });
@@ -525,16 +535,15 @@
     const action = btn.dataset.action;
     const eff = ACTION_EFFECT[action];
     if (!eff) return;
+    // 진행 중이면 다른 액션 차단
+    if (state.busy && Date.now() < state.busy.endsAt) return;
 
-    // 거부 검사: 시급한 게이지가 있고 그것이 현재 액션이 회복하는 게이지가 아니면 거부.
+    // 거부 검사
     const crit = criticalLowGauge();
     if (crit && ACTION_GAUGE[action] !== crit) {
       const mood = GAUGE_MOODS[crit];
-      btn.classList.remove('shake');
-      void btn.offsetWidth;
-      btn.classList.add('shake');
+      btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
       flashBubble(mood.rebellion);
-      // 강아지도 거부 sprite 잠깐 — 표정은 mood 우선
       tempFaceState = mood.sprite;
       tempFaceUntil = Date.now() + 1200;
       try { SOUNDS.pop(); } catch {}
@@ -542,19 +551,32 @@
       return;
     }
 
+    btn.classList.remove('cheer'); void btn.offsetWidth; btn.classList.add('cheer');
+    const face = ACTION_FACE[action];
+    if (face?.sound && SOUNDS[face.sound]) SOUNDS[face.sound]();
+
+    const dur = ACTION_DURATION[action] || 0;
+    if (dur > 0) {
+      // 진행 시간 기반 — busy 세팅 후 timer 시작
+      startBusyAction(action);
+    } else {
+      // 즉시 적용 (호환용 — 기본 액션엔 안 옴, 안전망)
+      applyActionEffect(action);
+    }
+  }
+
+  // 액션 효과를 한 번에 적용
+  function applyActionEffect(action) {
+    const eff = ACTION_EFFECT[action];
+    if (!eff) return;
     const tod = currentTod();
     let scaled = { ...eff };
     if (action === 'sleep' && tod === 'night') {
       scaled.energy = Math.min(MAX, eff.energy + 15);
     }
-
     for (const g of GAUGES) {
-      if (typeof scaled[g] === 'number') {
-        state[g] = clamp(state[g] + scaled[g]);
-      }
+      if (typeof scaled[g] === 'number') state[g] = clamp(state[g] + scaled[g]);
     }
-
-    // 진화 점수: 분당 최대 5점 cap (12초 간격). 케어포인트는 매 액션마다 +1.
     addCareScore();
     state.points = (state.points || 0) + 1;
     const newStage = stageForCare(state.care);
@@ -563,28 +585,99 @@
       state.stage = newStage;
       triggerEvolveFx(prev, newStage);
     }
-
-    btn.classList.remove('cheer');
-    void btn.offsetWidth;
-    btn.classList.add('cheer');
-
     bubbleEl.textContent = ACTION_BUBBLE[action] || '✨';
     bubbleEl.classList.add('show');
     clearTimeout(bubbleEl._t);
     bubbleEl._t = setTimeout(() => bubbleEl.classList.remove('show'), 900);
-
-    const face = ACTION_FACE[action];
-    if (face) {
-      tempFaceState = face.state;
-      tempFaceUntil = Date.now() + face.ms;
-      if (face.sound && SOUNDS[face.sound]) SOUNDS[face.sound]();
-    }
-
     progressMission(action, 1);
-
     saveState();
     render();
   }
+
+  // ----- Busy / 진행 시스템 ----------------------------------------------
+  let busyTimerId = null;
+
+  function startBusyAction(action) {
+    const dur = ACTION_DURATION[action] || 0;
+    if (!dur) return;
+    state.busy = { action, startedAt: Date.now(), endsAt: Date.now() + dur };
+    // 진행 중 강아지 표정 — face state 동안 유지
+    const face = ACTION_FACE[action];
+    if (face) {
+      tempFaceState = face.state;
+      tempFaceUntil = state.busy.endsAt + 200;
+    }
+    saveState();
+    render();
+    scheduleBusyEnd();
+  }
+
+  function scheduleBusyEnd() {
+    clearTimeout(busyTimerId);
+    if (!state.busy) return;
+    const remain = state.busy.endsAt - Date.now();
+    if (remain <= 0) { finishBusy(); return; }
+    busyTimerId = setTimeout(finishBusy, remain + 30);
+  }
+
+  function finishBusy() {
+    if (!state.busy) return;
+    const action = state.busy.action;
+    state.busy = null;
+    applyActionEffect(action);
+    // 끝난 직후 happy 표정 잠깐
+    tempFaceState = 'happy';
+    tempFaceUntil = Date.now() + 700;
+    saveState();
+    render();
+  }
+
+  // 진행 중 게이지 element
+  let busyGaugeEl = null;
+  function ensureBusyGauge() {
+    const stageEl = document.querySelector('.stage');
+    if (!stageEl) return null;
+    let el = stageEl.querySelector('.busy-gauge');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'busy-gauge';
+      el.innerHTML = '<div class="bg-emo"></div><div class="bg-bar"><div class="bg-fill"></div></div>';
+      stageEl.appendChild(el);
+    }
+    busyGaugeEl = el;
+    return el;
+  }
+  function removeBusyGauge() {
+    const stageEl = document.querySelector('.stage');
+    const el = stageEl?.querySelector('.busy-gauge');
+    if (el) el.remove();
+    busyGaugeEl = null;
+  }
+
+  // 매 100ms render 갱신용 tick
+  setInterval(() => {
+    if (state.busy) {
+      const now = Date.now();
+      if (now >= state.busy.endsAt) finishBusy();
+      else {
+        const el = ensureBusyGauge();
+        if (el) {
+          const { startedAt, endsAt, action } = state.busy;
+          const total = endsAt - startedAt;
+          const pct = Math.max(0, Math.min(100, ((now - startedAt) / total) * 100));
+          el.querySelector('.bg-fill').style.width = pct + '%';
+          const emo = { feed: '🍖', wash: '🫧', sleep: '💤' }[action] || '⏳';
+          el.querySelector('.bg-emo').textContent = emo;
+        }
+      }
+    } else {
+      removeBusyGauge();
+    }
+    // busy 상태에 따라 액션/헤더 disable
+    const busy = !!state.busy && Date.now() < state.busy.endsAt;
+    document.querySelectorAll('.action').forEach(b => b.classList.toggle('is-busy', busy));
+    document.querySelectorAll('.icon-btn').forEach(b => b.classList.toggle('is-busy', busy));
+  }, 100);
 
   function triggerEvolveFx() {
     evolveAnimUntil = Date.now() + 1500;
@@ -1046,12 +1139,440 @@
     openModal({ title: '🛍️ 상점', body });
   }
 
-  // ----- P2.2: 미니게임 (공놀이) -----------------------------------------
-  function minigameCooldownRemain() {
-    const last = state.minigameLastTs || 0;
-    const elapsed = Date.now() - last;
-    return Math.max(0, MINIGAME_COOLDOWN_MS - elapsed);
+  // ----- 놀이 메뉴 + 미니게임 ------------------------------------------
+  // 게임별 쿨타임은 state.playLast[id], 동일하게 5분.
+  function playCooldownRemain(id) {
+    const last = (state.playLast && state.playLast[id]) || 0;
+    return Math.max(0, MINIGAME_COOLDOWN_MS - (Date.now() - last));
   }
+  function markPlayDone(id) {
+    if (!state.playLast) state.playLast = {};
+    state.playLast[id] = Date.now();
+    if (id === 'ball') state.minigameLastTs = Date.now(); // 하위 호환
+  }
+
+  function minigameCooldownRemain() { return playCooldownRemain('ball'); }
+
+  // 4가지 놀이 카탈로그
+  const PLAY_GAMES = [
+    { id: 'ball',  name: '공놀이',  emoji: '🎾', desc: '톡톡 튕기기', open: () => openMinigame() },
+    { id: 'pet',   name: '쓰다듬기', emoji: '✋', desc: '15번 만져요', open: () => openPetGame() },
+    { id: 'dance', name: '춤추기',  emoji: '🎵', desc: '박자 맞추기', open: () => openDanceGame() },
+    { id: 'treat', name: '간식 받기', emoji: '🦴', desc: '5개 받기', open: () => openTreatGame() },
+  ];
+
+  function openPlayMenu() {
+    const body = document.createElement('div');
+    const grid = document.createElement('div');
+    grid.className = 'play-grid';
+    PLAY_GAMES.forEach(g => {
+      const cd = playCooldownRemain(g.id);
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'play-card' + (cd > 0 ? ' is-cooling' : '');
+      let cdText = '';
+      if (cd > 0) {
+        const sec = Math.ceil(cd / 1000);
+        const mm = Math.floor(sec / 60), ss = sec % 60;
+        cdText = `<div class="cd">${mm}:${String(ss).padStart(2,'0')}</div>`;
+      }
+      card.innerHTML = `
+        <div class="emo">${g.emoji}</div>
+        <div class="name">${g.name}</div>
+        <div class="desc">${g.desc}</div>
+        ${cdText}
+      `;
+      card.addEventListener('click', () => {
+        if (playCooldownRemain(g.id) > 0) { SOUNDS.pop(); return; }
+        SOUNDS.pop();
+        closeModal();
+        setTimeout(() => g.open(), 80);
+      });
+      grid.appendChild(card);
+    });
+    body.appendChild(grid);
+    const hint = document.createElement('p');
+    hint.className = 'modal-hint';
+    hint.textContent = '한 번 놀고 나면 5분 후에 다시 놀 수 있어요';
+    hint.style.marginTop = '12px';
+    body.appendChild(hint);
+    openModal({ title: '🎉 놀이 골라요', body });
+  }
+
+  // ----- 쓰다듬기: 30초 안에 강아지 15번 탭 ----------------------------
+  function openPetGame() {
+    decayPaused = true;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = '✋ 강아지를 <b>15번 쓰다듬어요!</b>';
+    body.appendChild(guide);
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const timeEl = document.createElement('span');
+    const cntEl = document.createElement('span');
+    timeEl.textContent = '⏱ 30';
+    cntEl.textContent = '❤️ 0/15';
+    stats.appendChild(timeEl);
+    stats.appendChild(cntEl);
+    body.appendChild(stats);
+
+    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill); body.appendChild(tBar);
+
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big pet-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+    const dog = document.createElement('img');
+    dog.className = 'mg-dog pet-dog';
+    dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    arena.appendChild(dog);
+    body.appendChild(arena);
+
+    const endBtn = document.createElement('button');
+    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    endBtn.style.marginTop = '6px';
+    body.appendChild(endBtn);
+
+    let count = 0;
+    let endedFlag = false;
+    const TOTAL = 30000;
+    const started = performance.now();
+    let lastFrame = started;
+
+    function onPet(e) {
+      if (e) { e.stopPropagation(); if (e.preventDefault) e.preventDefault(); }
+      if (endedFlag) return;
+      count += 1;
+      cntEl.textContent = '❤️ ' + count + '/15';
+      // 하트 떠오름
+      const h = document.createElement('div');
+      h.className = 'pet-heart';
+      h.textContent = '❤️';
+      const r = arena.getBoundingClientRect();
+      h.style.left = (r.width / 2 + (Math.random()-0.5) * 80) + 'px';
+      h.style.top = (r.height * 0.4) + 'px';
+      arena.appendChild(h);
+      setTimeout(() => h.remove(), 700);
+      dog.classList.remove('wiggle'); void dog.offsetWidth; dog.classList.add('wiggle');
+      try { SOUNDS.happy(); } catch {}
+      if (count >= 15) endGame();
+    }
+    dog.addEventListener('click', onPet);
+    dog.addEventListener('touchstart', onPet, { passive: false });
+    arena.addEventListener('click', onPet);
+
+    function step(now) {
+      if (endedFlag) return;
+      lastFrame = now;
+      const elapsed = now - started;
+      const remain = Math.max(0, TOTAL - elapsed);
+      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
+      tFill.style.width = (remain / TOTAL * 100) + '%';
+      if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
+      if (remain <= 0) { endGame(); return; }
+      requestAnimationFrame(step);
+    }
+
+    function endGame() {
+      if (endedFlag) return;
+      endedFlag = true;
+      decayPaused = false;
+      const success = count >= 15;
+      const happyGain = success ? 25 : 15;
+      state.happy = clamp(state.happy + happyGain);
+      state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+      addCareScore();
+      state.points = (state.points || 0) + Math.min(20, count);
+      markPlayDone('pet');
+      progressMission('minigame', 1);
+      saveState();
+      render();
+      SOUNDS.fanfare();
+
+      const rb = document.createElement('div');
+      const p = document.createElement('p'); p.className = 'modal-sub';
+      const nm = state.name || '강아지';
+      p.innerHTML = `${count}번 쓰다듬었어요!<br>${nameTopic(nm)} 행복해해요 💖${success ? '<br>🎉 목표 달성!' : ''}`;
+      rb.appendChild(p);
+      const ok = document.createElement('button');
+      ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
+      ok.addEventListener('click', () => closeModal());
+      rb.appendChild(ok);
+      openModal({ title: '쓰다듬기 끝!', body: rb });
+    }
+
+    endBtn.addEventListener('click', () => endGame());
+    openModal({
+      title: '✋ 쓰다듬기', body,
+      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('pet'); saveState(); } },
+    });
+    setTimeout(() => requestAnimationFrame(step), 80);
+  }
+
+  // ----- 춤추기: 30초 박자, 박자 시점 탭하면 +5 -----------------------
+  function openDanceGame() {
+    decayPaused = true;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = '🎵 강아지가 점프할 때 <b>탭!</b>';
+    body.appendChild(guide);
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const timeEl = document.createElement('span');
+    const scoreEl = document.createElement('span');
+    timeEl.textContent = '⏱ 30';
+    scoreEl.textContent = '🎯 0';
+    stats.appendChild(timeEl);
+    stats.appendChild(scoreEl);
+    body.appendChild(stats);
+    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill); body.appendChild(tBar);
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big dance-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+    const dog = document.createElement('img');
+    dog.className = 'mg-dog dance-dog';
+    dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    arena.appendChild(dog);
+    body.appendChild(arena);
+    const endBtn = document.createElement('button');
+    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    endBtn.style.marginTop = '6px';
+    body.appendChild(endBtn);
+
+    let score = 0;
+    let endedFlag = false;
+    const TOTAL = 30000;
+    const BEAT_MS = 800;
+    const started = performance.now();
+    let lastBeatStart = started;
+    let beatActive = false; // 박자 윈도우 (탭 가능 시점)
+    const TAP_WINDOW_MS = 350;
+
+    // 강아지 박자 점프 — CSS animation iteration
+    dog.classList.add('beat');
+
+    function onTap(e) {
+      if (e) { e.stopPropagation(); if (e.preventDefault) e.preventDefault(); }
+      if (endedFlag) return;
+      const now = performance.now();
+      const phase = (now - lastBeatStart) % BEAT_MS;
+      const inWindow = phase < TAP_WINDOW_MS;
+      if (inWindow) {
+        score += 5;
+        scoreEl.textContent = '🎯 ' + score;
+        try { SOUNDS.catch(); } catch {}
+        const note = document.createElement('div');
+        note.className = 'dance-note';
+        note.textContent = ['🎵','🎶','✨'][Math.floor(Math.random()*3)];
+        const r = arena.getBoundingClientRect();
+        note.style.left = (r.width/2 + (Math.random()-0.5)*120) + 'px';
+        note.style.top = (r.height*0.45) + 'px';
+        arena.appendChild(note);
+        setTimeout(() => note.remove(), 700);
+      } else {
+        try { SOUNDS.pop(); } catch {}
+      }
+    }
+    arena.addEventListener('click', onTap);
+    arena.addEventListener('touchstart', onTap, { passive: false });
+
+    function step(now) {
+      if (endedFlag) return;
+      const elapsed = now - started;
+      const remain = Math.max(0, TOTAL - elapsed);
+      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
+      tFill.style.width = (remain / TOTAL * 100) + '%';
+      if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
+      if (remain <= 0) { endGame(); return; }
+      requestAnimationFrame(step);
+    }
+    function endGame() {
+      if (endedFlag) return;
+      endedFlag = true;
+      decayPaused = false;
+      const happyGain = 25 + Math.min(20, Math.floor(score / 5));
+      state.happy = clamp(state.happy + happyGain);
+      state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+      addCareScore();
+      state.points = (state.points || 0) + score;
+      markPlayDone('dance');
+      progressMission('minigame', 1);
+      saveState(); render(); SOUNDS.fanfare();
+
+      const rb = document.createElement('div');
+      const p = document.createElement('p'); p.className = 'modal-sub';
+      const nm = state.name || '강아지';
+      p.innerHTML = `🎵 <b>${score}점!</b><br>${nameTopic(nm)} 신났어요 💖`;
+      rb.appendChild(p);
+      const ok = document.createElement('button');
+      ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
+      ok.addEventListener('click', () => closeModal());
+      rb.appendChild(ok);
+      openModal({ title: '춤추기 끝!', body: rb });
+    }
+    endBtn.addEventListener('click', () => endGame());
+    openModal({
+      title: '🎵 춤추기', body,
+      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('dance'); saveState(); } },
+    });
+    setTimeout(() => requestAnimationFrame(step), 80);
+  }
+
+  // ----- 간식 받기: 위에서 떨어지는 간식을 강아지가 받음 -----------------
+  function openTreatGame() {
+    decayPaused = true;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = '🦴 화면 아래로 옮겨서 <b>간식 5개</b> 받아요';
+    body.appendChild(guide);
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const timeEl = document.createElement('span');
+    const gotEl = document.createElement('span');
+    timeEl.textContent = '⏱ 30';
+    gotEl.textContent = '🦴 0/5';
+    stats.appendChild(timeEl);
+    stats.appendChild(gotEl);
+    body.appendChild(stats);
+    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill); body.appendChild(tBar);
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big treat-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+    const dog = document.createElement('img');
+    dog.className = 'mg-dog treat-dog';
+    dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    arena.appendChild(dog);
+    body.appendChild(arena);
+    const endBtn = document.createElement('button');
+    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    endBtn.style.marginTop = '6px';
+    body.appendChild(endBtn);
+
+    let got = 0;
+    let endedFlag = false;
+    let dogX = null;
+    const TOTAL = 30000;
+    const started = performance.now();
+    let lastFrame = started;
+    let nextSpawn = 600 + Math.random() * 400;
+    let spawnAccum = 0;
+    const treats = []; // {el, x, y, vy}
+
+    function arenaRect() { return arena.getBoundingClientRect(); }
+
+    function spawnTreat() {
+      const r = arenaRect();
+      const x = 30 + Math.random() * (r.width - 60);
+      const el = document.createElement('div');
+      el.className = 'treat-item';
+      el.textContent = ['🦴','🍪','🍖'][Math.floor(Math.random()*3)];
+      el.style.left = x + 'px';
+      el.style.top = '0px';
+      arena.appendChild(el);
+      treats.push({ el, x, y: 0, vy: 80 + Math.random() * 60 });
+    }
+
+    function onTap(e) {
+      if (e) { e.stopPropagation(); if (e.preventDefault) e.preventDefault(); }
+      const r = arenaRect();
+      const t = e.touches && e.touches[0] ? e.touches[0] : e;
+      const cx = (t.clientX !== undefined) ? (t.clientX - r.left) : (r.width / 2);
+      dogX = Math.max(40, Math.min(r.width - 40, cx));
+    }
+    arena.addEventListener('click', onTap);
+    arena.addEventListener('touchstart', onTap, { passive: false });
+    arena.addEventListener('touchmove', onTap, { passive: false });
+
+    function step(now) {
+      if (endedFlag) return;
+      const dt = Math.min(40, now - lastFrame) / 1000;
+      lastFrame = now;
+      const elapsed = now - started;
+      const remain = Math.max(0, TOTAL - elapsed);
+      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
+      tFill.style.width = (remain / TOTAL * 100) + '%';
+      if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
+
+      const r = arenaRect();
+      if (dogX === null) dogX = r.width / 2;
+      dog.style.left = dogX + 'px';
+      dog.style.transform = 'translateX(-50%)';
+
+      // spawn
+      spawnAccum += (now - (step._lastT || now));
+      step._lastT = now;
+      if (spawnAccum >= nextSpawn) {
+        spawnAccum = 0;
+        nextSpawn = 700 + Math.random() * 600;
+        spawnTreat();
+      }
+      // update treats
+      for (let i = treats.length - 1; i >= 0; i--) {
+        const t = treats[i];
+        t.vy += 200 * dt;
+        t.y += t.vy * dt;
+        t.el.style.top = t.y + 'px';
+        // 강아지 머리 zone
+        const dogY = r.height - 60;
+        if (t.y >= dogY - 30 && Math.abs(t.x - dogX) < 50) {
+          got += 1;
+          gotEl.textContent = '🦴 ' + got + '/5';
+          state.hunger = clamp(state.hunger + 2);
+          try { SOUNDS.eat(); } catch {}
+          flashBubble('😋');
+          t.el.remove();
+          treats.splice(i, 1);
+          if (got >= 5) { endGame(); return; }
+          continue;
+        }
+        if (t.y > r.height + 40) { t.el.remove(); treats.splice(i, 1); }
+      }
+
+      if (remain <= 0) { endGame(); return; }
+      requestAnimationFrame(step);
+    }
+
+    function endGame() {
+      if (endedFlag) return;
+      endedFlag = true;
+      decayPaused = false;
+      while (treats.length) { try { treats[0].el.remove(); } catch {}; treats.shift(); }
+      const success = got >= 5;
+      state.happy = clamp(state.happy + (success ? 30 : 18));
+      state.hunger = clamp(state.hunger + 10);
+      state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+      addCareScore();
+      state.points = (state.points || 0) + got * 4;
+      markPlayDone('treat');
+      progressMission('minigame', 1);
+      saveState(); render(); SOUNDS.fanfare();
+      const rb = document.createElement('div');
+      const p = document.createElement('p'); p.className = 'modal-sub';
+      const nm = state.name || '강아지';
+      p.innerHTML = `${got}개 받았어요!<br>${nameTopic(nm)} 배도 부르고 행복해요 💖${success ? '<br>🎉 목표 달성!' : ''}`;
+      rb.appendChild(p);
+      const ok = document.createElement('button');
+      ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
+      ok.addEventListener('click', () => closeModal());
+      rb.appendChild(ok);
+      openModal({ title: '간식 받기 끝!', body: rb });
+    }
+    endBtn.addEventListener('click', () => endGame());
+    openModal({
+      title: '🦴 간식 받기', body,
+      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('treat'); saveState(); } },
+    });
+    setTimeout(() => { lastFrame = performance.now(); step._lastT = lastFrame; requestAnimationFrame(step); }, 80);
+  }
+
 
   function openMinigame() {
     // 에너지 너무 낮으면 거부
@@ -1300,7 +1821,7 @@
         addCareScore();
       }
       state.points = (state.points || 0) + score;
-      state.minigameLastTs = Date.now();
+      markPlayDone('ball');
       progressMission('minigame', 1);
       saveState();
       render();
@@ -1446,6 +1967,12 @@
   // ----- 첫 진입 흐름: 이름 → 종 -----------------------------------------
   applyTod();
   render();
+  // busy 복귀 — 페이지 reload 후 진행 중이었으면 이어서
+  if (state.busy && Date.now() < state.busy.endsAt) {
+    scheduleBusyEnd();
+  } else if (state.busy) {
+    finishBusy(); // 이미 끝났으면 즉시 마무리
+  }
 
   function bootstrap() {
     if (!state.name) {
@@ -1490,6 +2017,7 @@
     clearTod() { timeOverride = null; applyTod(); render(); },
     forceEvolveFx() { triggerEvolveFx(); },
     openMinigame, openShop: openShopModal, openMissions: openMissionsModal,
+    openPlayMenu, openPet: openPetGame, openDance: openDanceGame, openTreat: openTreatGame,
     openName: () => openNameModal({}), openBreed: () => openBreedModal({}),
     openSettings: openSettingsModal,
     openResetConfirm: openResetConfirmModal,
