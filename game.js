@@ -1,10 +1,10 @@
 /* ======================================================================
-   강아지 키우기 — P0 게임 로직
+   강아지 키우기 — P0+P1 게임 로직
    - 4 게이지 (hunger/happy/clean/energy), 0~100, 시간 따라 감소
    - 4 액션 (feed/play/wash/sleep), 누르면 회복 + 표정/애니메이션
-   - localStorage로 상태 저장, 탭 닫고 다시 열어도 이어짐
-   - 강아지는 절대 안 죽음. 0 되면 슬픈 표정만.
-   - WebAudio로 가벼운 효과음, 음소거 토글.
+   - 진화 단계 stage: puppy → teen (30) → adult (100)
+   - 낮/밤 사이클 (낮 6~18, 저녁 18~22, 밤 22~6) — CSS 변수로 색감 전환
+   - localStorage 저장, 강아지 절대 안 죽음
    ====================================================================== */
 
 (() => {
@@ -14,11 +14,9 @@
   const GAUGES = ['hunger', 'happy', 'clean', 'energy'];
   const MAX = 100;
 
-  // 게이지 감소: 30초마다 -5 (P0 스펙)
   const TICK_MS = 30 * 1000;
   const DECAY_PER_TICK = 5;
 
-  // 액션 효과
   const ACTION_EFFECT = {
     feed:  { hunger: +35, happy:  +5, clean:  -5, energy:  +0 },
     play:  { hunger:  -5, happy: +35, clean:  -5, energy: -10 },
@@ -26,7 +24,6 @@
     sleep: { hunger:  -5, happy:  +0, clean:   0, energy: +50 },
   };
 
-  // 액션 → 일시적 표정 (ms)
   const ACTION_FACE = {
     feed:  { state: 'eating',  ms: 1800, sound: 'eat' },
     play:  { state: 'happy',   ms: 1600, sound: 'happy' },
@@ -34,13 +31,24 @@
     sleep: { state: 'sleeping', ms: 2200, sound: 'sleep' },
   };
 
-  // 버블 이모지
-  const ACTION_BUBBLE = {
-    feed: '🍖',
-    play: '💖',
-    wash: '✨',
-    sleep: '💤',
-  };
+  const ACTION_BUBBLE = { feed: '🍖', play: '💖', wash: '✨', sleep: '💤' };
+
+  // 진화 단계 — 누적 케어 점수 임계값.
+  // 액션 1회당 +1, 30점 = 약 30번 케어 (어린이가 1~2일 안에 첫 진화 보기 적당)
+  const STAGES = [
+    { id: 'puppy', label: '아기',     threshold: 0   },
+    { id: 'teen',  label: '청소년',   threshold: 30  },
+    { id: 'adult', label: '어른',     threshold: 100 },
+  ];
+
+  // 시간대 정의 — system clock 기반
+  function timeOfDayFor(date) {
+    const h = date.getHours();
+    if (h >= 6 && h < 18) return 'day';
+    if (h >= 18 && h < 22) return 'evening';
+    return 'night';
+  }
+  const TOD_LABEL = { day: '☀️ 낮', evening: '🌆 저녁', night: '🌙 밤' };
 
   // ----- Storage ----------------------------------------------------------
   const STORAGE_KEY = 'dogs.p0.state.v1';
@@ -51,46 +59,57 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const s = JSON.parse(raw);
-      // sanity
       if (!s || typeof s !== 'object') return null;
       for (const g of GAUGES) {
         if (typeof s[g] !== 'number') return null;
       }
       if (typeof s.lastTs !== 'number') s.lastTs = Date.now();
+      // P1: 누적 케어 점수 + stage. 기존 세이브에 없으면 보강.
+      if (typeof s.care !== 'number') s.care = 0;
+      if (typeof s.stage !== 'string') s.stage = stageForCare(s.care);
       return s;
     } catch { return null; }
   }
 
   function saveState() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {}
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
   }
 
   function defaultState() {
     return {
-      hunger: 80,
-      happy:  80,
-      clean:  80,
-      energy: 80,
+      hunger: 80, happy: 80, clean: 80, energy: 80,
       lastTs: Date.now(),
+      care: 0,
+      stage: 'puppy',
     };
+  }
+
+  function stageForCare(care) {
+    let cur = STAGES[0].id;
+    for (const s of STAGES) {
+      if (care >= s.threshold) cur = s.id;
+    }
+    return cur;
   }
 
   // ----- Game state -------------------------------------------------------
   let state = loadState() || defaultState();
-
-  // Catch-up decay for time spent away from the tab.
   applyOfflineDecay();
 
-  let tempFaceUntil = 0;     // ms timestamp; while now < this, hold special face
-  let tempFaceState = null;  // 'eating' | 'happy' | 'sleeping' | 'sad'
+  let tempFaceUntil = 0;
+  let tempFaceState = null;
+  let evolveAnimUntil = 0;
+  let timeOverride = null; // for QA — 'day' | 'evening' | 'night' | null
 
   // ----- DOM refs ---------------------------------------------------------
   const $ = (sel, root = document) => root.querySelector(sel);
+  const root = $('.app');
   const puppyEl  = $('#puppy');
   const bubbleEl = $('#bubble');
   const muteBtn  = $('#muteBtn');
+  const stageBadge = $('#stageBadge');
+  const todBadge   = $('#todBadge');
+  const evolveFx   = $('#evolveFx');
   const fills = {
     hunger: $('.fill-hunger'),
     happy:  $('.fill-happy'),
@@ -99,7 +118,7 @@
   };
   const actionBtns = document.querySelectorAll('.action');
 
-  // ----- Audio (very small WebAudio blips) --------------------------------
+  // ----- Audio ------------------------------------------------------------
   let audioCtx = null;
   let muted = localStorage.getItem(MUTE_KEY) === '1';
   updateMuteUI();
@@ -136,6 +155,7 @@
     happy:  () => blip([660, 880, 990], 0.11, 'sine', 0.06),
     splash: () => blip([880, 740, 620], 0.09, 'sine', 0.05),
     sleep:  () => blip([330, 247], 0.18, 'sine', 0.05),
+    evolve: () => blip([523, 659, 784, 1046], 0.13, 'triangle', 0.07),
   };
 
   function updateMuteUI() {
@@ -148,10 +168,10 @@
     muted = !muted;
     localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
     updateMuteUI();
-    if (!muted) SOUNDS.happy(); // little confirmation tone
+    if (!muted) SOUNDS.happy();
   });
 
-  // ----- Decay loop -------------------------------------------------------
+  // ----- Decay ------------------------------------------------------------
   function applyOfflineDecay() {
     const now = Date.now();
     const elapsed = Math.max(0, now - (state.lastTs || now));
@@ -174,7 +194,6 @@
     saveState();
     render();
   }
-
   setInterval(tickDecay, TICK_MS);
 
   // ----- Actions ----------------------------------------------------------
@@ -187,24 +206,37 @@
     const eff = ACTION_EFFECT[action];
     if (!eff) return;
 
+    // 밤이면 sleep 액션 부스트
+    const tod = currentTod();
+    let scaled = { ...eff };
+    if (action === 'sleep' && tod === 'night') {
+      scaled.energy = Math.min(MAX, eff.energy + 15);
+    }
+
     for (const g of GAUGES) {
-      if (typeof eff[g] === 'number') {
-        state[g] = clamp(state[g] + eff[g]);
+      if (typeof scaled[g] === 'number') {
+        state[g] = clamp(state[g] + scaled[g]);
       }
     }
 
-    // visual feedback on button
+    // 진화 점수 누적
+    state.care = (state.care || 0) + 1;
+    const newStage = stageForCare(state.care);
+    if (newStage !== state.stage) {
+      const prev = state.stage;
+      state.stage = newStage;
+      triggerEvolveFx(prev, newStage);
+    }
+
     btn.classList.remove('cheer');
-    void btn.offsetWidth; // restart animation
+    void btn.offsetWidth;
     btn.classList.add('cheer');
 
-    // bubble emoji
     bubbleEl.textContent = ACTION_BUBBLE[action] || '✨';
     bubbleEl.classList.add('show');
     clearTimeout(bubbleEl._t);
     bubbleEl._t = setTimeout(() => bubbleEl.classList.remove('show'), 900);
 
-    // temp face
     const face = ACTION_FACE[action];
     if (face) {
       tempFaceState = face.state;
@@ -216,23 +248,52 @@
     render();
   }
 
+  function triggerEvolveFx() {
+    evolveAnimUntil = Date.now() + 1500;
+    puppyEl.classList.add('is-evolving');
+    evolveFx.classList.add('show');
+    SOUNDS.evolve();
+    setTimeout(() => {
+      puppyEl.classList.remove('is-evolving');
+      evolveFx.classList.remove('show');
+    }, 1500);
+  }
+
+  // ----- Time of day ------------------------------------------------------
+  function currentTod() {
+    if (timeOverride) return timeOverride;
+    return timeOfDayFor(new Date());
+  }
+
+  function applyTod() {
+    const tod = currentTod();
+    if (root.dataset.tod !== tod) {
+      root.dataset.tod = tod;
+    }
+    if (todBadge) todBadge.textContent = TOD_LABEL[tod];
+  }
+
+  // 30분마다 시간대 체크
+  setInterval(applyTod, 30 * 60 * 1000);
+
   // ----- Render -----------------------------------------------------------
   function pickPuppyState() {
     const now = Date.now();
     if (tempFaceState && now < tempFaceUntil) return tempFaceState;
 
-    // Resting state derived from gauges
     const lows = GAUGES.filter(g => state[g] <= 20).length;
     const avg = GAUGES.reduce((s, g) => s + state[g], 0) / GAUGES.length;
+    const tod = currentTod();
 
     if (lows >= 1) return 'sad';
+    // 밤이면 잠자기 우선 (에너지가 어느 정도 있어도 졸림)
+    if (tod === 'night' && state.energy <= 60) return 'sleeping';
     if (state.energy <= 25) return 'sleeping';
     if (avg >= 75)  return 'happy';
     return 'idle';
   }
 
   function render() {
-    // gauges
     for (const g of GAUGES) {
       const v = state[g];
       const el = fills[g];
@@ -241,15 +302,24 @@
       el.classList.toggle('is-low', v <= 25);
     }
 
-    // puppy sprite + animation class
     const s = pickPuppyState();
-    const src = `assets/puppy/${s}.png`;
+    const stage = state.stage || 'puppy';
+    const src = `assets/${stage}/${s}.png`;
     if (!puppyEl.src.endsWith(src)) puppyEl.src = src;
     puppyEl.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyEl.classList.add('is-' + s);
+    puppyEl.classList.remove('is-puppy','is-teen','is-adult');
+    puppyEl.classList.add('is-' + stage);
+
+    if (root) root.dataset.stage = stage;
+    if (stageBadge) {
+      const meta = STAGES.find(x => x.id === stage) || STAGES[0];
+      stageBadge.textContent = meta.label;
+    }
+
+    applyTod();
   }
 
-  // Re-render periodically so temp-face expiry shows up smoothly
   setInterval(() => {
     if (tempFaceState && Date.now() >= tempFaceUntil) {
       tempFaceState = null;
@@ -257,21 +327,44 @@
     }
   }, 250);
 
-  // Save when tab hidden / closed
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveState();
+    else applyTod(); // tab 다시 열 때 시간대 즉시 갱신
   });
   window.addEventListener('beforeunload', saveState);
 
-  // First paint
+  applyTod();
   render();
 
-  // Helpers
   function clamp(v) { return Math.max(0, Math.min(MAX, Math.round(v))); }
 
-  // Tiny dev hook (handy for kids' parent to reset)
+  // Dev hooks for QA
   window.__dogs = {
     reset() { state = defaultState(); saveState(); render(); },
     get() { return { ...state }; },
+    addCare(n) {
+      state.care = (state.care || 0) + (n || 1);
+      const newStage = stageForCare(state.care);
+      if (newStage !== state.stage) {
+        const prev = state.stage;
+        state.stage = newStage;
+        triggerEvolveFx(prev, newStage);
+      }
+      saveState();
+      render();
+      return state.care;
+    },
+    setStage(stage) {
+      state.stage = stage;
+      saveState();
+      render();
+    },
+    setTod(tod) {
+      timeOverride = tod;
+      applyTod();
+      render();
+    },
+    clearTod() { timeOverride = null; applyTod(); render(); },
+    forceEvolveFx() { triggerEvolveFx(); },
   };
 })();

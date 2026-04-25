@@ -11,9 +11,13 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app" role="application" aria-label="강아지 키우기 게임">
+  <main class="app" role="application" aria-label="강아지 키우기 게임" data-stage="puppy" data-tod="day">
     <header class="topbar">
       <h1 class="title">🐶 우리 강아지</h1>
+      <div class="badges">
+        <span id="stageBadge" class="badge stage-badge" aria-live="polite">아기</span>
+        <span id="todBadge" class="badge tod-badge" aria-live="polite">☀️ 낮</span>
+      </div>
       <button id="muteBtn" class="icon-btn" type="button" aria-pressed="false" aria-label="소리 끄기">
         <span class="icon" aria-hidden="true">🔊</span>
       </button>
@@ -21,7 +25,10 @@
 
     <section class="stage" aria-label="강아지">
       <div class="ground"></div>
+      <div class="moon" aria-hidden="true">🌙</div>
+      <div class="sun" aria-hidden="true">☀️</div>
       <img id="puppy" class="puppy" src="assets/puppy/idle.png" alt="강아지" draggable="false" />
+      <div id="evolveFx" class="evolve-fx" aria-hidden="true"></div>
       <div id="bubble" class="bubble" aria-hidden="true"></div>
     </section>
 
