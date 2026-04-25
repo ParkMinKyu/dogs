@@ -33,9 +33,13 @@
 
   const STAGES = [
     { id: 'puppy', label: '아기',     threshold: 0   },
-    { id: 'teen',  label: '청소년',   threshold: 30  },
-    { id: 'adult', label: '어른',     threshold: 100 },
+    { id: 'teen',  label: '청소년',   threshold: 60  },
+    { id: 'adult', label: '어른',     threshold: 300 },
   ];
+
+  // 진화 점수 적립 rate cap — 12초당 +1 (= 분당 +5)
+  // 미친듯이 클릭해도 게이지는 회복하지만 진화는 천천히 진행
+  const CARE_TICK_MS = 12 * 1000;
 
   const BREEDS = [
     { id: 'shiba',   name: '시바이누', desc: '용감한 친구' },
@@ -90,7 +94,14 @@
       }
       if (typeof s.lastTs !== 'number') s.lastTs = Date.now();
       if (typeof s.care !== 'number') s.care = 0;
+      if (typeof s.careLastTick !== 'number') s.careLastTick = 0;
+      // 마이그레이션 — v0.5 이전엔 임계값 30/100. 이미 100점 넘긴 어른은 그대로 두되,
+      // 기존 점수가 새 임계값(60/300) 기준으로 너무 낮게 잡히지 않도록 비례 보정.
+      // care가 100 이상이면 어른이었던 것 → 300으로 이상치 보정해서 어른 유지.
+      // care가 30~99면 청소년 → 60~ 사이로 매핑하지 않고 그냥 둠 (다시 천천히 어른으로).
+      if (s.care >= 100 && s.care < 300) s.care = 300;
       if (typeof s.stage !== 'string') s.stage = stageForCare(s.care);
+      else s.stage = stageForCare(s.care); // 마이그레이션 후 stage 재계산 보장
       // P2 보강
       if (typeof s.name !== 'string') s.name = '';
       if (typeof s.breed !== 'string') s.breed = '';
@@ -112,6 +123,7 @@
       hunger: 80, happy: 80, clean: 80, energy: 80,
       lastTs: Date.now(),
       care: 0,
+      careLastTick: 0,
       stage: 'puppy',
       name: '',
       breed: '',
@@ -129,6 +141,26 @@
       if (care >= s.threshold) cur = s.id;
     }
     return cur;
+  }
+
+  // 액션 1번 = 진화 점수 후보 +1, 단 careLastTick 이후 12초 지나야만 적립.
+  // 이전 적립 후 지난 시간만큼 누적 (예: 24초면 +2, 60초면 +5).
+  // 결과: 분당 최대 5점, 미친 클릭에도 영향 없음.
+  function addCareScore() {
+    const now = Date.now();
+    let last = state.careLastTick || 0;
+    // 첫 적립이거나 비정상 값이면 첫 액션부터 +1 인정하고 careLastTick은 12초 전으로 세팅
+    if (last <= 0 || now - last < 0) {
+      state.care = (state.care || 0) + 1;
+      state.careLastTick = now;
+      return true;
+    }
+    const elapsed = now - last;
+    const ticks = Math.floor(elapsed / CARE_TICK_MS);
+    if (ticks <= 0) return false;
+    state.care = (state.care || 0) + ticks;
+    state.careLastTick = last + ticks * CARE_TICK_MS; // 남은 ms 보존
+    return true;
   }
 
   // ----- 한글 받침 처리 ---------------------------------------------------
@@ -464,7 +496,8 @@
       }
     }
 
-    state.care = (state.care || 0) + 1;
+    // 진화 점수: 분당 최대 5점 cap (12초 간격). 케어포인트는 매 액션마다 +1.
+    addCareScore();
     state.points = (state.points || 0) + 1;
     const newStage = stageForCare(state.care);
     if (newStage !== state.stage) {
@@ -1061,7 +1094,7 @@
           score += 1;
           state.happy = clamp(state.happy + Math.round(MINIGAME_HAPPY_BOOST / 5));
           state.points = (state.points || 0) + 2;
-          state.care = (state.care || 0) + 1;
+          addCareScore(); // 동일하게 분당 5점 cap
           SOUNDS.catch();
           flashBubble('💖');
           scoreEl.textContent = '🎯 ' + score;
