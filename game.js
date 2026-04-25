@@ -271,12 +271,18 @@
     'gaugeZeroSince', 'busy', 'minigameLastTs', 'playLast',
     'wanderX', 'wanderY', // v2 — 펫별 위치
   ];
+  // Deep clone — 객체/배열의 reference 공유 방지 (snapshot/restore 안전)
+  function petClone(v) {
+    if (v === null || v === undefined) return v;
+    if (typeof v !== 'object') return v;
+    try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+  }
   function snapshotActivePet() {
     if (!Array.isArray(state.pets)) return;
     const idx = state.pets.findIndex(p => p.id === state.activePetId);
     if (idx < 0) return;
     const snap = { id: state.activePetId };
-    for (const k of PET_FIELDS) snap[k] = state[k];
+    for (const k of PET_FIELDS) snap[k] = petClone(state[k]);
     state.pets[idx] = snap;
   }
   function loadPetIntoState(petId) {
@@ -284,7 +290,7 @@
     const pet = state.pets.find(p => p.id === petId);
     if (!pet) return;
     for (const k of PET_FIELDS) {
-      if (k in pet) state[k] = pet[k];
+      if (k in pet) state[k] = petClone(pet[k]);
     }
     state.activePetId = petId;
   }
@@ -812,86 +818,125 @@
     state.lastTs = now;
   }
 
-  function tickDecay() {
-    // setup-pending: 이름/종 미설정 상태에선 모든 자동 시스템 정지
-    if (!state.name || !state.breed) { state.lastTs = Date.now(); return; }
-    if (decayPaused) { state.lastTs = Date.now(); return; }
+  // v2 — 단일 펫(객체)에 decay/sick/runaway 검사 적용. p는 state 또는 pets[i].
+  // 반환: 이 펫이 가출 조건 충족 시 true.
+  function applyDecayToPet(p) {
+    if (!p) return false;
+    if (!p.name || !p.breed) { p.lastTs = Date.now(); return false; }
     for (const g of GAUGES) {
       let dec = DECAY_PER_TICK;
-      // mess가 있으면 청결 추가 감소 (개수 비례)
-      if (g === 'clean' && state.messes && state.messes.length > 0) {
-        dec += state.messes.length * 2;
+      if (g === 'clean' && p.messes && p.messes.length > 0) {
+        dec += p.messes.length * 2;
       }
-      // sick — 행복 추가 감소
-      if (g === 'happy' && state.sick) dec += 2;
-      state[g] = clamp(state[g] - dec);
+      if (g === 'happy' && p.sick) dec += 2;
+      p[g] = clamp((p[g] ?? 0) - dec);
     }
-    state.lastTs = Date.now();
-    // 청결 ≤10 추적 — 5분 이상이면 sick
+    p.lastTs = Date.now();
     const now = Date.now();
-    if (state.clean <= 10) {
-      if (!state.lowCleanSince) state.lowCleanSince = now;
-      if (!state.sick && now - state.lowCleanSince > 5 * 60 * 1000) {
-        state.sick = { since: now };
+    if (p.clean <= 10) {
+      if (!p.lowCleanSince) p.lowCleanSince = now;
+      if (!p.sick && now - p.lowCleanSince > 5 * 60 * 1000) {
+        p.sick = { since: now };
       }
     } else {
-      state.lowCleanSince = 0;
+      p.lowCleanSince = 0;
     }
-    // 여러 게이지 동시 ≤10 → 즉시 sick
-    if (!state.sick && GAUGES.filter(g => state[g] <= 10).length >= 2) {
-      state.sick = { since: now };
+    if (!p.sick && GAUGES.filter(g => p[g] <= 10).length >= 2) {
+      p.sick = { since: now };
     }
-    // 무작위 5%/30분 sick
-    if (!state.sick && Math.random() < 0.05 / (30 * 60 * 1000 / TICK_MS)) {
-      state.sick = { since: now };
+    if (!p.sick && Math.random() < 0.05 / (30 * 60 * 1000 / TICK_MS)) {
+      p.sick = { since: now };
     }
-    // 게이지 0 추적 (가출 게임오버용)
+    if (!p.gaugeZeroSince) p.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null };
     for (const g of GAUGES) {
-      if (state[g] <= 0) {
-        if (!state.gaugeZeroSince[g]) state.gaugeZeroSince[g] = now;
+      if (p[g] <= 0) {
+        if (!p.gaugeZeroSince[g]) p.gaugeZeroSince[g] = now;
       } else {
-        state.gaugeZeroSince[g] = null;
+        p.gaugeZeroSince[g] = null;
       }
     }
-    // 가출 조건
-    const zeroes = GAUGES.filter(g => state.gaugeZeroSince[g]);
-    let runaway = false;
-    if (!state.gameOver) {
-      // 3개 이상 동시 0 — 15분
-      if (zeroes.length >= 3) {
-        const oldest = Math.min(...zeroes.map(g => state.gaugeZeroSince[g]));
-        if (now - oldest >= 15 * 60 * 1000) runaway = true;
-      }
-      // 단일 게이지 60분
-      for (const g of zeroes) {
-        if (now - state.gaugeZeroSince[g] >= 60 * 60 * 1000) { runaway = true; break; }
-      }
-      // sick 30분 무방치
-      if (state.sick && now - state.sick.since >= 30 * 60 * 1000) runaway = true;
+    const zeroes = GAUGES.filter(g => p.gaugeZeroSince[g]);
+    if (zeroes.length >= 3) {
+      const oldest = Math.min(...zeroes.map(g => p.gaugeZeroSince[g]));
+      if (now - oldest >= 15 * 60 * 1000) return true;
     }
-    if (runaway) triggerRunaway();
+    for (const g of zeroes) {
+      if (now - p.gaugeZeroSince[g] >= 60 * 60 * 1000) return true;
+    }
+    if (p.sick && now - p.sick.since >= 30 * 60 * 1000) return true;
+    return false;
+  }
+
+  function tickDecay() {
+    if (decayPaused) { state.lastTs = Date.now(); return; }
+    if (state.gameOver) return;
+    // 활성 펫: state.* 직접 변경 (UI 즉시 반영)
+    const activeRunaway = applyDecayToPet(state);
+    // 비활성 펫: pets[] 객체 직접 변경 (시간 흐름이 모든 펫에 영향)
+    let inactiveRunawayPet = null;
+    if (Array.isArray(state.pets)) {
+      for (const pet of state.pets) {
+        if (pet.id === state.activePetId) continue;
+        if (applyDecayToPet(pet) && !inactiveRunawayPet) inactiveRunawayPet = pet;
+      }
+    }
     saveState();
     render();
+    if (activeRunaway) {
+      triggerRunaway();
+    } else if (inactiveRunawayPet) {
+      const nm = inactiveRunawayPet.name || '강아지';
+      flashBubble('🚪');
+      showSpeech(`${nameWithSubject(nm)} 너무 외로워서 떠났어요...`, 3000);
+      switchToPet(inactiveRunawayPet.id);
+      setTimeout(() => triggerRunaway(), 400);
+    }
   }
   setInterval(tickDecay, TICK_MS);
 
-  // ----- 똥/오줌 spawn (5~10분에 한 번) ----------------------------------
+  // ----- 똥/오줌 spawn (5~10분에 한 번, 펫별) ----------------------------
   const MESS_INTERVAL_MIN = 5 * 60 * 1000;
   const MESS_INTERVAL_RANGE = 5 * 60 * 1000; // 5~10분
-  let nextMessAt = Date.now() + MESS_INTERVAL_MIN + Math.random() * MESS_INTERVAL_RANGE;
-  function maybeSpawnMess() {
-    if (!state.name || !state.breed) return; // setup-pending
-    if (state.busy) return;
-    if (Date.now() < nextMessAt) return;
-    nextMessAt = Date.now() + MESS_INTERVAL_MIN + Math.random() * MESS_INTERVAL_RANGE;
-    if (state.messes.length >= 4) return; // 너무 많이 X
+  const _nextMessAt = new Map(); // petId → ts
+  function _scheduleNextMess(petId) {
+    _nextMessAt.set(petId, Date.now() + MESS_INTERVAL_MIN + Math.random() * MESS_INTERVAL_RANGE);
+  }
+  function _spawnMessOn(p) {
+    if (!p || !p.name || !p.breed) return false;
+    if (p.busy) return false;
+    if (!Array.isArray(p.messes)) p.messes = [];
+    if (p.messes.length >= 4) return false;
     const type = Math.random() < 0.7 ? 'poop' : 'pee';
     const x = 12 + Math.random() * 76;
-    const y = 70 + Math.random() * 18; // 바닥 쪽
-    state.messes.push({ type, x, y, ts: Date.now() });
+    const y = 70 + Math.random() * 18;
+    p.messes.push({ type, x, y, ts: Date.now() });
+    return true;
+  }
+  function maybeSpawnMess() {
+    const now = Date.now();
+    let activeChanged = false;
+    // 활성 펫
+    if (!_nextMessAt.has(state.activePetId)) _scheduleNextMess(state.activePetId);
+    if (now >= _nextMessAt.get(state.activePetId)) {
+      _scheduleNextMess(state.activePetId);
+      if (_spawnMessOn(state)) {
+        activeChanged = true;
+        flashBubble(state.messes[state.messes.length - 1].type === 'poop' ? '💩' : '💧');
+      }
+    }
+    // 비활성 펫
+    if (Array.isArray(state.pets)) {
+      for (const pet of state.pets) {
+        if (pet.id === state.activePetId) continue;
+        if (!_nextMessAt.has(pet.id)) _scheduleNextMess(pet.id);
+        if (now >= _nextMessAt.get(pet.id)) {
+          _scheduleNextMess(pet.id);
+          _spawnMessOn(pet);
+        }
+      }
+    }
     saveState();
-    flashBubble(type === 'poop' ? '💩' : '💧');
-    render();
+    if (activeChanged) render();
   }
   setInterval(maybeSpawnMess, 30 * 1000);
 
@@ -914,9 +959,11 @@
       card.className = 'pet-slot' + (isActive ? ' active' : '');
       const breed = data.breed || 'shiba';
       const spriteSrc = `assets/breeds/${breed}.png`;
+      const sickBadge = data.sick ? '<span class="pet-slot-sick">🤒</span>' : '';
       card.innerHTML = `
         <img class="pet-slot-img" src="${spriteSrc}" alt="" data-breed="${breed}"/>
         <span class="pet-slot-name">${data.name || '?'}</span>
+        ${sickBadge}
       `;
       card.addEventListener('click', () => {
         if (!isActive) switchToPet(pet.id);
