@@ -44,19 +44,61 @@
   const CARE_TICK_MS = 12 * 1000;
 
   const BREEDS = [
-    { id: 'shiba',   name: '시바이누', desc: '용감한 친구' },
-    { id: 'maltese', name: '말티즈',   desc: '뽀송뽀송' },
-    { id: 'poodle',  name: '푸들',     desc: '곱슬곱슬' },
-    { id: 'husky',   name: '허스키',   desc: '눈송이 눈' },
+    // 강아지 (species: 'dog')
+    { id: 'shiba',   name: '시바이누', desc: '용감한 친구', species: 'dog' },
+    { id: 'maltese', name: '말티즈',   desc: '뽀송뽀송',    species: 'dog' },
+    { id: 'poodle',  name: '푸들',     desc: '곱슬곱슬',    species: 'dog' },
+    { id: 'husky',   name: '허스키',   desc: '눈송이 눈',   species: 'dog' },
+    // 고양이 (v2)
+    { id: 'cat_yellow', name: '노랑이',   desc: '햇살 같은',  species: 'cat' },
+    { id: 'cat_black',  name: '까망이',   desc: '신비로운',   species: 'cat' },
+    { id: 'cat_gray',   name: '회색냥',   desc: '고급스러운', species: 'cat' },
+    // 토끼 (v2)
+    { id: 'rabbit_white', name: '흰토끼', desc: '폭신폭신',   species: 'rabbit' },
+    { id: 'rabbit_brown', name: '갈토끼', desc: '네덜란드',   species: 'rabbit' },
+    // 햄스터 (v2)
+    { id: 'hamster', name: '햄찌', desc: '귀여운 작은 친구', species: 'hamster' },
   ];
 
-  const ACCESSORIES = [
-    { id: 'hat_red',   slot: 'hat',     name: '빨간 모자', price: 80,  emoji: '🎩' },
-    { id: 'ribbon',    slot: 'hat',     name: '리본',     price: 60,  emoji: '🎀' },
-    { id: 'collar',    slot: 'neck',    name: '목걸이',   price: 100, emoji: '🦴' },
-    { id: 'scarf',     slot: 'neck',    name: '스카프',   price: 90,  emoji: '🧣' },
-    { id: 'glasses',   slot: 'glasses', name: '안경',     price: 150, emoji: '🕶️' },
-  ];
+  // v2 — 50개 액세서리 (5 부위 × 10), 자동 생성
+  const ACC_SLOT_NAMES = {
+    hat: '머리', neck: '목', glasses: '얼굴', back: '등', feet: '발',
+  };
+  const ACC_NAMES = {
+    hat: ['빨간 모자', '밀짚 모자', '베레모', '캡 모자', '왕관', '헬멧', '머리띠', '꽃모자', '뿔모자', '새모자'],
+    neck: ['목걸이', '스카프', '나비넥', '방울', '리본', '밧줄', '체인', '꽃다발', '이름표', '넥타이'],
+    glasses: ['동그란 안경', '네모 안경', '선글라스', '모노클', '하트 안경', '별 안경', '마스크', '안대', '페이스페인트', '콧수염'],
+    back: ['망토', '날개', '가방', '큰 리본', '거북이 등', '제트팩', '풍선', '깃발', '책', '별 등판'],
+    feet: ['양말', '부츠', '운동화', '샌들', '스케이트', '발토시', '슬리퍼', '빛나는 신발', '줄무늬 양말', '하이힐'],
+  };
+  const ACC_PRICES = {
+    hat: [80, 80, 100, 100, 250, 200, 60, 90, 220, 130],
+    neck: [80, 90, 90, 60, 70, 70, 130, 100, 80, 100],
+    glasses: [120, 120, 150, 180, 140, 140, 80, 130, 100, 90],
+    back: [220, 250, 150, 120, 200, 250, 130, 90, 130, 220],
+    feet: [60, 110, 100, 70, 150, 90, 70, 200, 80, 180],
+  };
+  const ACCESSORIES = (() => {
+    const list = [];
+    for (const slot of ['hat','neck','glasses','back','feet']) {
+      for (let i = 1; i <= 10; i++) {
+        const id = `${slot}_${String(i).padStart(2,'0')}`;
+        list.push({
+          id, slot,
+          name: ACC_NAMES[slot][i-1],
+          price: ACC_PRICES[slot][i-1],
+        });
+      }
+    }
+    // 옛 id 호환 — 'hat_red' 등 기존 id가 인벤에 있으면 hat_01에 매핑
+    return list;
+  })();
+  // 옛 액세서리 id → 새 id 마이그레이션 매핑 (한 번만)
+  const ACC_LEGACY_MAP = {
+    hat_red: 'hat_01', ribbon: 'hat_07',  // 머리띠로
+    collar: 'neck_01', scarf: 'neck_02',
+    glasses: 'glasses_01',
+  };
 
   const MISSION_TEMPLATES = [
     { id: 'feed_3',  action: 'feed',  count: 3, name: '밥을 3번 주기',     emoji: '🍖', reward: 20 },
@@ -119,7 +161,26 @@
       if (typeof s.breed !== 'string') s.breed = '';
       if (typeof s.points !== 'number') s.points = 0;
       if (!s.inventory || typeof s.inventory !== 'object') s.inventory = {};
-      if (!s.equipped || typeof s.equipped !== 'object') s.equipped = { hat: null, neck: null, glasses: null };
+      if (!s.equipped || typeof s.equipped !== 'object') s.equipped = {};
+      // 5 슬롯 모두 키 보장 (back/feet 추가)
+      for (const slot of ['hat','neck','glasses','back','feet']) {
+        if (!(slot in s.equipped)) s.equipped[slot] = null;
+        // 옛 acc id → 새 id 마이그레이션
+        if (s.equipped[slot] && typeof s.equipped[slot] === 'string') {
+          const legacy = { hat_red: 'hat_01', ribbon: 'hat_07', collar: 'neck_01', scarf: 'neck_02', glasses: 'glasses_01' };
+          if (legacy[s.equipped[slot]]) s.equipped[slot] = legacy[s.equipped[slot]];
+        }
+      }
+      // inventory 옛 acc id 마이그레이션
+      if (s.inventory && typeof s.inventory === 'object') {
+        const legacy = { hat_red: 'hat_01', ribbon: 'hat_07', collar: 'neck_01', scarf: 'neck_02', glasses: 'glasses_01' };
+        for (const oldId of Object.keys(legacy)) {
+          if (s.inventory[oldId]) {
+            s.inventory[legacy[oldId]] = true;
+            delete s.inventory[oldId];
+          }
+        }
+      }
       if (typeof s.minigameLastTs !== 'number') s.minigameLastTs = 0;
       if (!s.playLast || typeof s.playLast !== 'object') s.playLast = {};
       if (!s.roomInv || typeof s.roomInv !== 'object') s.roomInv = {};
@@ -137,6 +198,14 @@
       if (typeof s.lowCleanSince !== 'number') s.lowCleanSince = 0;
       if (!s.gaugeZeroSince || typeof s.gaugeZeroSince !== 'object') s.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null };
       if (typeof s.gameOver !== 'boolean') s.gameOver = false;
+      // v2 — 멀티 펫 마이그레이션
+      if (!Array.isArray(s.pets)) {
+        // v1 단일 → pets[0]로 변환 (기존 모든 펫별 필드 그대로 유지)
+        s.pets = [{ id: 0 }];
+        s.activePetId = 0;
+      }
+      if (typeof s.activePetId !== 'number') s.activePetId = 0;
+      if (typeof s.nextPetId !== 'number') s.nextPetId = (s.pets.length > 0 ? Math.max(...s.pets.map(p => p.id || 0)) + 1 : 1);
       if (s.busy && typeof s.busy === 'object') {
         if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
       } else { s.busy = null; }
@@ -146,7 +215,11 @@
   }
 
   function saveState() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+    try {
+      // active 펫의 현재 필드값을 pets 배열에 snapshot
+      if (typeof snapshotActivePet === 'function') snapshotActivePet();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {}
   }
 
   function defaultState() {
@@ -161,7 +234,7 @@
       breed: '',
       points: 0,
       inventory: {},
-      equipped: { hat: null, neck: null, glasses: null },
+      equipped: { hat: null, neck: null, glasses: null, back: null, feet: null },
       minigameLastTs: 0,
       playLast: {},
       roomInv: {},
@@ -179,7 +252,70 @@
       gameOver: false,
       busy: null,
       missions: { date: '', list: [] },
+      pets: [{ id: 0 }],
+      activePetId: 0,
+      nextPetId: 1,
     };
+  }
+
+  // v2 — 펫별 필드 (이 키들이 각 펫에 독립). 글로벌(points/inventory/styleInv/missions/etc)은 공유.
+  const PET_FIELDS = [
+    'hunger', 'happy', 'clean', 'energy', 'lastTs',
+    'care', 'careLastTick', 'stage',
+    'name', 'breed', 'species', // species 추가 (dog/cat/rabbit/hamster)
+    'equipped',
+    'roomInv', 'roomLayout',
+    'wallpaper', 'floor',
+    'furnitureInv', 'furnitureLayout',
+    'lastReqTs', 'messes', 'sick', 'lowCleanSince',
+    'gaugeZeroSince', 'busy', 'minigameLastTs', 'playLast',
+  ];
+  function snapshotActivePet() {
+    if (!Array.isArray(state.pets)) return;
+    const idx = state.pets.findIndex(p => p.id === state.activePetId);
+    if (idx < 0) return;
+    const snap = { id: state.activePetId };
+    for (const k of PET_FIELDS) snap[k] = state[k];
+    state.pets[idx] = snap;
+  }
+  function loadPetIntoState(petId) {
+    if (!Array.isArray(state.pets)) return;
+    const pet = state.pets.find(p => p.id === petId);
+    if (!pet) return;
+    for (const k of PET_FIELDS) {
+      if (k in pet) state[k] = pet[k];
+    }
+    state.activePetId = petId;
+  }
+  function switchToPet(petId) {
+    if (petId === state.activePetId) return;
+    snapshotActivePet();
+    loadPetIntoState(petId);
+    saveState();
+    render();
+  }
+  function addNewPet() {
+    snapshotActivePet();
+    const id = state.nextPetId || (state.pets.length);
+    state.nextPetId = id + 1;
+    // 빈 펫 — 이름/종 미설정 (bootstrap이 mandatory 모달 띄움)
+    const fresh = {
+      id, name: '', breed: '', species: 'dog',
+      hunger: 80, happy: 80, clean: 80, energy: 80, lastTs: Date.now(),
+      care: 0, careLastTick: 0, stage: 'puppy',
+      equipped: { hat: null, neck: null, glasses: null, back: null, feet: null },
+      roomInv: {}, roomLayout: [],
+      wallpaper: 'default', floor: 'default',
+      furnitureInv: {}, furnitureLayout: [],
+      lastReqTs: {}, messes: [], sick: null, lowCleanSince: 0,
+      gaugeZeroSince: { hunger: null, happy: null, clean: null, energy: null },
+      busy: null, minigameLastTs: 0, playLast: {},
+    };
+    state.pets.push(fresh);
+    loadPetIntoState(id);
+    saveState();
+    render();
+    bootstrap(); // 새 펫 이름/종 설정 모달
   }
 
   // 액션별 진행 시간 (ms). play_menu 는 즉시.
@@ -349,6 +485,8 @@
   const accHatEl   = $('#accHat');
   const accNeckEl  = $('#accNeck');
   const accGlassesEl = $('#accGlasses');
+  const accBackEl  = $('#accBack');
+  const accFeetEl  = $('#accFeet');
   // 새 원형 게이지 — 각 .gauge[data-key]의 .gauge-circle 과 .pct 셀렉터
   const gaugeEls = {};
   for (const g of GAUGES) {
@@ -732,6 +870,43 @@
   setInterval(maybeSpawnMess, 30 * 1000);
 
   // mess 렌더 + 청소 핸들러
+  // v2 — 헤더 펫 슬롯 카드 (현재 펫 + 다른 펫 + "추가" 버튼)
+  function renderPetSlots() {
+    const wrap = document.getElementById('petSlots');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const pets = state.pets || [{ id: state.activePetId || 0 }];
+    const MAX_PETS = 4;
+    pets.forEach(pet => {
+      const isActive = pet.id === state.activePetId;
+      // 펫 데이터 — 활성이면 state, 아니면 pet 자체
+      const data = isActive ? state : pet;
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'pet-slot' + (isActive ? ' active' : '');
+      const breed = data.breed || 'shiba';
+      const stage = data.stage || 'puppy';
+      // sprite — breeds/{breed}.png 또는 puppy/idle.png 폴백
+      const spriteSrc = `assets/breeds/${breed}.png`;
+      card.innerHTML = `
+        <img class="pet-slot-img" src="${spriteSrc}" alt="" data-breed="${breed}"/>
+        <span class="pet-slot-name">${data.name || '?'}</span>
+      `;
+      card.addEventListener('click', () => {
+        if (!isActive) switchToPet(pet.id);
+      });
+      wrap.appendChild(card);
+    });
+    if (pets.length < MAX_PETS) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'pet-slot pet-slot-add';
+      add.innerHTML = '<span class="plus">+</span><span class="pet-slot-name">추가</span>';
+      add.addEventListener('click', () => addNewPet());
+      wrap.appendChild(add);
+    }
+  }
+
   function renderMessLayer() {
     const layer = document.getElementById('messLayer');
     if (!layer) return;
@@ -1356,6 +1531,7 @@
     renderMissionDot();
     renderRoomDeco();
     renderMessLayer();
+    renderPetSlots();
     // 아플 때 — 병원 버튼 노출 + sick 클래스
     if (vetBtn) vetBtn.hidden = !state.sick;
     document.body.classList.toggle('is-sick', !!state.sick);
@@ -1543,6 +1719,8 @@
       { slot: 'hat',     el: accHatEl },
       { slot: 'neck',    el: accNeckEl },
       { slot: 'glasses', el: accGlassesEl },
+      { slot: 'back',    el: accBackEl },
+      { slot: 'feet',    el: accFeetEl },
     ];
     for (const { slot, el } of slots) {
       const id = state.equipped[slot];
@@ -1887,6 +2065,7 @@
   }
 
   // ----- P2.3: 상점 -------------------------------------------------------
+  let __shopTab = 'hat';
   function openShopModal() {
     const body = document.createElement('div');
     const head = document.createElement('div');
@@ -1894,9 +2073,22 @@
     head.innerHTML = `보유: <span class="pts">🌟 ${state.points || 0}점</span>`;
     body.appendChild(head);
 
+    // 5 부위 탭
+    const tabs = document.createElement('div');
+    tabs.className = 'shop-tabs';
+    for (const slot of ['hat','neck','glasses','back','feet']) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'shop-tab' + (slot === __shopTab ? ' active' : '');
+      b.textContent = ACC_SLOT_NAMES[slot];
+      b.addEventListener('click', () => { __shopTab = slot; openShopModal(); });
+      tabs.appendChild(b);
+    }
+    body.appendChild(tabs);
+
     const grid = document.createElement('div');
     grid.className = 'shop-grid';
-    ACCESSORIES.forEach(acc => {
+    ACCESSORIES.filter(a => a.slot === __shopTab).forEach(acc => {
       const owned = !!state.inventory[acc.id];
       const equipped = state.equipped[acc.slot] === acc.id;
       const item = document.createElement('div');
