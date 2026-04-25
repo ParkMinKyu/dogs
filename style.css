@@ -34,6 +34,8 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
      -moz-user-select: none;
@@ -237,7 +239,7 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 .actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -245,7 +247,8 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   appearance: none;
   border: 4px solid #ffffff;
   border-radius: 22px;
-  padding: 12px 6px 10px;
+  padding: 12px 4px 10px;
+  min-width: 0;
   min-height: 110px;
   font-family: var(--font-display);
   font-size: clamp(15px, 3.8vw, 18px);
@@ -290,12 +293,36 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 /* ---------- Mobile tweaks ---------- */
 
-@media (max-width: 420px) {
-  .app { padding: 12px 12px 20px; gap: 14px; }
-  .gauges { gap: 10px; }
-  .actions { gap: 8px; }
-  .action { min-height: 100px; border-radius: 18px; }
+/* 좁은 폭(<=560px): 4 버튼이 한 줄에 빠듯 → 2x2 그리드로 떨어뜨림 */
+@media (max-width: 560px) {
+  .app { padding: 10px 10px 18px; gap: 12px; }
+  .gauges { gap: 8px; }
+  .actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .action {
+    min-height: 96px;
+    border-radius: 20px;
+    padding: 10px 4px 10px;
+  }
+  .action .big { font-size: clamp(34px, 8.5vw, 46px); }
+  .action .lbl { font-size: clamp(15px, 4vw, 20px); }
   .puppy { width: 168px; height: 168px; }
+  .gauge { padding: 8px 9px 10px; }
+}
+
+/* 아주 좁은 폭(<=380px): 폰트/패딩 더 축소 */
+@media (max-width: 380px) {
+  .title { font-size: 24px; }
+  .icon-btn { width: 48px; height: 48px; font-size: 22px; }
+  .stage { height: 220px; }
+  .puppy { width: 144px; height: 144px; }
+  .action { min-height: 88px; padding: 8px 2px; }
+  .action .big { font-size: 32px; }
+  .action .lbl { font-size: 15px; letter-spacing: 0; }
+  .gauge-label { font-size: 14px; }
+  .gauge-label .emo { font-size: 18px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

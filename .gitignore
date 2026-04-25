@@ -2,6 +2,9 @@
 *.log
 .idea/
 .vscode/
+.claude/
+.qa/
+screenshot_*.png
 __pycache__/
 *.pyc
 node_modules/
