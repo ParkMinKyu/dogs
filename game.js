@@ -786,7 +786,7 @@
           const lowest = lows.sort((a, b) => state[a] - state[b])[0];
           const mood = GAUGE_MOODS[lowest];
           btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
-          flashBubble(mood.rebellion);
+          showSpeech(mood.rebellion);
           tempFaceState = mood.sprite;
           tempFaceUntil = Date.now() + 1200;
           try { SOUNDS.whimper(); } catch {}
@@ -1322,15 +1322,13 @@
     const last = state.lastReqTs[pick.g] || 0;
     if (now - last < interval) return;
     state.lastReqTs[pick.g] = now;
-    // 발화
-    const cls = pick.r.severity === 'hard' ? 'show urgent' : 'show';
-    bubbleEl.textContent = pick.r.def.msg;
-    bubbleEl.classList.remove('urgent');
-    void bubbleEl.offsetWidth;
-    bubbleEl.className = 'bubble ' + cls;
-    clearTimeout(bubbleEl._t);
-    bubbleEl._t = setTimeout(() => bubbleEl.classList.remove('show', 'urgent'), 3000);
-    try { SOUNDS.bounce(); } catch {}
+    // 만화 speech bubble로 강아지 머리 위에 띄움
+    showSpeech(pick.r.def.msg, pick.r.severity === 'hard' ? 4000 : 3000);
+    if (pick.r.severity === 'hard') {
+      try { SOUNDS.whimper(); } catch {}
+    } else {
+      try { SOUNDS.bounce(); } catch {}
+    }
     saveState();
   }
 
@@ -1685,6 +1683,22 @@
     bubbleEl.classList.add('show');
     clearTimeout(bubbleEl._t);
     bubbleEl._t = setTimeout(() => bubbleEl.classList.remove('show'), 1100);
+  }
+
+  // 만화 speech bubble — 강아지 머리 위 텍스트
+  let __speechEl = null;
+  function showSpeech(text, durationMs = 3500) {
+    if (!puppyWrap) return;
+    if (__speechEl) { try { __speechEl.remove(); } catch {} __speechEl = null; }
+    const el = document.createElement('div');
+    el.className = 'speech-bubble';
+    el.textContent = text;
+    puppyWrap.appendChild(el);
+    __speechEl = el;
+    setTimeout(() => {
+      el.classList.add('fade');
+      setTimeout(() => { try { el.remove(); } catch {}; if (__speechEl === el) __speechEl = null; }, 250);
+    }, durationMs);
   }
 
   // 게이지 변화 floating text — 원형 게이지 위에 +N / -N 1초 띄움
