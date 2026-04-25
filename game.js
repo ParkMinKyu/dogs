@@ -18,7 +18,7 @@
   const ACTION_EFFECT = {
     feed:  { hunger: +35, happy:  +5, clean:  -5, energy:  +0 },
     play:  { hunger:  -5, happy: +35, clean:  -5, energy: -10 },
-    wash:  { hunger:   0, happy:  -3, clean:  +5, energy:  -3 },
+    wash:  { hunger:   0, happy:  -3, clean:   0, energy:  -3 },
     sleep: { hunger:  -5, happy:  +0, clean:   0, energy: +50 },
   };
 
