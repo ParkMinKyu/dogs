@@ -8,3 +8,9 @@ screenshot_*.png
 __pycache__/
 *.pyc
 node_modules/
+
+# QA-only files (headless capture harness)
+_frame*.html
+_seed*.html
+_test*.html
+_inspect*.html

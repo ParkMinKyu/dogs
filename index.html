@@ -4,30 +4,51 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#fde9d9" />
-  <title>강아지 키우기</title>
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="우리 강아지" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-256.png" />
+  <title>우리 강아지</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app" role="application" aria-label="강아지 키우기 게임" data-stage="puppy" data-tod="day">
+  <main class="app" role="application" aria-label="강아지 키우기 게임" data-stage="puppy" data-tod="day" data-breed="shiba">
     <header class="topbar">
-      <h1 class="title">🐶 우리 강아지</h1>
+      <h1 class="title" id="titleEl">🐶 우리 강아지</h1>
       <div class="badges">
         <span id="stageBadge" class="badge stage-badge" aria-live="polite">아기</span>
         <span id="todBadge" class="badge tod-badge" aria-live="polite">☀️ 낮</span>
+        <span id="careBadge" class="badge care-badge" aria-live="polite" title="케어포인트">🌟 0</span>
       </div>
-      <button id="muteBtn" class="icon-btn" type="button" aria-pressed="false" aria-label="소리 끄기">
-        <span class="icon" aria-hidden="true">🔊</span>
-      </button>
+      <div class="header-btns">
+        <button id="missionBtn" class="icon-btn" type="button" aria-label="일일 미션">
+          <span class="icon" aria-hidden="true">📋</span>
+          <span class="dot" id="missionDot" hidden></span>
+        </button>
+        <button id="shopBtn" class="icon-btn" type="button" aria-label="상점">
+          <span class="icon" aria-hidden="true">🛍️</span>
+        </button>
+        <button id="settingsBtn" class="icon-btn" type="button" aria-label="설정">
+          <span class="icon" aria-hidden="true">⚙️</span>
+        </button>
+      </div>
     </header>
 
     <section class="stage" aria-label="강아지">
       <div class="ground"></div>
       <div class="moon" aria-hidden="true">🌙</div>
       <div class="sun" aria-hidden="true">☀️</div>
-      <img id="puppy" class="puppy" src="assets/puppy/idle.png" alt="강아지" draggable="false" />
+      <div class="puppy-wrap">
+        <img id="puppy" class="puppy" src="assets/puppy/idle.png" alt="강아지" draggable="false" />
+        <div id="accHat" class="acc acc-hat" aria-hidden="true"></div>
+        <div id="accNeck" class="acc acc-neck" aria-hidden="true"></div>
+        <div id="accGlasses" class="acc acc-glasses" aria-hidden="true"></div>
+      </div>
       <div id="evolveFx" class="evolve-fx" aria-hidden="true"></div>
       <div id="bubble" class="bubble" aria-hidden="true"></div>
     </section>
@@ -68,8 +89,15 @@
         <span class="big" aria-hidden="true">💤</span>
         <span class="lbl">재우기</span>
       </button>
+      <button class="action a-game" data-action="minigame" type="button">
+        <span class="big" aria-hidden="true">🎯</span>
+        <span class="lbl">공놀이</span>
+      </button>
     </section>
   </main>
+
+  <!-- 모달 백드롭 + 컨테이너 -->
+  <div id="modalRoot" class="modal-root" hidden></div>
 
   <script src="game.js" defer></script>
 </body>
