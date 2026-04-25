@@ -1569,7 +1569,7 @@
     const input = document.createElement('input');
     input.className = 'modal-input';
     input.type = 'text';
-    input.maxLength = 12;
+    input.maxLength = 20; // 여유 있게 (모바일 IME 조합 안전)
     input.placeholder = '예: 콩이, 뽀삐';
     input.value = initial || '';
     input.autocomplete = 'off';
@@ -1589,7 +1589,8 @@
     body.appendChild(hint);
 
     function commit() {
-      const v = (input.value || '').trim().slice(0, 12);
+      // Array.from으로 한글/이모지 등 단일 char 안전 자르기, 12자까지
+      const v = Array.from((input.value || '').trim()).slice(0, 12).join('');
       if (!v) { input.focus(); return; }
       state.name = v;
       saveState();
