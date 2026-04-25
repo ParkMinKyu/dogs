@@ -146,7 +146,36 @@
   function nameWithSubject(name) { return name + josa(name, '이가', '가'); }
   function nameTopic(name)        { return name + josa(name, '은', '는'); }
 
-  // ----- QA seed (URL ?demo=1) -- for screenshot QA only -----------------
+  // ----- 강제 리셋: ?reset=1 또는 ?clear=1 ------------------------------
+  // 폰에서 reset 버튼이 안 눌릴 때 URL로 깨끗이 초기화하기 위한 비상구.
+  // localStorage dogs.* + SW 캐시 + SW 등록 모두 삭제 후 쿼리 제거하고 새로 진입.
+  {
+    let __resetting = false;
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.get('reset') === '1' || params.get('clear') === '1') {
+        __resetting = true;
+        try {
+          for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('dogs.')) localStorage.removeItem(k);
+          }
+        } catch {}
+        try {
+          if ('caches' in window) {
+            caches.keys().then(ks => Promise.all(ks.map(k => caches.delete(k)))).catch(() => {});
+          }
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+          }
+        } catch {}
+        try { location.replace(location.pathname); } catch { location.reload(); }
+      }
+    } catch {}
+    if (__resetting) return; // IIFE 즉시 종료 — 페이지 navigation 대기
+  }
+
+  // ----- QA query params -------------------------------------------------
   try {
     const params = new URLSearchParams(location.search);
     if (params.get('notrans') === '1') {
