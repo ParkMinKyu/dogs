@@ -1213,15 +1213,24 @@
     }
     return `assets/${s}/${m}.png`;
   }
-  setInterval(() => {
-    if (!puppyEl) return;
-    if (state.breed !== 'shiba' || (state.stage || 'puppy') !== 'puppy') return;
-    const mood = puppyWrap?.dataset.shibaMood || 'idle';
-    if (STATIC_MOODS.has(mood)) return;
-    shibaFrame = (shibaFrame + 1) % 4;
-    const next = decideSpriteSrc(mood);
-    if (!puppyEl.src.endsWith(next)) puppyEl.src = next;
-  }, 200);
+  // mood별 frame interval — 자연스러운 속도감
+  const SHIBA_FRAME_INTERVAL = { idle: 500, happy: 250, eating: 350, sad: 600, sleeping: 0 };
+  function shibaFrameTick() {
+    let delay = 500;
+    try {
+      if (!puppyEl) return;
+      if (state.breed !== 'shiba' || (state.stage || 'puppy') !== 'puppy') return;
+      const mood = puppyWrap?.dataset.shibaMood || 'idle';
+      delay = SHIBA_FRAME_INTERVAL[mood] || 500;
+      if (STATIC_MOODS.has(mood) || delay <= 0) return; // 정지
+      shibaFrame = (shibaFrame + 1) % 4;
+      const next = decideSpriteSrc(mood);
+      if (!puppyEl.src.endsWith(next)) puppyEl.src = next;
+    } finally {
+      setTimeout(shibaFrameTick, delay > 0 ? delay : 500);
+    }
+  }
+  setTimeout(shibaFrameTick, 500);
 
   function render() {
     const isWashing = state.busy?.action === 'wash';
@@ -2173,11 +2182,11 @@
 
   // 4가지 놀이 카탈로그
   const PLAY_GAMES = [
-    { id: 'ball',  name: '공놀이',  emoji: '🎾', desc: '톡톡 튕기기', open: () => openMinigame() },
-    { id: 'pet',   name: '쓰다듬기', emoji: '✋', desc: '15번 만져요', open: () => openPetGame() },
-    { id: 'dance', name: '춤추기',  emoji: '🎵', desc: '박자 맞추기', open: () => openDanceGame() },
-    { id: 'treat', name: '간식 받기', emoji: '🦴', desc: '5개 받기',    open: () => openTreatGame() },
-    { id: 'walk',  name: '산책',    emoji: '🚶', desc: '아이템 찾기',  open: () => openWalkGame() },
+    { id: 'ball',  name: '공놀이',  emoji: '🎾', desc: '공 받기 (30초)',    open: () => openMinigame() },
+    { id: 'pet',   name: '쓰다듬기', emoji: '✋', desc: '많이 만지기 (30초)', open: () => openPetGame() },
+    { id: 'dance', name: '춤추기',  emoji: '🎵', desc: '박자 맞추기 (30초)', open: () => openDanceGame() },
+    { id: 'treat', name: '간식 받기', emoji: '🦴', desc: '많이 받기 (30초)',  open: () => openTreatGame() },
+    { id: 'walk',  name: '산책',    emoji: '🚶', desc: '아이템 찾기 (30초)', open: () => openWalkGame() },
   ];
 
   function openPlayMenu() {
