@@ -124,6 +124,11 @@
       if (!s.playLast || typeof s.playLast !== 'object') s.playLast = {};
       if (!s.roomInv || typeof s.roomInv !== 'object') s.roomInv = {};
       if (!Array.isArray(s.roomLayout)) s.roomLayout = [];
+      if (typeof s.wallpaper !== 'string') s.wallpaper = 'default';
+      if (typeof s.floor !== 'string') s.floor = 'default';
+      if (!s.furnitureInv || typeof s.furnitureInv !== 'object') s.furnitureInv = {};
+      if (!Array.isArray(s.furnitureLayout)) s.furnitureLayout = [];
+      if (!s.styleInv || typeof s.styleInv !== 'object') s.styleInv = {}; // wallpaper/floor 보유
       if (!s.lastReqTs || typeof s.lastReqTs !== 'object') s.lastReqTs = {};
       if (!Array.isArray(s.messes)) s.messes = [];
       if (s.sick && typeof s.sick === 'object') {
@@ -161,6 +166,11 @@
       playLast: {},
       roomInv: {},
       roomLayout: [],
+      wallpaper: 'default',
+      floor: 'default',
+      furnitureInv: {},
+      furnitureLayout: [],
+      styleInv: { wp_default: true, fl_default: true },
       lastReqTs: {},
       messes: [],
       sick: null,
@@ -1366,6 +1376,7 @@
     const front = document.getElementById('decoLayerFront');
     if (!back || !front) return;
     back.innerHTML = ''; front.innerHTML = '';
+    // 장식품
     const layout = state.roomLayout || [];
     layout.forEach((it, idx) => {
       const def = ROOM_ITEMS[it.kind];
@@ -1377,7 +1388,6 @@
       el.style.left = it.x + '%';
       el.style.top  = it.y + '%';
       el.dataset.idx = idx;
-      // 편집 모드에서만 클릭으로 회수
       el.addEventListener('click', (e) => {
         if (!document.body.classList.contains('is-editing-room')) return;
         e.stopPropagation();
@@ -1389,6 +1399,34 @@
       });
       layer.appendChild(el);
     });
+    // 가구 — 항상 back layer (강아지 뒤)
+    const fl = state.furnitureLayout || [];
+    fl.forEach((it, idx) => {
+      const def = FURNITURE[it.kind];
+      if (!def) return;
+      const el = document.createElement('div');
+      el.className = 'furn-item furn-' + it.kind;
+      el.textContent = def.emoji;
+      el.style.left = it.x + '%';
+      el.style.top  = it.y + '%';
+      el.dataset.idx = idx;
+      el.addEventListener('click', (e) => {
+        if (!document.body.classList.contains('is-editing-room')) return;
+        e.stopPropagation();
+        state.furnitureInv[it.kind] = (state.furnitureInv[it.kind] || 0) + 1;
+        state.furnitureLayout.splice(idx, 1);
+        saveState();
+        render();
+        renderEditPanel();
+      });
+      back.appendChild(el);
+    });
+    // 벽지/바닥 — stage data 속성으로
+    const stageEl = document.querySelector('.stage');
+    if (stageEl) {
+      stageEl.dataset.wallpaper = state.wallpaper || 'default';
+      stageEl.dataset.floor = state.floor || 'default';
+    }
   }
 
   function renderAccessories() {
@@ -1768,6 +1806,37 @@
     gift:    { emoji: '🎁', name: '선물' },
   };
 
+  // 가구 카탈로그 (배치형)
+  const FURNITURE = {
+    sofa:     { emoji: '🛋️', name: '소파' },
+    bed:      { emoji: '🛏️', name: '침대' },
+    plant:    { emoji: '🪴', name: '화분' },
+    chair:    { emoji: '🪑', name: '의자' },
+    mirror:   { emoji: '🪞', name: '거울' },
+    picture:  { emoji: '🖼️', name: '액자' },
+    tv:       { emoji: '📺', name: 'TV' },
+    bookshelf:{ emoji: '📚', name: '책장' },
+    lamp:     { emoji: '🪔', name: '등불' },
+  };
+
+  // 벽지/바닥 카탈로그 — id → CSS 적용
+  const WALLPAPERS = {
+    default:   { name: '기본 베이지' },
+    pink_dot:  { name: '분홍 도트' },
+    blue_stripe: { name: '하늘 줄무늬' },
+    star_pattern: { name: '별달 패턴' },
+    bear:      { name: '곰돌이 패턴' },
+    rainbow:   { name: '무지개' },
+  };
+  const FLOORS = {
+    default:   { name: '장판' },
+    wood:      { name: '나무 마루' },
+    carpet_red: { name: '빨강 카펫' },
+    carpet_blue: { name: '파랑 카펫' },
+    wool:      { name: '양털 카펫' },
+    tile:      { name: '격자 타일' },
+  };
+
   let __roomPickedKind = null;
   let __roomEditPanelEl = null;
 
@@ -1807,20 +1876,31 @@
     render();
   }
 
+  // 편집 모드 — 어떤 탭의 어떤 카드가 picked인가
+  let __editTab = 'deco'; // deco | furn | wallpaper | floor
+
   function stageRoomEditClick(e) {
     if (!document.body.classList.contains('is-editing-room')) return;
     if (!__roomPickedKind) return;
-    // 배치된 아이템 element 클릭은 그쪽에서 회수 처리 (e.target 검사)
-    if (e.target.classList && e.target.classList.contains('deco-item')) return;
-    const inv = state.roomInv[__roomPickedKind] || 0;
-    if (inv <= 0) { __roomPickedKind = null; renderEditPanel(); return; }
+    // 배치된 아이템 element 클릭은 그쪽에서 회수 처리
+    if (e.target.classList && (e.target.classList.contains('deco-item') || e.target.classList.contains('furn-item'))) return;
     const stageEl = e.currentTarget;
     const r = stageEl.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * 100;
     const y = ((e.clientY - r.top)  / r.height) * 100;
-    state.roomLayout.push({ kind: __roomPickedKind, x: Math.max(2, Math.min(98, x)), y: Math.max(4, Math.min(94, y)) });
-    state.roomInv[__roomPickedKind] -= 1;
-    if (state.roomInv[__roomPickedKind] <= 0) __roomPickedKind = null;
+    if (__editTab === 'deco') {
+      const inv = state.roomInv[__roomPickedKind] || 0;
+      if (inv <= 0) { __roomPickedKind = null; renderEditPanel(); return; }
+      state.roomLayout.push({ kind: __roomPickedKind, x: Math.max(2, Math.min(98, x)), y: Math.max(4, Math.min(94, y)) });
+      state.roomInv[__roomPickedKind] -= 1;
+      if (state.roomInv[__roomPickedKind] <= 0) __roomPickedKind = null;
+    } else if (__editTab === 'furn') {
+      const inv = state.furnitureInv[__roomPickedKind] || 0;
+      if (inv <= 0) { __roomPickedKind = null; renderEditPanel(); return; }
+      state.furnitureLayout.push({ kind: __roomPickedKind, x: Math.max(8, Math.min(92, x)), y: Math.max(40, Math.min(90, y)) });
+      state.furnitureInv[__roomPickedKind] -= 1;
+      if (state.furnitureInv[__roomPickedKind] <= 0) __roomPickedKind = null;
+    }
     saveState();
     render();
     renderEditPanel();
@@ -1830,35 +1910,78 @@
     const panel = __roomEditPanelEl;
     if (!panel) return;
     panel.innerHTML = '';
+
+    // 탭 버튼들
+    const tabs = document.createElement('div');
+    tabs.className = 'room-edit-tabs';
+    [
+      { id: 'deco',      label: '🌟 장식' },
+      { id: 'furn',      label: '🛋️ 가구' },
+      { id: 'wallpaper', label: '🎨 벽지' },
+      { id: 'floor',     label: '🟫 바닥' },
+    ].forEach(t => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'room-edit-tab' + (t.id === __editTab ? ' active' : '');
+      b.textContent = t.label;
+      b.addEventListener('click', () => {
+        __editTab = t.id; __roomPickedKind = null; renderEditPanel();
+      });
+      tabs.appendChild(b);
+    });
+    panel.appendChild(tabs);
+
     const head = document.createElement('div');
     head.className = 'room-edit-head';
-    head.textContent = __roomPickedKind
-      ? `📍 ${ROOM_ITEMS[__roomPickedKind].name} 둘 자리를 탭하세요`
-      : '🏠 꾸미기 — 아이템 카드를 탭하세요';
+    if (__editTab === 'deco' || __editTab === 'furn') {
+      const cat = __editTab === 'deco' ? ROOM_ITEMS : FURNITURE;
+      head.textContent = __roomPickedKind
+        ? `📍 ${cat[__roomPickedKind]?.name || ''} 둘 자리 탭하세요`
+        : '카드 탭 → 방에 배치';
+    } else if (__editTab === 'wallpaper') {
+      head.textContent = '벽지 골라요 (즉시 적용)';
+    } else if (__editTab === 'floor') {
+      head.textContent = '바닥 골라요 (즉시 적용)';
+    }
     panel.appendChild(head);
 
     const grid = document.createElement('div');
     grid.className = 'room-edit-grid';
-    const entries = Object.entries(state.roomInv || {}).filter(([_, c]) => c > 0);
-    if (!entries.length) {
-      const empty = document.createElement('div');
-      empty.className = 'room-inv-empty';
-      empty.textContent = '아직 모은 아이템이 없어요. 산책 가서 모아 봐요! 🚶';
-      grid.appendChild(empty);
-    } else {
-      entries.forEach(([kind, count]) => {
-        const def = ROOM_ITEMS[kind];
-        if (!def) return;
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'room-inv-card' + (__roomPickedKind === kind ? ' picked' : '');
-        card.innerHTML = `<span class="emo">${def.emoji}</span><span class="name">${def.name}</span><span class="count">×${count}</span>`;
-        card.addEventListener('click', (e) => {
-          e.stopPropagation();
-          __roomPickedKind = (__roomPickedKind === kind ? null : kind);
-          renderEditPanel();
+    if (__editTab === 'deco') {
+      const entries = Object.entries(state.roomInv || {}).filter(([_, c]) => c > 0);
+      if (!entries.length) appendEmpty(grid, '산책 가서 모아 봐요! 🚶');
+      else entries.forEach(([kind, count]) => {
+        const def = ROOM_ITEMS[kind]; if (!def) return;
+        appendItemCard(grid, def, count, kind, () => {
+          __roomPickedKind = (__roomPickedKind === kind ? null : kind); renderEditPanel();
         });
-        grid.appendChild(card);
+      });
+    } else if (__editTab === 'furn') {
+      const entries = Object.entries(state.furnitureInv || {}).filter(([_, c]) => c > 0);
+      if (!entries.length) appendEmpty(grid, '가구는 산책에서 발견해요 🪴');
+      else entries.forEach(([kind, count]) => {
+        const def = FURNITURE[kind]; if (!def) return;
+        appendItemCard(grid, def, count, kind, () => {
+          __roomPickedKind = (__roomPickedKind === kind ? null : kind); renderEditPanel();
+        });
+      });
+    } else if (__editTab === 'wallpaper') {
+      Object.entries(WALLPAPERS).forEach(([id, def]) => {
+        const owned = id === 'default' || (state.styleInv && state.styleInv['wp_' + id]);
+        appendStyleCard(grid, def.name, '🎨', id === state.wallpaper, !owned, () => {
+          if (!owned) return;
+          state.wallpaper = id;
+          saveState(); render(); renderEditPanel();
+        });
+      });
+    } else if (__editTab === 'floor') {
+      Object.entries(FLOORS).forEach(([id, def]) => {
+        const owned = id === 'default' || (state.styleInv && state.styleInv['fl_' + id]);
+        appendStyleCard(grid, def.name, '🟫', id === state.floor, !owned, () => {
+          if (!owned) return;
+          state.floor = id;
+          saveState(); render(); renderEditPanel();
+        });
       });
     }
     panel.appendChild(grid);
@@ -1872,8 +1995,27 @@
 
     const hint = document.createElement('p');
     hint.className = 'modal-hint';
-    hint.textContent = '아이템 탭하면 회수돼요';
+    hint.textContent = (__editTab === 'deco' || __editTab === 'furn') ? '배치된 것 탭하면 회수' : '잠긴 것은 산책에서 발견해요';
     panel.appendChild(hint);
+  }
+  function appendEmpty(grid, msg) {
+    const e = document.createElement('div'); e.className = 'room-inv-empty'; e.textContent = msg; grid.appendChild(e);
+  }
+  function appendItemCard(grid, def, count, kind, onClick) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'room-inv-card' + (__roomPickedKind === kind ? ' picked' : '');
+    card.innerHTML = `<span class="emo">${def.emoji}</span><span class="name">${def.name}</span><span class="count">×${count}</span>`;
+    card.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    grid.appendChild(card);
+  }
+  function appendStyleCard(grid, name, emoji, isCurrent, locked, onClick) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'room-inv-card' + (isCurrent ? ' picked' : '') + (locked ? ' locked' : '');
+    card.innerHTML = `<span class="emo">${emoji}</span><span class="name">${name}</span><span class="count">${locked ? '🔒' : (isCurrent ? '✓' : '선택')}</span>`;
+    card.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    grid.appendChild(card);
   }
 
   // ----- 놀이 메뉴 + 미니게임 ------------------------------------------
@@ -2036,7 +2178,7 @@
       const rb = document.createElement('div');
       const p = document.createElement('p'); p.className = 'modal-sub';
       const nm = state.name || '강아지';
-      p.innerHTML = `${count}번 쓰다듬었어요!<br>${nameTopic(nm)} 행복해해요 💖<br><span style="color:#c47b00">${msg}</span>`;
+      p.innerHTML = `${count}번 쓰다듬었어요!<br>${nameTopic(nm)} 행복해해요 💖<br><span style="color:#c47b00">${msg}</span><br><span style="font-size:13px;color:#836a55">행복 +${happyGain}${careBoost ? `, 케어 +${careBoost}` : ''}</span>`;
       rb.appendChild(p);
       const ok = document.createElement('button');
       ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
@@ -2306,7 +2448,8 @@
       const rb = document.createElement('div');
       const p = document.createElement('p'); p.className = 'modal-sub';
       const nm = state.name || '강아지';
-      p.innerHTML = `${got}개 받았어요!<br>${nameTopic(nm)} 배도 부르고 행복해요 💖${success ? '<br>🎉 목표 달성!' : ''}`;
+      const treatGrade = got >= 8 ? '최고! 🎉' : got >= 5 ? '잘했어요!' : got >= 3 ? '좋아요!' : '재밌었지?';
+      p.innerHTML = `${got}개 받았어요!<br>${nameTopic(nm)} 배도 부르고 행복해요 💖<br><span style="color:#c47b00">${treatGrade}</span><br><span style="font-size:13px;color:#836a55">행복 +${happyGain}, 배고픔 +${hungerGain}${careBoost ? `, 케어 +${careBoost}` : ''}</span>`;
       rb.appendChild(p);
       const ok = document.createElement('button');
       ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
@@ -2382,16 +2525,23 @@
     endBtn.style.marginTop = '6px';
     body.appendChild(endBtn);
 
-    // 아이템 카탈로그
+    // 아이템 카탈로그 — gift는 가구/벽지/바닥 랜덤 박스, furn/wp/fl은 희귀 직접 등장
     const ITEM_DEFS = [
-      { kind: 'bone',    emoji: '🦴', score: 5, weight: 30, rare: false },
-      { kind: 'flower',  emoji: '🌸', score: 3, weight: 22, rare: false },
-      { kind: 'butter',  emoji: '🦋', score: 5, weight: 14, rare: false, moves: true },
-      { kind: 'bird',    emoji: '🐦', score: 5, weight: 10, rare: false, moves: true },
-      { kind: 'balloon', emoji: '🎈', score: 10, weight: 5, rare: true },
-      { kind: 'star',    emoji: '⭐', score: 20, weight: 3, rare: true, careBonus: 1 },
-      { kind: 'gem',     emoji: '💎', score: 30, weight: 1, rare: true, careBonus: 5 },
-      { kind: 'gift',    emoji: '🎁', score: 15, weight: 1, rare: true, gift: true },
+      { kind: 'bone',    emoji: '🦴', score: 5,  weight: 30, rare: false },
+      { kind: 'flower',  emoji: '🌸', score: 3,  weight: 22, rare: false },
+      { kind: 'butter',  emoji: '🦋', score: 5,  weight: 14, rare: false, moves: true },
+      { kind: 'bird',    emoji: '🐦', score: 5,  weight: 10, rare: false, moves: true },
+      { kind: 'balloon', emoji: '🎈', score: 10, weight: 5,  rare: true },
+      { kind: 'star',    emoji: '⭐', score: 20, weight: 3,  rare: true, careBonus: 1 },
+      { kind: 'gem',     emoji: '💎', score: 30, weight: 1,  rare: true, careBonus: 5 },
+      { kind: 'gift',    emoji: '🎁', score: 15, weight: 2,  rare: true, gift: true },
+      // 가구 직접 (전체 확률 ~1.5%)
+      { kind: 'furn_chair',  emoji: '🪑', score: 25, weight: 0.5, rare: true, furn: 'chair' },
+      { kind: 'furn_plant',  emoji: '🪴', score: 25, weight: 0.5, rare: true, furn: 'plant' },
+      { kind: 'furn_lamp',   emoji: '🪔', score: 25, weight: 0.4, rare: true, furn: 'lamp' },
+      // 두루마리 (벽지/바닥, ~0.6%)
+      { kind: 'wp_roll',     emoji: '🎨', score: 30, weight: 0.3, rare: true, wpRoll: true },
+      { kind: 'fl_roll',     emoji: '🟫', score: 30, weight: 0.3, rare: true, flRoll: true },
     ];
     const totalWeight = ITEM_DEFS.reduce((s, d) => s + d.weight, 0);
     function pickItemDef() {
@@ -2451,36 +2601,99 @@
       it.captured = true;
       const def = it.def;
       collected[def.kind] = (collected[def.kind] || 0) + 1;
-      // 방 인벤토리 누적 — 영구 저장
-      if (!state.roomInv) state.roomInv = {};
-      state.roomInv[def.kind] = (state.roomInv[def.kind] || 0) + 1;
       score += def.score;
       scoreEl.textContent = '🎯 ' + score;
       it.el.classList.add('walk-item-pop');
       setTimeout(() => { try { it.el.remove(); } catch {}; }, 240);
       try { SOUNDS.coin(); } catch {}
       flashBubble('💖');
+      let extraMsg = null;
+
+      // 가구 직접 등장
+      if (def.furn) {
+        if (!state.furnitureInv) state.furnitureInv = {};
+        state.furnitureInv[def.furn] = (state.furnitureInv[def.furn] || 0) + 1;
+        extraMsg = `🪴 ${FURNITURE[def.furn].name} 발견!`;
+      } else if (def.wpRoll) {
+        // 미보유 벽지 랜덤 추가
+        const all = Object.keys(WALLPAPERS).filter(k => k !== 'default');
+        const owned = state.styleInv || {};
+        const candidates = all.filter(k => !owned['wp_' + k]);
+        if (candidates.length) {
+          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          state.styleInv['wp_' + pick] = true;
+          extraMsg = `🎨 ${WALLPAPERS[pick].name} 벽지 발견!`;
+        } else {
+          extraMsg = `🎨 모든 벽지 보유 중`;
+        }
+      } else if (def.flRoll) {
+        const all = Object.keys(FLOORS).filter(k => k !== 'default');
+        const owned = state.styleInv || {};
+        const candidates = all.filter(k => !owned['fl_' + k]);
+        if (candidates.length) {
+          const pick = candidates[Math.floor(Math.random() * candidates.length)];
+          state.styleInv['fl_' + pick] = true;
+          extraMsg = `🟫 ${FLOORS[pick].name} 바닥 발견!`;
+        } else {
+          extraMsg = `🟫 모든 바닥 보유 중`;
+        }
+      } else if (def.gift) {
+        // 선물상자 — 가구/벽지/바닥/액세서리 중 랜덤
+        const buckets = ['furn', 'wp', 'fl', 'acc'];
+        const bucket = buckets[Math.floor(Math.random() * buckets.length)];
+        if (bucket === 'furn') {
+          const all = Object.keys(FURNITURE);
+          const pick = all[Math.floor(Math.random() * all.length)];
+          if (!state.furnitureInv) state.furnitureInv = {};
+          state.furnitureInv[pick] = (state.furnitureInv[pick] || 0) + 1;
+          extraMsg = `🎁 ${FURNITURE[pick].name} 받았어요!`;
+        } else if (bucket === 'wp') {
+          const all = Object.keys(WALLPAPERS).filter(k => k !== 'default');
+          const cand = all.filter(k => !(state.styleInv||{})['wp_'+k]);
+          if (cand.length) {
+            const pick = cand[Math.floor(Math.random()*cand.length)];
+            state.styleInv['wp_'+pick] = true;
+            extraMsg = `🎁 ${WALLPAPERS[pick].name} 벽지!`;
+          }
+        } else if (bucket === 'fl') {
+          const all = Object.keys(FLOORS).filter(k => k !== 'default');
+          const cand = all.filter(k => !(state.styleInv||{})['fl_'+k]);
+          if (cand.length) {
+            const pick = cand[Math.floor(Math.random()*cand.length)];
+            state.styleInv['fl_'+pick] = true;
+            extraMsg = `🎁 ${FLOORS[pick].name} 바닥!`;
+          }
+        } else {
+          // 액세서리 — 미보유 우선
+          const owned = state.inventory || {};
+          const cand = ACCESSORIES.filter(a => !owned[a.id]);
+          if (cand.length) {
+            const pick = cand[Math.floor(Math.random()*cand.length)];
+            state.inventory[pick.id] = true;
+            extraMsg = `🎁 ${pick.name} 받았어요!`;
+          }
+        }
+      } else {
+        // 일반 장식품 (꽃/뼈/별/보석 등) — roomInv에 누적
+        if (ROOM_ITEMS[def.kind]) {
+          if (!state.roomInv) state.roomInv = {};
+          state.roomInv[def.kind] = (state.roomInv[def.kind] || 0) + 1;
+        }
+      }
+
       // 희귀 아이템 — 큰 축하
       if (def.rare) {
         const cel = document.createElement('div');
         cel.className = 'walk-celebrate';
-        cel.textContent = `와! ${def.emoji} 발견!`;
+        cel.textContent = extraMsg || `와! ${def.emoji} 발견!`;
+        arena.appendChild(cel);
+        setTimeout(() => cel.remove(), 1500);
+      } else if (extraMsg) {
+        const cel = document.createElement('div');
+        cel.className = 'walk-celebrate';
+        cel.textContent = extraMsg;
         arena.appendChild(cel);
         setTimeout(() => cel.remove(), 1300);
-      }
-      // 선물 — 미보유 액세서리 자동 추가
-      if (def.gift) {
-        const owned = state.inventory || {};
-        const candidates = ACCESSORIES.filter(a => !owned[a.id]);
-        if (candidates.length) {
-          const pick = candidates[Math.floor(Math.random() * candidates.length)];
-          state.inventory[pick.id] = true;
-          const giftMsg = document.createElement('div');
-          giftMsg.className = 'walk-celebrate';
-          giftMsg.textContent = `🎁 ${pick.name} 받았어요!`;
-          arena.appendChild(giftMsg);
-          setTimeout(() => giftMsg.remove(), 1500);
-        }
       }
     }
 
