@@ -1199,6 +1199,16 @@
     return 'idle';
   }
 
+  // 시바 puppy idle 4프레임 swap (200ms)
+  let shibaFrame = 0;
+  setInterval(() => {
+    if (puppyWrap?.classList.contains('shiba-idle-anim')) {
+      shibaFrame = (shibaFrame + 1) % 4;
+      const next = `assets/puppy/shiba_idle_f${shibaFrame}.png`;
+      if (puppyEl && !puppyEl.src.endsWith(next)) puppyEl.src = next;
+    }
+  }, 200);
+
   function render() {
     const isWashing = state.busy?.action === 'wash';
     // 원형 게이지 갱신: pct, 색, critical pulse, 씻기 중 highlight
@@ -1222,13 +1232,18 @@
 
     const s = pickPuppyState();
     const stage = state.stage || 'puppy';
-    const src = `assets/${stage}/${s}.png`;
-    if (!puppyEl.src.endsWith(src)) puppyEl.src = src;
+    const useShibaIdle = (state.breed === 'shiba') && (stage === 'puppy') && (s === 'idle');
+    // 시바 puppy idle 시 frame swap interval이 src 관리 — render는 frame0으로만 init
+    if (useShibaIdle) {
+      const want = `assets/puppy/shiba_idle_f${shibaFrame}.png`;
+      if (!puppyEl.src.endsWith(want)) puppyEl.src = want;
+    } else {
+      const src = `assets/${stage}/${s}.png`;
+      if (!puppyEl.src.endsWith(src)) puppyEl.src = src;
+    }
 
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
-    // 시바 puppy idle 애니메이션 — 새 4프레임 sheet
-    const useShibaIdle = (state.breed === 'shiba') && (stage === 'puppy') && (s === 'idle');
     puppyWrap.classList.toggle('shiba-idle-anim', useShibaIdle);
 
     // mood 데이터 — puppy-wrap에 data-mood 부여, stage에 mood-overlay 추가

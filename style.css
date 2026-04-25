@@ -38,22 +38,7 @@
 /* Breed color tints — applied via filter on .puppy */
 .app[data-breed="shiba"]   .puppy { filter: drop-shadow(0 6px 0 #00000018); }
 
-/* 시바 puppy idle — 4프레임 sprite sheet 애니메이션
-   .puppy <img> 자체에 background-image 덮어쓰고 src는 가린다 */
-.puppy-wrap.shiba-idle-anim .puppy {
-  background-image: url('assets/puppy/shiba_idle_sheet.png') !important;
-  background-size: 400% 100% !important;
-  background-repeat: no-repeat !important;
-  background-position: 0 0;
-  image-rendering: pixelated;
-  /* src 이미지 안 보이게 */
-  content: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"/>') !important;
-  animation: shiba-idle-cycle 0.8s steps(4) infinite !important;
-}
-@keyframes shiba-idle-cycle {
-  from { background-position: 0% 0%; }
-  to   { background-position: -400% 0%; }
-}
+/* 시바 puppy idle — JS가 200ms마다 img.src를 4프레임 사이로 교체 */
 .app[data-breed="maltese"] .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-30deg) saturate(0.25) brightness(1.2); }
 .app[data-breed="poodle"]  .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
 .app[data-breed="husky"]   .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
