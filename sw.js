@@ -1,6 +1,6 @@
 /* 우리 강아지 — Service Worker
    offline-first cache. 새 버전 배포 시 CACHE 이름 bump. */
-const CACHE = 'dogs-v2-v165';
+const CACHE = 'dogs-v2-v166';
 const PRECACHE = [
   './',
   'index.html',
@@ -22,6 +22,21 @@ const PRECACHE = [
   'assets/adult/eating.png',
   'assets/adult/sad.png',
   'assets/adult/sleeping.png',
+  'assets/cat/idle.png',
+  'assets/cat/happy.png',
+  'assets/cat/eating.png',
+  'assets/cat/sad.png',
+  'assets/cat/sleeping.png',
+  'assets/rabbit/idle.png',
+  'assets/rabbit/happy.png',
+  'assets/rabbit/eating.png',
+  'assets/rabbit/sad.png',
+  'assets/rabbit/sleeping.png',
+  'assets/hamster/idle.png',
+  'assets/hamster/happy.png',
+  'assets/hamster/eating.png',
+  'assets/hamster/sad.png',
+  'assets/hamster/sleeping.png',
   'assets/breeds/shiba.png',
   'assets/breeds/maltese.png',
   'assets/breeds/poodle.png',

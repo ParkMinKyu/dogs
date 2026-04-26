@@ -204,7 +204,21 @@
       if (typeof s.activePetId !== 'number') s.activePetId = 0;
       if (typeof s.nextPetId !== 'number') s.nextPetId = (s.pets.length > 0 ? Math.max(...s.pets.map(p => p.id || 0)) + 1 : 1);
       // 진화 비활성 — 모든 펫 stage='puppy' 강제 (snapshot에 저장된 옛 값도 puppy로)
-      for (const p of s.pets) { if (p && typeof p === 'object') p.stage = 'puppy'; }
+      for (const p of s.pets) {
+        if (p && typeof p === 'object') {
+          p.stage = 'puppy';
+          // species 누락 — breed에서 추론
+          if (!p.species && p.breed) {
+            const meta = BREEDS.find(b => b.id === p.breed);
+            p.species = meta?.species || 'dog';
+          }
+        }
+      }
+      // 활성 state.species도 동일 보정
+      if (!s.species && s.breed) {
+        const meta = BREEDS.find(b => b.id === s.breed);
+        s.species = meta?.species || 'dog';
+      }
       if (s.busy && typeof s.busy === 'object') {
         if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
       } else { s.busy = null; }
@@ -1522,11 +1536,15 @@
     return 'idle';
   }
 
-  // 모든 종/단계: 정적 sprite (assets/{stage}/{mood}.png). breed 색감은 CSS hue-rotate.
+  // species(dog/cat/rabbit/hamster)별 sprite 라우팅. breed 색감은 CSS hue-rotate.
   const VALID_MOODS = new Set(['idle', 'happy', 'eating', 'sad', 'sleeping']);
+  const SPECIES_FOLDERS = new Set(['cat', 'rabbit', 'hamster']);
   function decideSpriteSrc(mood, stage) {
-    const s = stage || state.stage || 'puppy';
     const m = VALID_MOODS.has(mood) ? mood : 'idle';
+    const sp = state.species || 'dog';
+    if (SPECIES_FOLDERS.has(sp)) return `assets/${sp}/${m}.png`;
+    // dog: stage별 (puppy/teen/adult)
+    const s = stage || state.stage || 'puppy';
     return `assets/${s}/${m}.png`;
   }
 
@@ -1628,8 +1646,7 @@
       if (careDot) careDot.hidden = pts <= 0;
     }
     if (titleAvatar) {
-      const stage = state.stage || 'puppy';
-      const want = `assets/${stage}/idle.png`;
+      const want = decideSpriteSrc('idle');
       if (!titleAvatar.src.endsWith(want)) titleAvatar.src = want;
     }
     if (titleName) titleName.textContent = state.name || '우리 강아지';
@@ -2130,6 +2147,8 @@
         state.points -= 500;
       }
       state.breed = picked;
+      const meta = BREEDS.find(b => b.id === picked);
+      state.species = meta?.species || 'dog';
       saveState();
       render();
       SOUNDS.fanfare();
@@ -2831,7 +2850,7 @@
     arena.dataset.breed = state.breed || 'shiba';
     const dog = document.createElement('img');
     dog.className = 'mg-dog pet-dog';
-    dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    dog.src = decideSpriteSrc('happy');
     arena.appendChild(dog);
     body.appendChild(arena);
 
@@ -2977,7 +2996,7 @@
     arena.dataset.breed = state.breed || 'shiba';
     const dog = document.createElement('img');
     dog.className = 'mg-dog dance-dog';
-    dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    dog.src = decideSpriteSrc('happy');
     arena.appendChild(dog);
     body.appendChild(arena);
     const endBtn = document.createElement('button');
@@ -3089,7 +3108,7 @@
     arena.dataset.breed = state.breed || 'shiba';
     const dog = document.createElement('img');
     dog.className = 'mg-dog treat-dog';
-    dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    dog.src = decideSpriteSrc('happy');
     arena.appendChild(dog);
     body.appendChild(arena);
     const endBtn = document.createElement('button');
@@ -3312,7 +3331,7 @@
     const dogShadow = document.createElement('div'); dogShadow.className = 'wsc-dog-shadow';
     const dog = document.createElement('img');
     dog.className = 'wsc-dog';
-    dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
+    dog.src = decideSpriteSrc('idle');
     dogWrap.appendChild(dogShadow);
     dogWrap.appendChild(dog);
     arena.appendChild(dogWrap);
@@ -3391,7 +3410,7 @@
       if (jumping) return;
       jumping = true;
       jumpVy = JUMP_VY;
-      dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+      dog.src = decideSpriteSrc('happy');
     }
 
     function spawnItem(r) {
@@ -3542,7 +3561,7 @@
           dogY = 0;
           jumping = false;
           jumpVy = 0;
-          dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
+          dog.src = decideSpriteSrc('idle');
         }
       }
       applyDogPos(r);
@@ -3680,7 +3699,7 @@
     arena.dataset.breed = state.breed || 'shiba';
     const dog = document.createElement('img');
     dog.className = 'mg-dog keepup-dog';
-    dog.src = `assets/${state.stage || 'puppy'}/happy.png`;
+    dog.src = decideSpriteSrc('happy');
     arena.appendChild(dog);
 
     const ball = document.createElement('div');
