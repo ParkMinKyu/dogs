@@ -641,10 +641,10 @@ body.is-sick #vetBtn .dot { display: block; }
    - 발 분할 row 25 (78~81%)
    강아지 head/body 가로 폭 x:8~23 (25~75%).
    액세서리 PNG content는 박스의 일부만 차지하므로 CSS 박스를 더 크게 잡아 비율 보정. */
-.acc.acc-hat     { left: 50%; top: -10%; width: 70%; height: 35%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-hat     { left: 50%; top:  -1%; width: 70%; height: 35%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-glasses { left: 50%; top:  22%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-neck    { left: 50%; top:  44%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 3; }
-.acc.acc-clothes { left: 50%; top:  56%; width: 60%; height: 25%; transform: translateX(-50%); z-index: 1; }
+.acc.acc-clothes { left: 50%; top:  56%; width: 85%; height: 25%; transform: translateX(-50%); z-index: 1; }
 .acc.acc-feet    { left: 50%; top:  68%; width: 70%; height: 22%; transform: translateX(-50%); z-index: 2; }
 
 .acc img {
