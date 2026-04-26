@@ -219,6 +219,8 @@
       }
       if (typeof s.activePetId !== 'number') s.activePetId = 0;
       if (typeof s.nextPetId !== 'number') s.nextPetId = (s.pets.length > 0 ? Math.max(...s.pets.map(p => p.id || 0)) + 1 : 1);
+      // 진화 비활성 — 모든 펫 stage='puppy' 강제 (snapshot에 저장된 옛 값도 puppy로)
+      for (const p of s.pets) { if (p && typeof p === 'object') p.stage = 'puppy'; }
       if (s.busy && typeof s.busy === 'object') {
         if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
       } else { s.busy = null; }
@@ -367,14 +369,10 @@
   // wash는 무제한 — 청결 100% 도달 시 자동 종료. ACTION_DURATION에 없음.
   const ACTION_DURATION = { feed: 5000, sleep: 8000 };
 
-  function stageForCare(care) {
-    // 0 또는 비정상 값은 무조건 puppy. fresh state 확실히 보호.
-    if (!Number.isFinite(care) || care <= 0) return STAGES[0].id;
-    let cur = STAGES[0].id;
-    for (const s of STAGES) {
-      if (care >= s.threshold) cur = s.id;
-    }
-    return cur;
+  // 진화 시스템 일시 비활성 — care 값과 무관하게 항상 puppy 고정.
+  // 차후 살리려면 이 함수만 원복하면 됨.
+  function stageForCare(_care) {
+    return 'puppy';
   }
 
   // 액션 1번 = 진화 점수 후보 +1, 단 careLastTick 이후 12초 지나야만 적립.
