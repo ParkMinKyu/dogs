@@ -634,19 +634,20 @@ body.is-sick #vetBtn .dot { display: block; }
 .acc.acc-hat     { left: 50%; top:  8%; width: 30%; height: 14%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-glasses { left: 50%; top: 24%; width: 26%; height:  9%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-neck    { left: 50%; top: 36%; width: 24%; height: 11%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-back    { left: 50%; top: 18%; width: 18%; height: 12%; transform: translateX(-50%); z-index: 1; }
+/* clothes(옷): 몸통 중앙을 덮음. 위는 목 아래, 아래는 다리 시작 전. */
+.acc.acc-clothes { left: 50%; top: 38%; width: 60%; height: 35%; transform: translateX(-50%); z-index: 1; }
 .acc.acc-feet    { left: 50%; top: 64%; width: 38%; height: 14%; transform: translateX(-50%); z-index: 2; }
 
 /* stage별 미세 조정 — teen/adult은 본체가 더 길어 머리 비율 작아지고 발은 더 아래 */
 .app[data-stage="teen"]  .acc-hat     { top:  4%; width: 26%; height: 12%; }
 .app[data-stage="teen"]  .acc-glasses { top: 17%; width: 22%; height:  8%; }
 .app[data-stage="teen"]  .acc-neck    { top: 28%; width: 22%; height:  9%; }
-.app[data-stage="teen"]  .acc-back    { top: 14%; width: 16%; height: 12%; }
+.app[data-stage="teen"]  .acc-clothes { top: 32%; width: 56%; height: 38%; }
 .app[data-stage="teen"]  .acc-feet    { top: 72%; width: 34%; height: 14%; }
 .app[data-stage="adult"] .acc-hat     { top:  1%; width: 22%; height: 10%; }
 .app[data-stage="adult"] .acc-glasses { top: 12%; width: 20%; height:  6%; }
 .app[data-stage="adult"] .acc-neck    { top: 22%; width: 20%; height:  8%; }
-.app[data-stage="adult"] .acc-back    { top: 10%; width: 14%; height: 10%; }
+.app[data-stage="adult"] .acc-clothes { top: 26%; width: 52%; height: 42%; }
 .app[data-stage="adult"] .acc-feet    { top: 78%; width: 30%; height: 12%; }
 
 .acc img {
