@@ -22,23 +22,22 @@
 <body>
   <main class="app" role="application" aria-label="강아지 키우기 게임" data-stage="puppy" data-tod="day" data-breed="shiba">
     <header class="topbar">
-      <h1 class="title" id="titleEl"><img id="titleAvatar" class="title-avatar" src="assets/puppy/idle.png" alt="" /><span id="titleName">우리 강아지</span></h1>
+      <h1 class="title" id="titleEl">
+        <button id="petPickerBtn" class="pet-picker-btn" type="button" aria-label="펫 선택">
+          <img id="titleAvatar" class="title-avatar" src="assets/puppy/idle.png" alt="" />
+          <span id="titleName" class="pet-picker-name-tag">우리 강아지</span>
+          <span id="petPickerCount" class="pet-picker-count" hidden>1</span>
+          <span class="pet-picker-plus-tag">+</span>
+        </button>
+      </h1>
       <div class="badges">
-        <span id="stageBadge" class="badge stage-badge" aria-live="polite">아기</span>
-        <span id="todBadge" class="badge tod-badge" aria-live="polite">☀️ 낮</span>
-        <span id="careBadge" class="badge care-badge" aria-live="polite" title="케어포인트">🌟 0</span>
+        <span id="stageBadge" class="badge stage-badge" aria-live="polite" hidden></span>
+        <span id="todBadge" class="badge tod-badge" aria-live="polite" hidden></span>
+        <button id="shopBtn" hidden></button>
+        <button id="roomBtn" hidden></button>
+        <span id="careBadge" class="pet-picker-btn" aria-live="polite" title="케어포인트">🌟 0<span id="careDot" class="care-dot" hidden></span></span>
       </div>
       <div class="header-btns">
-        <button id="missionBtn" class="icon-btn" type="button" aria-label="일일 미션">
-          <span class="icon" aria-hidden="true">📋</span>
-          <span class="dot" id="missionDot" hidden></span>
-        </button>
-        <button id="shopBtn" class="icon-btn" type="button" aria-label="상점">
-          <span class="icon" aria-hidden="true">🛍️</span>
-        </button>
-        <button id="roomBtn" class="icon-btn" type="button" aria-label="강아지 방">
-          <span class="icon" aria-hidden="true">🏠</span>
-        </button>
         <button id="vetBtn" class="icon-btn" type="button" aria-label="병원" hidden>
           <span class="icon" aria-hidden="true">🏥</span>
           <span class="dot" id="vetDot"></span>
@@ -49,10 +48,11 @@
       </div>
     </header>
 
-    <!-- v2 — 펫 슬롯 카드 행 (멀티 펫) -->
-    <section id="petSlots" class="pet-slots" aria-label="펫 선택"></section>
-
     <section class="stage" aria-label="강아지">
+      <button id="missionBtn" class="icon-btn mission-in-stage" type="button" aria-label="일일 미션">
+        <span class="icon" aria-hidden="true">📋</span>
+        <span class="dot" id="missionDot" hidden></span>
+      </button>
       <div class="ground"></div>
       <div class="window" aria-hidden="true">
         <div class="window-sky">
@@ -81,52 +81,41 @@
       <div id="bubble" class="bubble" aria-hidden="true"></div>
     </section>
 
-    <section class="gauges" aria-label="강아지 상태">
-      <div class="gauge" data-key="hunger">
-        <div class="gauge-circle" style="--pct:80;--col:hsl(120,55%,48%)">
-          <span class="emo" aria-hidden="true">🍖</span>
-          <span class="pct">80</span>
-        </div>
-        <div class="label">배고픔</div>
-      </div>
-      <div class="gauge" data-key="happy">
-        <div class="gauge-circle" style="--pct:80;--col:hsl(200,70%,55%)">
-          <span class="emo" aria-hidden="true">💖</span>
-          <span class="pct">80</span>
-        </div>
-        <div class="label">행복</div>
-      </div>
-      <div class="gauge" data-key="clean">
-        <div class="gauge-circle" style="--pct:80;--col:hsl(150,55%,48%)">
-          <span class="emo" aria-hidden="true">🫧</span>
-          <span class="pct">80</span>
-        </div>
-        <div class="label">청결</div>
-      </div>
-      <div class="gauge" data-key="energy">
-        <div class="gauge-circle" style="--pct:80;--col:hsl(45,90%,55%)">
-          <span class="emo" aria-hidden="true">⚡</span>
-          <span class="pct">80</span>
-        </div>
-        <div class="label">에너지</div>
-      </div>
-    </section>
-
     <section class="actions" aria-label="할 수 있는 일">
       <button class="action a-feed"  data-action="feed"  type="button">
-        <span class="big" aria-hidden="true">🍖</span>
+        <div class="gauge" data-key="hunger">
+          <div class="gauge-circle" style="--pct:80;--col:hsl(120,55%,48%)">
+            <span class="emo" aria-hidden="true">🍖</span>
+            <span class="pct">80</span>
+          </div>
+        </div>
         <span class="lbl">먹이</span>
       </button>
       <button class="action a-play"  data-action="play_menu"  type="button">
-        <span class="big" aria-hidden="true">🎾</span>
+        <div class="gauge" data-key="happy">
+          <div class="gauge-circle" style="--pct:80;--col:hsl(200,70%,55%)">
+            <span class="emo" aria-hidden="true">💖</span>
+            <span class="pct">80</span>
+          </div>
+        </div>
         <span class="lbl">놀이</span>
       </button>
       <button class="action a-wash"  data-action="wash"  type="button">
-        <span class="big" aria-hidden="true">🛁</span>
+        <div class="gauge" data-key="clean">
+          <div class="gauge-circle" style="--pct:80;--col:hsl(150,55%,48%)">
+            <span class="emo" aria-hidden="true">🫧</span>
+            <span class="pct">80</span>
+          </div>
+        </div>
         <span class="lbl">씻기</span>
       </button>
       <button class="action a-sleep" data-action="sleep" type="button">
-        <span class="big" aria-hidden="true">💤</span>
+        <div class="gauge" data-key="energy">
+          <div class="gauge-circle" style="--pct:80;--col:hsl(45,90%,55%)">
+            <span class="emo" aria-hidden="true">⚡</span>
+            <span class="pct">80</span>
+          </div>
+        </div>
         <span class="lbl">재우기</span>
       </button>
     </section>

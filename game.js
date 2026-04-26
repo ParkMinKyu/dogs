@@ -941,6 +941,20 @@
   }
   setInterval(maybeSpawnMess, 30 * 1000);
 
+  // 똥/오줌 치워달라고 주기적으로 말하기 (30초마다 체크, mess 있을 때만)
+  const MESS_NAG_MSGS = [
+    '저기... 좀 치워줄 수 있어요? 💩',
+    '냄새나요... 빨리 치워주세요! 🥺',
+    '여기 더럽다고요!! 💦',
+    '똥 치워주세요... 🐾',
+    '냄새 너무 심해요 😭',
+  ];
+  setInterval(() => {
+    if (!state.messes || state.messes.length === 0) return;
+    if (state.busy) return;
+    showSpeech(MESS_NAG_MSGS[Math.floor(Math.random() * MESS_NAG_MSGS.length)], 3500);
+  }, 10 * 1000);
+
   // mess 렌더 + 청소 핸들러
   // v2 — 헤더 펫 슬롯 카드 (현재 펫 + 다른 펫 + "추가" 버튼)
   // 펫 슬롯 해금 임계값 (state.points 누적 기준, 차감 없음)
@@ -948,48 +962,65 @@
   const MAX_PETS = PET_UNLOCK.length;
 
   function renderPetSlots() {
-    const wrap = document.getElementById('petSlots');
-    if (!wrap) return;
-    wrap.innerHTML = '';
-    const pets = state.pets || [{ id: state.activePetId || 0 }];
+    const countEl = document.getElementById('petPickerCount');
+    if (!countEl) return;
+    const count = (state.pets || []).length;
+    if (count > 1) {
+      countEl.textContent = count;
+      countEl.hidden = false;
+    } else {
+      countEl.hidden = true;
+    }
+  }
+
+  function openPetPicker() {
+    const pets = state.pets || [];
+    const have = state.points || 0;
+
+    const grid = document.createElement('div');
+    grid.className = 'pet-picker-grid';
+
     pets.forEach(pet => {
       const isActive = pet.id === state.activePetId;
       const data = isActive ? state : pet;
+      const breed = data.breed || 'shiba';
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = 'pet-slot' + (isActive ? ' active' : '');
-      const breed = data.breed || 'shiba';
-      const spriteSrc = `assets/breeds/${breed}.png`;
-      const sickBadge = data.sick ? '<span class="pet-slot-sick">🤒</span>' : '';
+      card.className = 'pet-picker-card' + (isActive ? ' active' : '');
+      const sickHtml = data.sick ? '<span class="pet-picker-sick">🤒</span>' : '';
       card.innerHTML = `
-        <img class="pet-slot-img" src="${spriteSrc}" alt="" data-breed="${breed}"/>
-        <span class="pet-slot-name">${data.name || '?'}</span>
-        ${sickBadge}
+        <img class="pet-picker-img" src="assets/breeds/${breed}.png" alt="" />
+        <span class="pet-picker-name">${data.name || '?'}</span>
+        ${sickHtml}
       `;
       card.addEventListener('click', () => {
+        closeModal();
         if (!isActive) switchToPet(pet.id);
       });
-      wrap.appendChild(card);
+      grid.appendChild(card);
     });
+
     if (pets.length < MAX_PETS) {
       const need = PET_UNLOCK[pets.length] || 0;
-      const have = state.points || 0;
       const unlocked = have >= need;
       const add = document.createElement('button');
       add.type = 'button';
-      add.className = 'pet-slot pet-slot-add' + (unlocked ? '' : ' locked');
+      add.className = 'pet-picker-card pet-picker-add' + (unlocked ? '' : ' locked');
       if (unlocked) {
-        add.innerHTML = '<span class="plus">+</span><span class="pet-slot-name">추가</span>';
-        add.addEventListener('click', () => addNewPet());
+        add.innerHTML = '<span class="pet-picker-plus">+</span><span class="pet-picker-name">추가하기</span>';
+        add.addEventListener('click', () => { closeModal(); addNewPet(); });
       } else {
-        add.innerHTML = `<span class="lock">🔒</span><span class="pet-slot-need">🌟 ${have}/${need}</span>`;
+        add.innerHTML = `<span class="pet-picker-lock">🔒</span><span class="pet-picker-name" style="font-size:11px">🌟 ${have}/${need}</span>`;
         add.addEventListener('click', () => {
+          closeModal();
           flashBubble('🔒');
           showSpeech(`더 키우면 풀려요! (🌟 ${need}점 필요)`, 2400);
         });
       }
-      wrap.appendChild(add);
+      grid.appendChild(add);
     }
+
+    openModal({ title: '강아지 선택', body: grid });
   }
 
   function renderMessLayer() {
@@ -1050,6 +1081,19 @@
     // 진행 중이면 다른 액션 차단
     if (state.busy && state.busy.endsAt && Date.now() < state.busy.endsAt) return;
     if (state.busy && !state.busy.endsAt) return; // wash 등 무제한 진행 중
+
+    // 해당 게이지가 이미 100%면 메시지만
+    const fullGauge = ACTION_GAUGE[action];
+    if (fullGauge && state[fullGauge] >= 100) {
+      const fullMsg = {
+        hunger: '배가 불러요! 🍖',
+        happy:  '충분히 행복해요! 💖',
+        clean:  '이미 깨끗해요! 🛁',
+        energy: '에너지가 넘쳐요! ⚡',
+      }[fullGauge] || '이미 충분해요! 😊';
+      showSpeech(fullMsg);
+      return;
+    }
 
     // 거부 검사 (데드락 방지):
     // - sleep은 항상 허용 (잠은 기본 회복권)
@@ -1149,10 +1193,23 @@
     updateDepthSort();
   }
 
+  const ACTION_START_SPEECH = {
+    feed:  '냠냠... 맛있어요! 🍖',
+    play:  '신난다! 같이 놀아요! 💖',
+    wash:  '뽀득뽀득 씻겨주세요~ 🫧',
+    sleep: '쿨쿨... 잘게요 💤',
+  };
+  const ACTION_DONE_SPEECH = {
+    feed:  '배불러요~ 🍖',
+    play:  '재밌었어요! 💖',
+    sleep: '잘 잤어요! ⚡',
+  };
+
   function startBusyAction(action) {
     const dur = ACTION_DURATION[action] || 0;
     moveDogToActionPos(action);
     updateDepthSort();
+    if (ACTION_START_SPEECH[action]) showSpeech(ACTION_START_SPEECH[action], 2500);
     // wash는 무제한 — endsAt null
     if (action === 'wash') {
       state.busy = { action: 'wash', startedAt: Date.now(), endsAt: null };
@@ -1191,6 +1248,7 @@
     applyActionEffect(action);
     tempFaceState = 'happy';
     tempFaceUntil = Date.now() + 700;
+    if (ACTION_DONE_SPEECH[action]) showSpeech(ACTION_DONE_SPEECH[action], 2000);
     // 밥 먹고 나면 5~10초 안에 용변
     if (action === 'feed') {
       const delay = 5000 + Math.random() * 5000;
@@ -1340,9 +1398,9 @@
 
   // 액션별 prop (욕조/쿠션/그릇) 관리
   function ensureProp(action) {
-    const stageEl = document.querySelector('.stage');
-    if (!stageEl) return null;
-    let el = stageEl.querySelector('.action-prop');
+    const propHost = document.querySelector('.stage');
+    if (!propHost) return null;
+    let el = propHost.querySelector('.action-prop');
     let desired = { feed: 'bowl', wash: 'bathtub', sleep: 'cushion' }[action];
     // 시바 puppy 먹이 sprite에 이미 그릇이 들어있어 별도 prop 불필요
     if (action === 'feed' && state.breed === 'shiba' && (state.stage || 'puppy') === 'puppy') {
@@ -1389,7 +1447,7 @@
           <div class="bowl-food"></div>
         `;
       }
-      stageEl.appendChild(el);
+      propHost.appendChild(el);
     }
     return el;
   }
@@ -1406,21 +1464,7 @@
       // 시간 기반 종료 — endsAt 있을 때만
       if (endsAt && now >= endsAt) { finishBusy(); }
       else {
-        if (endsAt) {
-          // 시간 진행 ring
-          const el = ensureBusyGauge();
-          if (el) {
-            const total = endsAt - startedAt;
-            const pct = Math.max(0, Math.min(100, ((now - startedAt) / total) * 100));
-            el.querySelector('.bg-fill').style.width = pct + '%';
-            const emo = { feed: '🍖', wash: '🫧', sleep: '💤' }[action] || '⏳';
-            el.querySelector('.bg-emo').textContent = emo;
-          }
-        } else {
-          // 무제한 — 진행 ring 대신 청결 게이지 자체가 진행 표시 (wash 한정)
-          // ring 없이 깔끔히
-          removeBusyGauge();
-        }
+        removeBusyGauge();
         ensureProp(action);
         if (action === 'wash') puppyWrap.classList.add('is-bathing');
         else puppyWrap.classList.remove('is-bathing');
@@ -1573,6 +1617,8 @@
     const crit = criticalLowGauge();
     if (crit) {
       puppyWrap.dataset.mood = crit;
+    } else if (state.energy <= 20) {
+      puppyWrap.dataset.mood = 'energy';
     } else {
       delete puppyWrap.dataset.mood;
     }
@@ -1588,13 +1634,13 @@
     // overlay element 관리 — clean 레벨도 반영
     const stageEl = document.querySelector('.stage');
     let ov = stageEl.querySelector('.mood-overlay');
-    let needOverlay = !!crit || cleanLevel === 'dirty' || cleanLevel === 'filthy';
+    let needOverlay = !!crit || state.energy <= 20 || cleanLevel === 'dirty' || cleanLevel === 'filthy';
     if (needOverlay) {
       if (!ov) { ov = document.createElement('div'); ov.className = 'mood-overlay'; stageEl.appendChild(ov); }
       const cls = ['mood-overlay'];
       if (crit === 'hunger') cls.push('hunger');
       else if (crit === 'happy') cls.push('happy');
-      else if (crit === 'energy') cls.push('sleepy');
+      if (state.energy <= 20) cls.push('sleepy');
       // 청결 별도 레벨
       if (cleanLevel === 'filthy') cls.push('filthy');
       else if (cleanLevel === 'dirty') cls.push('dirty');
@@ -1629,7 +1675,12 @@
       const meta = STAGES.find(x => x.id === stage) || STAGES[0];
       stageBadge.textContent = meta.label;
     }
-    if (careBadge) careBadge.textContent = '🌟 ' + (state.points || 0);
+    if (careBadge) {
+      const careDot = document.getElementById('careDot');
+      const pts = state.points || 0;
+      careBadge.childNodes[0].textContent = '🌟 ' + pts;
+      if (careDot) careDot.hidden = pts <= 0;
+    }
     if (titleAvatar) {
       const stage = state.stage || 'puppy';
       const want = `assets/${stage}/idle.png`;
@@ -1742,6 +1793,91 @@
     const s = pickPuppyState();
     return s === 'idle' || s === 'happy';
   }
+  const WANDER_MSGS = {
+    idle: [
+      '오늘 날씨 좋다~ 🌤️',
+      '심심하다... 뭐 없나?',
+      '낮잠 자고 싶어 😴',
+      '간식 생각나는데 🍖',
+      '저기 뭐지? 👀',
+      '콧노래 흥얼흥얼~ 🎵',
+      '창문 밖에 새가 있어! 🐦',
+      '방이 참 아늑하다 🏠',
+      '스트레칭~ 💪',
+      '뒹굴뒹굴...',
+      '발바닥이 간지럽다 🐾',
+      '배꼽이 어디있지? 🤔',
+      '오늘도 평화로운 하루~',
+      '낙엽이 생각나는 날이야 🍂',
+      '꼬리가 잘 흔들리네 🐕',
+      '으음~ 기지개 켜기!',
+      '아무것도 안 하는 중 🙄',
+      '응... 그냥 걷는 중',
+      '이리저리 탐험 중 🗺️',
+      '방 구석구석 살펴보는 중',
+    ],
+    happy: [
+      '너무 행복해요! 💖',
+      '최고의 하루야! 🌟',
+      '신나신나~ 🎉',
+      '킁킁 좋은 냄새~',
+      '오늘 기분 최고 😄',
+      '뛰어다니고 싶어! 🏃',
+      '꼬리가 저절로 흔들려요 🐕',
+      '주인이 최고야! 💕',
+      '세상이 다 아름다워 🌈',
+      '히히 기분 너무 좋아',
+      '나 웃고 있지? 😁',
+      '오늘 뭐 맛있는 거 먹었어! 😋',
+      '왈왈! 신난다!',
+      '행복해서 폴짝폴짝 🐾',
+      '오늘도 최고야 최고!',
+      '이 기분 영원했으면~ 💫',
+      '사랑 넘쳐 흘러요 💗',
+      '세상에서 제일 행복한 강아지',
+      '콧노래가 절로 나와 🎶',
+      '지금 이 순간이 좋아 ✨',
+    ],
+    sad: [
+      '왜 이렇게 슬프지... 😢',
+      '누가 놀아줬으면 좋겠어...',
+      '혼자 있기 싫어 😞',
+      '기분이 별로야... 💧',
+      '저 구석에 가서 있을래',
+      '뭔가 허전해 😔',
+      '나 괜찮아... 괜찮아...',
+      '오늘은 좀 외롭다 🌧️',
+      '꼬리가 안 올라가 ㅠ',
+      '빨리 기분 나아졌으면 좋겠어',
+      '왜 이렇게 우울하지...',
+      '누군가 쓰다듬어줬으면...',
+      '조용히 있고 싶어',
+      '오늘은 많이 힘들어 😿',
+      '기운이 없어요...',
+      '기다리는 중이야... 🥺',
+      '날이 왜 이렇게 흐리지',
+      '나 지금 많이 슬퍼',
+      '혼자 걷는 게 슬프다',
+      '주인이 더 봐줬으면 해 🥺',
+    ],
+    eating: [
+      '냠냠냠... 맛있어! 🍖',
+      '오늘 밥 진짜 맛있다!',
+      '더 주면 안 돼요? 😋',
+      '꿀꺽꿀꺽~',
+      '배부르게 먹어야지 😤',
+    ],
+    sleeping: [
+      '쿨쿨... 💤',
+      '꿈에서 뛰어놀고 있어 🐾',
+      '음냐음냐...',
+      'zzz... 🌙',
+      '좋은 꿈 꾸는 중 🌟',
+    ],
+  };
+  const _wanderMsgIdx = {};
+
+
   function wanderTick() {
     if (!wanderActive()) return;
     const oldX = state.wanderX || 50;
@@ -1763,11 +1899,29 @@
         setTimeout(() => fp.remove(), 1800);
       }
       updateDepthSort();
+
     }
   }
   setInterval(() => {
     if (Math.random() < 0.3) wanderTick();
   }, 2500);
+
+  // 방랑 말풍선 — 5~10초 랜덤 인터벌
+  function scheduleWanderSpeech() {
+    const delay = 5000 + Math.random() * 5000;
+    setTimeout(() => {
+      // 요청/액션 말풍선이 이미 떠있거나 busy/모달 중이면 건너뜀
+      if (!state.busy && !activeModal && !__speechEl) {
+        const s = pickPuppyState(); // 'idle' | 'happy' | 'sad' | 'eating' | 'sleeping'
+        const pool = WANDER_MSGS[s] || WANDER_MSGS.idle;
+        const idx = _wanderMsgIdx[s] ?? 0;
+        showSpeech(pool[idx % pool.length], 2800);
+        _wanderMsgIdx[s] = (idx + 1) % pool.length;
+      }
+      scheduleWanderSpeech();
+    }, delay);
+  }
+  scheduleWanderSpeech();
 
   // Y 기반 depth sort — 강아지와 deco/furn 아이템 z-index를 Y 좌표로 동적 설정.
   // 강아지가 화면상 더 아래(=Y%가 큰)면 앞에. 위면 뒤에 가려짐.
@@ -1810,16 +1964,9 @@
       el.textContent = def.emoji;
       el.style.left = it.x + '%';
       el.style.top  = it.y + '%';
+      if (it.scale) el.style.setProperty('--item-scale', it.scale);
       el.dataset.idx = idx;
-      el.addEventListener('click', (e) => {
-        if (!document.body.classList.contains('is-editing-room')) return;
-        e.stopPropagation();
-        state.roomInv[it.kind] = (state.roomInv[it.kind] || 0) + 1;
-        state.roomLayout.splice(idx, 1);
-        saveState();
-        render();
-        renderEditPanel();
-      });
+      attachItemInteraction(el, 'deco', idx);
       layer.appendChild(el);
     });
     // 가구 — 항상 back layer (강아지 뒤)
@@ -1832,16 +1979,9 @@
       el.textContent = def.emoji;
       el.style.left = it.x + '%';
       el.style.top  = it.y + '%';
+      if (it.scale) el.style.setProperty('--item-scale', it.scale);
       el.dataset.idx = idx;
-      el.addEventListener('click', (e) => {
-        if (!document.body.classList.contains('is-editing-room')) return;
-        e.stopPropagation();
-        state.furnitureInv[it.kind] = (state.furnitureInv[it.kind] || 0) + 1;
-        state.furnitureLayout.splice(idx, 1);
-        saveState();
-        render();
-        renderEditPanel();
-      });
+      attachItemInteraction(el, 'furn', idx);
       back.appendChild(el);
     });
     // 벽지/바닥 — stage data 속성으로
@@ -2336,6 +2476,134 @@
 
   let __roomPickedKind = null;
   let __roomEditPanelEl = null;
+  let __roomSelectedItem = null; // { type:'deco'|'furn', idx, el }
+  let __roomDragState = null;
+
+  function clearRoomSelection() {
+    if (__roomSelectedItem) {
+      __roomSelectedItem.el.classList.remove('room-item-selected');
+      __roomSelectedItem = null;
+    }
+    document.getElementById('roomItemToolbar')?.remove();
+  }
+
+  // 아이템/툴바 외부 클릭 시 선택 해제
+  document.addEventListener('pointerdown', (e) => {
+    if (!__roomSelectedItem) return;
+    if (e.target.closest('.deco-item, .furn-item, #roomItemToolbar')) return;
+    clearRoomSelection();
+  }, true);
+
+  function showItemToolbar(type, idx, el) {
+    document.getElementById('roomItemToolbar')?.remove();
+    const layout = type === 'deco' ? state.roomLayout : state.furnitureLayout;
+    const it = layout[idx];
+    if (!it) return;
+
+    const toolbar = document.createElement('div');
+    toolbar.id = 'roomItemToolbar';
+    toolbar.className = 'room-item-toolbar';
+    toolbar.innerHTML = `
+      <button class="rit-btn" data-act="smaller" title="작게">－</button>
+      <button class="rit-btn" data-act="bigger"  title="크게">＋</button>
+      <button class="rit-btn rit-delete" data-act="delete" title="회수">🗑️</button>
+    `;
+    toolbar.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const act = e.target.closest('[data-act]')?.dataset.act;
+      if (!act) return;
+      const it2 = layout[idx];
+      if (!it2) return;
+      if (act === 'delete') {
+        if (type === 'deco') {
+          state.roomInv[it2.kind] = (state.roomInv[it2.kind] || 0) + 1;
+          state.roomLayout.splice(idx, 1);
+        } else {
+          state.furnitureInv[it2.kind] = (state.furnitureInv[it2.kind] || 0) + 1;
+          state.furnitureLayout.splice(idx, 1);
+        }
+        clearRoomSelection();
+        saveState(); render(); renderEditPanel();
+        return;
+      }
+      const cur = it2.scale || 1;
+      it2.scale = act === 'bigger'
+        ? Math.min(3, Math.round((cur + 0.25) * 100) / 100)
+        : Math.max(0.5, Math.round((cur - 0.25) * 100) / 100);
+      el.style.setProperty('--item-scale', it2.scale);
+      saveState();
+    });
+    document.querySelector('.stage').appendChild(toolbar);
+    positionToolbar(toolbar, el);
+  }
+
+  function positionToolbar(toolbar, el) {
+    const stageR = document.querySelector('.stage').getBoundingClientRect();
+    const elR = el.getBoundingClientRect();
+    let top = elR.top - stageR.top - 44;
+    let left = elR.left - stageR.left + elR.width / 2;
+    if (top < 4) top = elR.bottom - stageR.top + 6;
+    toolbar.style.top  = top + 'px';
+    toolbar.style.left = left + 'px';
+  }
+
+  function attachItemInteraction(el, type, idx) {
+    let dragMoved = false;
+    let dragStartX, dragStartY, dragStartLeft, dragStartTop;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (__roomPickedKind) return; // 배치 모드 중엔 드래그 안 함
+      e.stopPropagation();
+      e.preventDefault();
+      dragMoved = false;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      const layout = type === 'deco' ? state.roomLayout : state.furnitureLayout;
+      const it = layout[idx];
+      if (!it) return;
+      dragStartLeft = it.x;
+      dragStartTop  = it.y;
+      el.setPointerCapture(e.pointerId);
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (!el.hasPointerCapture(e.pointerId)) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      if (Math.hypot(dx, dy) > 4) dragMoved = true;
+      if (!dragMoved) return;
+      const stageR = document.querySelector('.stage').getBoundingClientRect();
+      const layout = type === 'deco' ? state.roomLayout : state.furnitureLayout;
+      const it = layout[idx];
+      if (!it) return;
+      const nx = Math.max(2, Math.min(98, dragStartLeft + (dx / stageR.width) * 100));
+      const ny = Math.max(4, Math.min(96, dragStartTop  + (dy / stageR.height) * 100));
+      it.x = nx; it.y = ny;
+      el.style.left = nx + '%';
+      el.style.top  = ny + '%';
+      const tb = document.getElementById('roomItemToolbar');
+      if (tb) positionToolbar(tb, el);
+    });
+
+    el.addEventListener('pointerup', (e) => {
+      if (!dragMoved) {
+        // 탭 → 선택/선택해제
+        if (__roomSelectedItem?.el === el) {
+          clearRoomSelection();
+        } else {
+          clearRoomSelection();
+          __roomSelectedItem = { type, idx, el };
+          el.classList.add('room-item-selected');
+          showItemToolbar(type, idx, el);
+        }
+      } else {
+        saveState();
+        const tb = document.getElementById('roomItemToolbar');
+        if (tb) positionToolbar(tb, el);
+      }
+      dragMoved = false;
+    });
+  }
 
   // 🏠 버튼 = 편집 모드 토글. 메인 stage에서 직접 아이템 배치/회수 가능.
   function openRoomModal() {
@@ -2350,6 +2618,7 @@
     document.body.classList.add('is-editing-room');
     updateDepthSort();
     __roomPickedKind = null;
+    showSpeech('방을 꾸며볼까요? 아이템을 골라 탭해요! 🏠', 3000);
     // 편집 패널 — 화면 하단 고정
     const panel = document.createElement('div');
     panel.id = 'roomEditPanel';
@@ -2367,6 +2636,7 @@
   }
 
   function exitRoomEdit() {
+    clearRoomSelection();
     document.body.classList.remove('is-editing-room');
     updateDepthSort();
     __roomPickedKind = null;
@@ -2380,9 +2650,11 @@
 
   function stageRoomEditClick(e) {
     if (!document.body.classList.contains('is-editing-room')) return;
-    if (!__roomPickedKind) return;
-    // 배치된 아이템 element 클릭은 그쪽에서 회수 처리
-    if (e.target.classList && (e.target.classList.contains('deco-item') || e.target.classList.contains('furn-item'))) return;
+    // 아이템/툴바 클릭은 무시
+    if (e.target.closest('.deco-item, .furn-item, #roomItemToolbar')) return;
+    // 배치 모드가 아니면 선택 해제만
+    if (!__roomPickedKind) { clearRoomSelection(); return; }
+
     const stageEl = e.currentTarget;
     const r = stageEl.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * 100;
@@ -2390,15 +2662,19 @@
     if (__editTab === 'deco') {
       const inv = state.roomInv[__roomPickedKind] || 0;
       if (inv <= 0) { __roomPickedKind = null; renderEditPanel(); return; }
+      const def = ROOM_ITEMS[__roomPickedKind];
       state.roomLayout.push({ kind: __roomPickedKind, x: Math.max(2, Math.min(98, x)), y: Math.max(4, Math.min(94, y)) });
       state.roomInv[__roomPickedKind] -= 1;
       if (state.roomInv[__roomPickedKind] <= 0) __roomPickedKind = null;
+      showSpeech(`${def?.emoji || ''} 여기 좋다! ✨`, 1800);
     } else if (__editTab === 'furn') {
       const inv = state.furnitureInv[__roomPickedKind] || 0;
       if (inv <= 0) { __roomPickedKind = null; renderEditPanel(); return; }
+      const def = FURNITURE[__roomPickedKind];
       state.furnitureLayout.push({ kind: __roomPickedKind, x: Math.max(8, Math.min(92, x)), y: Math.max(40, Math.min(90, y)) });
       state.furnitureInv[__roomPickedKind] -= 1;
       if (state.furnitureInv[__roomPickedKind] <= 0) __roomPickedKind = null;
+      showSpeech(`${def?.emoji || ''} 여기 좋다! ✨`, 1800);
     }
     saveState();
     render();
@@ -2452,7 +2728,10 @@
       else entries.forEach(([kind, count]) => {
         const def = ROOM_ITEMS[kind]; if (!def) return;
         appendItemCard(grid, def, count, kind, () => {
-          __roomPickedKind = (__roomPickedKind === kind ? null : kind); renderEditPanel();
+          const picking = __roomPickedKind !== kind;
+          __roomPickedKind = picking ? kind : null;
+          if (picking) showSpeech(`${def.emoji} ${def.name} 어디에 둘까요?`, 2500);
+          renderEditPanel();
         });
       });
     } else if (__editTab === 'furn') {
@@ -2461,7 +2740,10 @@
       else entries.forEach(([kind, count]) => {
         const def = FURNITURE[kind]; if (!def) return;
         appendItemCard(grid, def, count, kind, () => {
-          __roomPickedKind = (__roomPickedKind === kind ? null : kind); renderEditPanel();
+          const picking = __roomPickedKind !== kind;
+          __roomPickedKind = picking ? kind : null;
+          if (picking) showSpeech(`${def.emoji} ${def.name} 어디에 둘까요?`, 2500);
+          renderEditPanel();
         });
       });
     } else if (__editTab === 'wallpaper') {
@@ -2988,30 +3270,40 @@
       return;
     }
     decayPaused = true;
-    const body = document.createElement('div');
-    const guide = document.createElement('div');
-    guide.className = 'mg-guide';
-    guide.innerHTML = '🐾 탭하면 점프! 아이템을 모아요';
-    body.appendChild(guide);
-    const stats = document.createElement('div');
-    stats.className = 'minigame-stats';
-    const timeEl = document.createElement('span');
-    const scoreEl = document.createElement('span');
-    timeEl.textContent = '⏱ 30';
-    scoreEl.textContent = '🎯 0';
-    stats.appendChild(timeEl);
-    stats.appendChild(scoreEl);
-    body.appendChild(stats);
-    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
-    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
-    tBar.appendChild(tFill); body.appendChild(tBar);
 
-    // 아레나
+    // 스테이지 전환 — 기존 UI 숨기고 산책 화면으로 교체
+    const appEl = document.querySelector('.app');
+    const stageSection = document.querySelector('.stage');
+    const bottomPanelEl = document.querySelector('.bottom-panel') || document.querySelector('.actions');
+    const topbarEl = document.querySelector('.topbar');
+    appEl.classList.add('walk-mode');
+
+    // 산책 전용 컨테이너 (스테이지 전체 차지)
+    const walkRoot = document.createElement('div');
+    walkRoot.className = 'walk-stage-root';
+    const walkInner = document.createElement('div');
+    walkInner.className = 'walk-stage-inner';
+    walkRoot.appendChild(walkInner);
+
+    // HUD — 상단 고정
+    const hud = document.createElement('div');
+    hud.className = 'walk-hud';
+    const timeEl = document.createElement('span'); timeEl.className = 'walk-hud-time'; timeEl.textContent = '⏱ 30';
+    const scoreEl = document.createElement('span'); scoreEl.className = 'walk-hud-score'; scoreEl.textContent = '🎯 0';
+    const tBar = document.createElement('div'); tBar.className = 'walk-hud-bar';
+    const tFill = document.createElement('div'); tFill.className = 'walk-hud-fill';
+    tBar.appendChild(tFill);
+    const endBtn = document.createElement('button');
+    endBtn.className = 'walk-hud-end'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    hud.appendChild(timeEl); hud.appendChild(tBar); hud.appendChild(scoreEl); hud.appendChild(endBtn);
+    walkInner.appendChild(hud);
+
+    // 아레나 — 나머지 공간 전체
     const arena = document.createElement('div');
-    arena.className = 'minigame-arena big walk-arena walk-scroll-arena';
+    arena.className = 'walk-arena-full walk-scroll-arena';
     arena.dataset.breed = state.breed || 'shiba';
 
-    // 고정 하늘 레이어 — 태양/구름은 스크롤 안 함
+    // 고정 하늘 레이어
     const skyFixed = document.createElement('div'); skyFixed.className = 'wsc-sky-fixed';
     skyFixed.innerHTML = `
       <div class="wsc-sky"></div>
@@ -3021,7 +3313,7 @@
     `;
     arena.appendChild(skyFixed);
 
-    // 파노라마 배경 레이어 (두 복사본을 이어붙여 무한 스크롤)
+    // 파노라마 배경
     const bgWrap = document.createElement('div'); bgWrap.className = 'wsc-bg-wrap';
     for (let i = 0; i < 2; i++) {
       const bg = document.createElement('div'); bg.className = 'wsc-bg';
@@ -3037,7 +3329,7 @@
     }
     arena.appendChild(bgWrap);
 
-    // 강아지 (고정 위치, 왼쪽 25%)
+    // 강아지
     const dogWrap = document.createElement('div'); dogWrap.className = 'wsc-dog-wrap';
     const dogShadow = document.createElement('div'); dogShadow.className = 'wsc-dog-shadow';
     const dog = document.createElement('img');
@@ -3047,11 +3339,8 @@
     dogWrap.appendChild(dog);
     arena.appendChild(dogWrap);
 
-    body.appendChild(arena);
-    const endBtn = document.createElement('button');
-    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
-    endBtn.style.marginTop = '6px';
-    body.appendChild(endBtn);
+    walkInner.appendChild(arena);
+    appEl.appendChild(walkRoot);
 
     // 아이템 카탈로그
     const ITEM_DEFS = [
@@ -3082,9 +3371,10 @@
     let score = 0;
     let endedFlag = false;
     const TOTAL_MS = 30000;
-    const SCROLL_SPEED = 120; // px/s — 배경 스크롤 속도
-    const ITEM_SPEED  = 110; // px/s — 아이템이 왼쪽으로 이동하는 속도
-    let bgOffset = 0;        // 배경 스크롤 누적값
+    // 속도는 calibrate()에서 아레나 너비 기준으로 설정
+    let SCROLL_SPEED = 0;
+    let ITEM_SPEED  = 0;
+    let bgOffset = 0;
     let lastFrame = performance.now();
     let started = lastFrame;
     let spawnAccum = 0;
@@ -3094,14 +3384,23 @@
     let jumping = false;
     let jumpVy = 0;
     let dogY = 0; // 0 = 지면, 양수 = 공중 (px)
-    const JUMP_VY = -320;   // 더 강하게 → 최고점 ~73px
-    const GRAVITY = 700;
-    const GROUND_Y = 0;
-    const DOG_GROUND_BOTTOM = 52; // px from arena bottom
-    const DOG_X_PCT = 22;         // 고정 X (%)
-    // 점프 최고점 = JUMP_VY² / (2 * GRAVITY) ≈ 73px
+    const GROUND_PCT = 0.13;
+    const DOG_X_PCT = 22;
+    const GRAVITY = 1800;
+    let JUMP_VY = -320;
+    let DOG_GROUND_BOTTOM = 52;
 
     function arenaRect() { return arena.getBoundingClientRect(); }
+
+    function calibrate() {
+      const r = arenaRect();
+      DOG_GROUND_BOTTOM = r.height * GROUND_PCT;
+      const peakTarget = Math.min(r.height * 0.20, 120);
+      JUMP_VY = -Math.sqrt(2 * GRAVITY * peakTarget);
+      const travelPx = r.width * (1 - DOG_X_PCT / 100);
+      ITEM_SPEED = travelPx / 3;
+      SCROLL_SPEED = ITEM_SPEED * 0.9;
+    }
 
     function applyDogPos(r) {
       const bottomPx = DOG_GROUND_BOTTOM + dogY;
@@ -3119,11 +3418,10 @@
 
     function spawnItem(r) {
       const def = pickItemDef();
-      // 점프 최고점 ~73px 범위 안에 공중 아이템 배치
-      const airborne = Math.random() < 0.45;
-      const jumpPeak = (JUMP_VY * JUMP_VY) / (2 * GRAVITY); // ≈73px
+      const airborne = def.rare; // rare 아이템만 공중
+      const jumpPeak = (JUMP_VY * JUMP_VY) / (2 * GRAVITY);
       const baseY = airborne
-        ? DOG_GROUND_BOTTOM + 20 + Math.random() * (jumpPeak - 24) // 20~69px 위
+        ? DOG_GROUND_BOTTOM + jumpPeak * 0.65 + Math.random() * jumpPeak * 0.3
         : DOG_GROUND_BOTTOM + 4;
       const el = document.createElement('div');
       el.className = 'walk-item' + (def.rare ? ' rare' : '');
@@ -3216,7 +3514,8 @@
       if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
 
       const r = arenaRect();
-      const bgW = r.width; // 각 bg 패널 너비 = 아레나 너비
+      if (r.width > 10 && ITEM_SPEED === 0) calibrate(); // 크기 확정 후 딱 한 번
+      const bgW = r.width || 1;
 
       // 배경 스크롤
       bgOffset = (bgOffset + SCROLL_SPEED * dt) % bgW;
@@ -3224,17 +3523,14 @@
 
       // 아이템 스폰
       spawnAccum += dt * 1000;
-      if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length < 4) {
+      if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length < 8) {
         spawnAccum = 0;
-        nextSpawn = 1000 + Math.random() * 900;
+        nextSpawn = 600 + Math.random() * 500;
         spawnItem(r);
       }
 
       // 아이템 이동 + 수집 판정
       const dogPixelX = r.width * DOG_X_PCT / 100;
-      // 강아지 몸통 범위 (bottom 기준 px)
-      const dogFeetY = DOG_GROUND_BOTTOM + dogY;       // 발 bottom
-      const dogHeadY = dogFeetY + 88;                  // 머리 bottom
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
         if (it.captured) continue;
@@ -3247,17 +3543,16 @@
           continue;
         }
         const xOk = Math.abs(it.x - dogPixelX) < 52;
-        // 아이템 범위 (bottom 기준 px)
+        // 레어(공중) 아이템은 점프 중일 때만 판정
+        if (it.airborne && !jumping) continue;
         const itemBot = it.baseY;
         const itemTop = it.baseY + 36;
-        // 강아지 몸통과 아이템이 Y축으로 겹치는지
-        const yOk = dogFeetY < itemTop && dogHeadY > itemBot;
+        const dogFeetY_ = DOG_GROUND_BOTTOM + dogY;
+        const dogHeadY_ = dogFeetY_ + 88;
+        const yOk = dogFeetY_ < itemTop && dogHeadY_ > itemBot;
         if (xOk && yOk) {
           captureItem(it);
           items.splice(i, 1);
-        } else if (it.airborne && !jumping && dogY < 5) {
-          // 공중 아이템이 강아지 앞 80px 이내 접근 → 점프 유도
-          if (it.x > dogPixelX && it.x - dogPixelX < 80) triggerJump();
         }
       }
 
@@ -3265,8 +3560,8 @@
       if (jumping) {
         jumpVy += GRAVITY * dt;
         dogY -= jumpVy * dt; // y 증가 = 위로
-        if (dogY <= GROUND_Y) {
-          dogY = GROUND_Y;
+        if (dogY <= 0) {
+          dogY = 0;
           jumping = false;
           jumpVy = 0;
           dog.src = `assets/${state.stage || 'puppy'}/idle.png`;
@@ -3278,12 +3573,18 @@
       requestAnimationFrame(step);
     }
 
+    function exitWalkMode() {
+      appEl.classList.remove('walk-mode');
+      try { walkRoot.remove(); } catch {}
+    }
+
     function endGame() {
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
       for (const it of items) { try { it.el.remove(); } catch {} }
       items.length = 0;
+      exitWalkMode();
       const before = {};
       for (const g of GAUGES) before[g] = state[g];
       state.happy  = clamp(state.happy  + 40);
@@ -3331,11 +3632,9 @@
     });
 
     endBtn.addEventListener('click', () => endGame());
-    openModal({
-      title: '🚶 산책', body, mandatory: true,
-      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('walk'); saveState(); } },
-    });
+
     setTimeout(() => {
+      calibrate();
       lastFrame = performance.now(); started = lastFrame;
       const r = arenaRect();
       dogWrap.style.left = DOG_X_PCT + '%';
@@ -3763,11 +4062,7 @@
     yes.type = 'button'; yes.className = 'modal-btn';
     yes.textContent = '네, 병원 가요';
     yes.addEventListener('click', () => {
-      if ((state.points || 0) < VET_COST) {
-        flashBubble('💸 점수 부족!');
-        return;
-      }
-      state.points -= VET_COST;
+      state.points = (state.points || 0) - VET_COST;
       // 5초 진행 — busy 시뮬
       closeModal();
       const stageEl = document.querySelector('.stage');
@@ -3784,7 +4079,7 @@
         for (const g of GAUGES) state[g] = clamp(state[g] + 10);
         saveState(); render();
         SOUNDS.fanfare();
-        flashBubble('💖 다 나았어요!');
+        showSpeech('다 나았어요! 💖 고마워요!', 3000);
       }, 5000);
     });
     body.appendChild(yes);
@@ -3803,10 +4098,28 @@
 
   // ----- 헤더 버튼 핸들러 -------------------------------------------------
   settingsBtn.addEventListener('click', () => { SOUNDS.pop(); openSettingsModal(); });
-  shopBtn.addEventListener('click', () => { SOUNDS.pop(); openShopModal(); });
   missionBtn.addEventListener('click', () => { SOUNDS.pop(); openMissionsModal(); });
-  roomBtn?.addEventListener('click', () => { SOUNDS.pop(); openRoomModal(); });
   vetBtn?.addEventListener('click', () => { SOUNDS.pop(); openVetModal(); });
+  document.getElementById('petPickerBtn')?.addEventListener('click', () => { SOUNDS.pop(); openPetPicker(); });
+  careBadge?.addEventListener('click', () => { SOUNDS.pop(); openCareMenu(); });
+
+  function openCareMenu() {
+    const body = document.createElement('div');
+    body.className = 'care-menu-grid';
+    const items = [
+      { emoji: '🛍️', label: '상점', fn: openShopModal },
+      { emoji: '🏠', label: '방 꾸미기', fn: openRoomModal },
+    ];
+    items.forEach(({ emoji, label, fn }) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'care-menu-item';
+      btn.innerHTML = `<span class="care-menu-emoji">${emoji}</span><span class="care-menu-label">${label}</span>`;
+      btn.addEventListener('click', () => { closeModal(); fn(); });
+      body.appendChild(btn);
+    });
+    openModal({ title: '🌟 ' + (state.points || 0), body });
+  }
 
   // ----- visibility / lifecycle -------------------------------------------
   document.addEventListener('visibilitychange', () => {
