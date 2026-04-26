@@ -2760,7 +2760,7 @@
   // 4가지 놀이 카탈로그
   const PLAY_GAMES = [
     { id: 'ball',  name: '공놀이',  emoji: '🎾', desc: '공 받기 (30초)',    open: () => openMinigame() },
-    { id: 'pet',   name: '쓰다듬기', emoji: '✋', desc: '많이 만지기 (30초)', open: () => openPetGame() },
+    { id: 'pet',   name: '문지르기', emoji: '✋', desc: '손가락으로 문지르기 (30초)', open: () => openPetGame() },
     { id: 'dance', name: '춤추기',  emoji: '🎵', desc: '박자 맞추기 (30초)', open: () => openDanceGame() },
     { id: 'treat', name: '간식 받기', emoji: '🦴', desc: '많이 받기 (30초)',  open: () => openTreatGame() },
     { id: 'walk',  name: '산책',    emoji: '🚶', desc: '아이템 찾기 (30초)', open: () => openWalkGame() },
@@ -2804,13 +2804,13 @@
     openModal({ title: '🎉 놀이 골라요', body });
   }
 
-  // ----- 쓰다듬기: 30초 안에 강아지 15번 탭 ----------------------------
+  // ----- 문지르기: 30초 동안 손가락 드래그 누적 거리 30px당 +1 ------
   function openPetGame() {
     decayPaused = true;
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '✋ 강아지를 <b>많이 쓰다듬어요!</b> (30초)';
+    guide.innerHTML = '✋ 강아지를 <b>문질러주세요!</b> (30초)';
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -2846,26 +2846,60 @@
     const started = performance.now();
     let lastFrame = started;
 
-    function onPet(e) {
-      if (e) { e.stopPropagation(); if (e.preventDefault) e.preventDefault(); }
-      if (endedFlag) return;
-      count += 1;
-      cntEl.textContent = '❤️ ' + count;
+    // 문지르기 — 씻기 패턴: pointermove 누적 거리 30px당 +1
+    const PIXELS_PER_HEART = 30;
+    let petActive = false;
+    let petLastX = null, petLastY = null, petAccum = 0;
+    let lastHeartTs = 0;
+    function spawnHeart(clientX, clientY) {
+      const r = arena.getBoundingClientRect();
       const h = document.createElement('div');
       h.className = 'pet-heart';
       h.textContent = '❤️';
-      const r = arena.getBoundingClientRect();
-      h.style.left = (r.width / 2 + (Math.random()-0.5) * 80) + 'px';
-      h.style.top = (r.height * 0.4) + 'px';
+      h.style.left = (clientX - r.left) + 'px';
+      h.style.top  = (clientY - r.top)  + 'px';
       arena.appendChild(h);
       setTimeout(() => h.remove(), 700);
-      dog.classList.remove('wiggle'); void dog.offsetWidth; dog.classList.add('wiggle');
-      try { SOUNDS.happy(); } catch {}
-      // 30초 타이머가 끝까지 — 더 많이 쓰다듬으면 더 좋은 등급 (10/20/30+)
     }
-    dog.addEventListener('click', onPet);
-    dog.addEventListener('touchstart', onPet, { passive: false });
-    arena.addEventListener('click', onPet);
+    function onPetDown(e) {
+      if (endedFlag) return;
+      e.preventDefault();
+      petActive = true;
+      petLastX = e.clientX; petLastY = e.clientY;
+      try { arena.setPointerCapture(e.pointerId); } catch {}
+    }
+    function onPetMove(e) {
+      if (endedFlag || !petActive) return;
+      if (e.pointerType === 'mouse' && e.buttons === 0) { onPetUp(); return; }
+      if (petLastX === null) { petLastX = e.clientX; petLastY = e.clientY; return; }
+      const dx = e.clientX - petLastX, dy = e.clientY - petLastY;
+      const dist = Math.hypot(dx, dy);
+      petLastX = e.clientX; petLastY = e.clientY;
+      if (dist <= 0) return;
+      petAccum += dist;
+      let added = 0;
+      while (petAccum >= PIXELS_PER_HEART) {
+        count += 1; petAccum -= PIXELS_PER_HEART; added += 1;
+      }
+      if (added > 0) {
+        cntEl.textContent = '❤️ ' + count;
+        const now = performance.now();
+        if (now - lastHeartTs > 80) {
+          spawnHeart(e.clientX, e.clientY);
+          lastHeartTs = now;
+        }
+        dog.classList.remove('wiggle'); void dog.offsetWidth; dog.classList.add('wiggle');
+        try { if (added >= 2) SOUNDS.happy(); } catch {}
+      }
+    }
+    function onPetUp() {
+      petActive = false; petLastX = petLastY = null;
+    }
+    arena.addEventListener('pointerdown', onPetDown);
+    arena.addEventListener('pointermove', onPetMove);
+    arena.addEventListener('pointerup', onPetUp);
+    arena.addEventListener('pointercancel', onPetUp);
+    arena.addEventListener('pointerleave', onPetUp);
 
     function step(now) {
       if (endedFlag) return;
@@ -2899,9 +2933,9 @@
       progressMission('minigame', 1);
       saveState(); render(); SOUNDS.fanfare();
       openResultModal({
-        title: '쓰다듬기 끝!',
+        title: '문지르기 끝!',
         bigCount: count + '번',
-        countLabel: '쓰다듬었어요',
+        countLabel: '문질렀어요',
         badge, tier,
         rewards: [
           ['💖', '행복', '+' + happyGain],
@@ -2912,7 +2946,7 @@
 
     endBtn.addEventListener('click', () => endGame());
     openModal({
-      title: '✋ 쓰다듬기', body, mandatory: true,
+      title: '✋ 문지르기', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('pet'); saveState(); } },
     });
     setTimeout(() => requestAnimationFrame(step), 80);
