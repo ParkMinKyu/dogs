@@ -643,7 +643,7 @@ body.is-sick #vetBtn .dot { display: block; }
 .acc.acc-hat     { left: 50%; top: -15%; width: 80%; height: 50%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-glasses { left: 50%; top:  18%; width: 70%; height: 32%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-neck    { left: 50%; top:  32%; width: 70%; height: 30%; transform: translateX(-50%); z-index: 3; }
-.acc.acc-clothes { left: 50%; top:  44%; width: 80%; height: 36%; transform: translateX(-50%); z-index: 1; }
+.acc.acc-clothes { left: 50%; top:  35%; width: 75%; height: 50%; transform: translateX(-50%); z-index: 1; }
 .acc.acc-feet    { left: 50%; top:  56%; width: 80%; height: 36%; transform: translateX(-50%); z-index: 2; }
 
 .acc img {

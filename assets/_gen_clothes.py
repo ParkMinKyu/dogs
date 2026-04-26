@@ -11,22 +11,22 @@ os.makedirs(OUT, exist_ok=True)
 
 
 def base_shirt(draw, body_color, accent=None):
-    """기본 셔츠 형태 — 32×32 박스를 거의 가득 채움 (28×28 영역).
-    어깨 (4,4), 허리 (28,30) 근처. 소매 양쪽 큼직.
+    """기본 셔츠 — 32×32 박스 90%+ 가득 채움 (30×30 영역).
+    어깨 (1,1)~(30,1), 허리 (1,30)~(30,30). 소매 양쪽 끝까지.
     """
-    # 몸통 사다리꼴 (위는 약간 좁고, 아래는 넓음)
-    poly = [(7, 4), (24, 4), (29, 29), (2, 29)]
+    # 몸통 사다리꼴 — 더 넓게, 박스 거의 가득
+    poly = [(5, 1), (26, 1), (31, 31), (0, 31)]
     draw.polygon(poly, fill=body_color, outline=(40, 40, 40, 255))
-    # 목 V (옷 위쪽 V자)
-    neck = [(11, 4), (15, 11), (20, 4)]
+    # 목 V (옷 위쪽 V자) — 작게
+    neck = [(10, 1), (15, 9), (21, 1)]
     draw.polygon(neck, fill=(0, 0, 0, 0))
-    # 소매 양쪽 (어깨 큼직)
-    draw.rectangle((2, 4, 6, 14), fill=body_color, outline=(40, 40, 40, 255))
-    draw.rectangle((25, 4, 29, 14), fill=body_color, outline=(40, 40, 40, 255))
+    # 소매 양쪽 (어깨 큼직, 끝까지)
+    draw.rectangle((0, 1, 5, 16), fill=body_color, outline=(40, 40, 40, 255))
+    draw.rectangle((26, 1, 31, 16), fill=body_color, outline=(40, 40, 40, 255))
     if accent:
-        # accent: 가슴 가로 줄 (3 줄)
-        for y in (16, 19, 22):
-            draw.line((5, y, 26, y), fill=accent)
+        # accent: 가슴 가로 줄 (4줄)
+        for y in (12, 17, 22, 27):
+            draw.line((3, y, 28, y), fill=accent)
 
 
 def shirt_red(draw):
@@ -35,8 +35,8 @@ def shirt_red(draw):
 
 def shirt_hoodie_blue(draw):
     base_shirt(draw, (60, 110, 200, 255))
-    # 후드 (어깨 위)
-    draw.polygon([(8, 0), (23, 0), (24, 6), (7, 6)],
+    # 후드 (어깨 위) — 박스 위 가득
+    draw.polygon([(6, 0), (25, 0), (26, 4), (5, 4)],
                  fill=(40, 80, 160, 255), outline=(40, 40, 40, 255))
 
 
@@ -45,17 +45,17 @@ def shirt_yellow(draw):
 
 
 def shirt_pink_dress(draw):
-    """원피스 — 아래 더 넓음."""
+    """원피스 — 박스 가득."""
     body = (240, 130, 180, 255)
-    poly = [(7, 4), (24, 4), (31, 31), (0, 31)]
+    poly = [(5, 1), (26, 1), (31, 31), (0, 31)]
     draw.polygon(poly, fill=body, outline=(40, 40, 40, 255))
-    neck = [(11, 4), (15, 11), (20, 4)]
+    neck = [(10, 1), (15, 9), (21, 1)]
     draw.polygon(neck, fill=(0, 0, 0, 0))
     # 허리 라인
-    draw.line((4, 22, 27, 22), fill=(255, 200, 220, 255))
+    draw.line((2, 22, 29, 22), fill=(255, 200, 220, 255))
     # 소매
-    draw.rectangle((2, 4, 6, 14), fill=body, outline=(40, 40, 40, 255))
-    draw.rectangle((25, 4, 29, 14), fill=body, outline=(40, 40, 40, 255))
+    draw.rectangle((0, 1, 5, 16), fill=body, outline=(40, 40, 40, 255))
+    draw.rectangle((26, 1, 31, 16), fill=body, outline=(40, 40, 40, 255))
 
 
 def sweater_green(draw):
@@ -85,8 +85,8 @@ def shirt_star(draw):
 
 
 def shirt_rainbow(draw):
-    """무지개 옷 — 가로 줄무늬 6색."""
-    poly = [(7, 4), (24, 4), (29, 29), (2, 29)]
+    """무지개 옷 — 박스 가득, 가로 줄무늬 6색."""
+    poly = [(5, 1), (26, 1), (31, 31), (0, 31)]
     draw.polygon(poly, fill=(255, 255, 255, 255), outline=(40, 40, 40, 255))
     colors = [
         (255, 90, 90, 255),
@@ -97,15 +97,15 @@ def shirt_rainbow(draw):
         (140, 90, 200, 255),
     ]
     for i, c in enumerate(colors):
-        y = 6 + i * 4
-        if y < 29:
-            draw.line((4, y, 27, y), fill=c)
-            draw.line((4, y+1, 27, y+1), fill=c)
-    neck = [(11, 4), (15, 11), (20, 4)]
+        y = 4 + i * 4
+        if y < 31:
+            draw.line((2, y, 29, y), fill=c)
+            draw.line((2, y+1, 29, y+1), fill=c)
+    neck = [(10, 1), (15, 9), (21, 1)]
     draw.polygon(neck, fill=(0, 0, 0, 0))
     # 소매
-    draw.rectangle((2, 4, 6, 14), fill=(255, 255, 255, 255), outline=(40, 40, 40, 255))
-    draw.rectangle((25, 4, 29, 14), fill=(255, 255, 255, 255), outline=(40, 40, 40, 255))
+    draw.rectangle((0, 1, 5, 16), fill=(255, 255, 255, 255), outline=(40, 40, 40, 255))
+    draw.rectangle((26, 1, 31, 16), fill=(255, 255, 255, 255), outline=(40, 40, 40, 255))
 
 
 def cardigan_brown(draw):
