@@ -4152,5 +4152,63 @@
       state.missions.list.forEach(m => { m.progress = m.count; if (!m.claimed) { m.claimed = true; state.points += m.reward; } });
       saveState(); render();
     },
+    // ----- Accessory test helpers -----
+    giveAllAcc() {
+      state.inventory = state.inventory || {};
+      ACCESSORIES.forEach(a => { state.inventory[a.id] = true; });
+      saveState(); render();
+      return Object.keys(state.inventory).length;
+    },
+    tryAcc(slot, idx) {
+      const id = `${slot}_${String(idx).padStart(2,'0')}`;
+      if (!ACCESSORIES.find(a => a.id === id)) return null;
+      state.inventory = state.inventory || {};
+      state.inventory[id] = true;
+      state.equipped[slot] = id;
+      saveState(); render();
+      return id;
+    },
+    tryAccCycle() {
+      const slots = ['hat','neck','glasses','back','feet'];
+      const next = {};
+      for (const slot of slots) {
+        const cur = state.equipped[slot];
+        let n = 1;
+        if (cur && /_(\d{2})$/.test(cur)) {
+          n = (parseInt(cur.match(/_(\d{2})$/)[1], 10) % 10) + 1;
+        }
+        const id = `${slot}_${String(n).padStart(2,'0')}`;
+        state.inventory = state.inventory || {};
+        state.inventory[id] = true;
+        state.equipped[slot] = id;
+        next[slot] = id;
+      }
+      saveState(); render();
+      return next;
+    },
+    tryAccUnequip() {
+      ['hat','neck','glasses','back','feet'].forEach(s => state.equipped[s] = null);
+      saveState(); render();
+    },
   };
+
+  // ----- ?testacc=1 — 디자이너 빠른 확인 모드 -----
+  // 50개 인벤 시드 + 5 슬롯 1번 자동 장착 + 헤더 배지 표시
+  if (new URLSearchParams(location.search).get('testacc') === '1') {
+    setTimeout(() => {
+      try {
+        window.__dogs.giveAllAcc();
+        ['hat','neck','glasses','back','feet'].forEach(s => {
+          state.equipped[s] = `${s}_01`;
+        });
+        saveState(); render();
+        const badge = document.createElement('div');
+        badge.textContent = '🧪 acc test — 콘솔: __dogs.tryAccCycle() / tryAcc(slot,idx) / tryAccUnequip()';
+        badge.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ffd800;color:#000;padding:4px 8px;font:bold 11px monospace;z-index:9999;text-align:center;cursor:pointer;';
+        badge.title = '클릭으로 다음 액세서리 셋';
+        badge.addEventListener('click', () => window.__dogs.tryAccCycle());
+        document.body.appendChild(badge);
+      } catch (e) { console.error('testacc setup failed', e); }
+    }, 600);
+  }
 })();
