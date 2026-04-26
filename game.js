@@ -4197,6 +4197,14 @@
   if (new URLSearchParams(location.search).get('testacc') === '1') {
     setTimeout(() => {
       try {
+        // 이름/종 미설정이면 자동 채우기 + setup 모달 닫기
+        if (!state.name) state.name = '테스트';
+        if (!state.breed) { state.breed = 'shiba'; state.species = 'dog'; }
+        if (Array.isArray(state.pets) && state.pets[0]) {
+          if (!state.pets[0].name) state.pets[0].name = state.name;
+          if (!state.pets[0].breed) { state.pets[0].breed = state.breed; state.pets[0].species = 'dog'; }
+        }
+        document.querySelectorAll('.modal-backdrop, .modal').forEach(m => m.remove());
         window.__dogs.giveAllAcc();
         ['hat','neck','glasses','back','feet'].forEach(s => {
           state.equipped[s] = `${s}_01`;
