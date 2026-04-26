@@ -631,20 +631,21 @@ body.is-sick #vetBtn .dot { display: block; }
 /* 강아지 sprite 본체는 wrap의 일부만 차지 (puppy 19~78%, teen 10~88%, adult 6~92%).
    액세서리는 본체 영역에 맞춰 작게 배치 — 강아지 본체가 잘 보여야 함.
    back은 등 위쪽 작게, neck은 목 부분만, glasses는 눈 영역, hat은 머리 위. */
-/* puppy 32×32 sprite 기준. 액세서리 PNG content가 32×32 박스의 일부만 차지하므로
-   CSS 박스를 충분히 크게 잡고 위치는 박스 중심이 신체 부위에 오게 조정.
-   object-fit: contain이라 박스를 키우면 PNG content도 비례해서 커짐.
-   각 위치 기준 (puppy 본체 row 6~25 = 19~78% wrap-y):
-   - hat: 머리 위 (head row 6~13 = 19~41%, hat 박스 center ~5%)
-   - glasses: 눈 (row 9~12 = 28~38%, 박스 center ~33%)
-   - neck: 목 (row 13~16 = 41~50%, 박스 center ~46%)
-   - clothes: 가슴~배 (row 15~22 = 47~69%, 박스 center ~58%)
-   - feet: 발 (row 22~25 = 69~78%, 박스 center ~74%) */
-.acc.acc-hat     { left: 50%; top: -15%; width: 80%; height: 50%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-glasses { left: 50%; top:  18%; width: 70%; height: 32%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-neck    { left: 50%; top:  32%; width: 70%; height: 30%; transform: translateX(-50%); z-index: 3; }
-.acc.acc-clothes { left: 50%; top:  35%; width: 75%; height: 50%; transform: translateX(-50%); z-index: 1; }
-.acc.acc-feet    { left: 50%; top:  56%; width: 80%; height: 36%; transform: translateX(-50%); z-index: 2; }
+/* puppy 32×32 sprite 정확한 좌표 (assets/puppy/_gen.py 기준):
+   - 귀 row 6~9 (19~31%)
+   - 머리 윤곽 row 7~17 (22~56%)
+   - 눈 row 11~12 (34~41%)
+   - 코 row 14~15 (44~50%)
+   - 입 row 16~17 (50~56%)
+   - 몸통 row 18~24 (56~78%)
+   - 발 분할 row 25 (78~81%)
+   강아지 head/body 가로 폭 x:8~23 (25~75%).
+   액세서리 PNG content는 박스의 일부만 차지하므로 CSS 박스를 더 크게 잡아 비율 보정. */
+.acc.acc-hat     { left: 50%; top: -10%; width: 70%; height: 35%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-glasses { left: 50%; top:  22%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-neck    { left: 50%; top:  44%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 3; }
+.acc.acc-clothes { left: 50%; top:  56%; width: 60%; height: 25%; transform: translateX(-50%); z-index: 1; }
+.acc.acc-feet    { left: 50%; top:  68%; width: 70%; height: 22%; transform: translateX(-50%); z-index: 2; }
 
 .acc img {
   width: 100%;
