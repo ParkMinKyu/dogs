@@ -644,12 +644,7 @@ body.is-sick #vetBtn .dot { display: block; }
 .acc.acc-hat     { left: 50%; top:  -1%; width: 70%; height: 35%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-glasses { left: 50%; top:  28%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-neck    { left: 50%; top:  44%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 3; }
-.acc.acc-clothes { left: 50%; top:  56%; width: 85%; height: 25%; transform: translateX(-50%); z-index: 1; }
 .acc.acc-feet    { left: 50%; top:  65%; width: 70%; height: 22%; transform: translateX(-50%); z-index: 2; }
-/* clothes: PNG가 정사각형이라 contain이면 가로 확장이 짧은 변(height)에 맞춰
-   잘려서 무시됨. fill로 PNG가 box 비율 그대로 늘어나게 — 셔츠 모양은 가로
-   늘어나도 자연스러움. */
-.acc.acc-clothes img { object-fit: fill; }
 
 .acc img {
   width: 100%;

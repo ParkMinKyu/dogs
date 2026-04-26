@@ -1,8 +1,8 @@
 {
   "name": "우리 강아지",
   "short_name": "강아지",
-  "version": "15.2.0-beta",
-  "id": "dogs-v2-v152",
+  "version": "15.3.0-beta",
+  "id": "dogs-v2-v153",
   "description": "어린이를 위한 다마고치 스타일 강아지 키우기 게임",
   "lang": "ko",
   "start_url": "./",
