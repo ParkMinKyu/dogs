@@ -629,25 +629,25 @@ body.is-sick #vetBtn .dot { display: block; }
 }
 .acc.show { display: block; }
 /* 강아지 sprite 본체는 wrap의 일부만 차지 (puppy 19~78%, teen 10~88%, adult 6~92%).
-   액세서리는 본체 영역에 맞춰 배치. z-index 모두 강아지 위(앞).
-   back은 등에 얹힌 책가방/안장 비주얼이라 강아지 앞에 표시. */
-.acc.acc-hat     { left: 50%; top:  4%; width: 56%; height: 24%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-glasses { left: 50%; top: 14%; width: 50%; height: 18%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-neck    { left: 50%; top: 38%; width: 56%; height: 18%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-back    { left: 50%; top: 22%; width: 48%; height: 32%; transform: translateX(-50%); z-index: 1; }
-.acc.acc-feet    { left: 50%; top: 60%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 2; }
+   액세서리는 본체 영역에 맞춰 작게 배치 — 강아지 본체가 잘 보여야 함.
+   back은 등 위쪽 작게, neck은 목 부분만, glasses는 눈 영역, hat은 머리 위. */
+.acc.acc-hat     { left: 50%; top:  8%; width: 30%; height: 14%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-glasses { left: 50%; top: 24%; width: 26%; height:  9%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-neck    { left: 50%; top: 36%; width: 24%; height: 11%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-back    { left: 50%; top: 18%; width: 18%; height: 12%; transform: translateX(-50%); z-index: 1; }
+.acc.acc-feet    { left: 50%; top: 64%; width: 38%; height: 14%; transform: translateX(-50%); z-index: 2; }
 
 /* stage별 미세 조정 — teen/adult은 본체가 더 길어 머리 비율 작아지고 발은 더 아래 */
-.app[data-stage="teen"]  .acc-hat     { top:  0%; width: 52%; height: 22%; }
-.app[data-stage="teen"]  .acc-glasses { top: 10%; width: 46%; height: 14%; }
-.app[data-stage="teen"]  .acc-neck    { top: 30%; width: 50%; height: 16%; }
-.app[data-stage="teen"]  .acc-back    { top: 18%; width: 44%; height: 32%; }
-.app[data-stage="teen"]  .acc-feet    { top: 68%; width: 56%; height: 22%; }
-.app[data-stage="adult"] .acc-hat     { top: -2%; width: 48%; height: 18%; }
-.app[data-stage="adult"] .acc-glasses { top:  6%; width: 42%; height: 12%; }
-.app[data-stage="adult"] .acc-neck    { top: 24%; width: 46%; height: 14%; }
-.app[data-stage="adult"] .acc-back    { top: 14%; width: 42%; height: 32%; }
-.app[data-stage="adult"] .acc-feet    { top: 74%; width: 52%; height: 22%; }
+.app[data-stage="teen"]  .acc-hat     { top:  4%; width: 26%; height: 12%; }
+.app[data-stage="teen"]  .acc-glasses { top: 17%; width: 22%; height:  8%; }
+.app[data-stage="teen"]  .acc-neck    { top: 28%; width: 22%; height:  9%; }
+.app[data-stage="teen"]  .acc-back    { top: 14%; width: 16%; height: 12%; }
+.app[data-stage="teen"]  .acc-feet    { top: 72%; width: 34%; height: 14%; }
+.app[data-stage="adult"] .acc-hat     { top:  1%; width: 22%; height: 10%; }
+.app[data-stage="adult"] .acc-glasses { top: 12%; width: 20%; height:  6%; }
+.app[data-stage="adult"] .acc-neck    { top: 22%; width: 20%; height:  8%; }
+.app[data-stage="adult"] .acc-back    { top: 10%; width: 14%; height: 10%; }
+.app[data-stage="adult"] .acc-feet    { top: 78%; width: 30%; height: 12%; }
 
 .acc img {
   width: 100%;
