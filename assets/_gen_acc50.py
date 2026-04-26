@@ -374,75 +374,75 @@ def back_star():
     return img
 
 
-# === FEET (10) — 좌우 +2px / 위아래 +2px 일괄 확장 ===
+# === FEET (10) — 좌우 신발 간격 2배 (cx 7,24 → 4,27, gap 2 → 6) ===
 def feet_socks():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-6, 20, x+6, 30, (255,255,255,255))
-        rect(img, x-6, 20, x+6, 22, (255,80,80,255))
+    for x in [4, 27]:
+        rect(img, x-4, 20, x+4, 30, (255,255,255,255))
+        rect(img, x-4, 20, x+4, 22, (255,80,80,255))
     return img
 
 def feet_boots():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-6, 18, x+6, 30, (140,90,60,255))
-        rect(img, x-6, 27, x+6, 30, (60,40,30,255))
+    for x in [4, 27]:
+        rect(img, x-4, 18, x+4, 30, (140,90,60,255))
+        rect(img, x-4, 27, x+4, 30, (60,40,30,255))
     return img
 
 def feet_sneakers():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-7, 21, x+7, 28, (255,255,255,255))
-        rect(img, x-7, 29, x+7, 30, (60,140,200,255))
+    for x in [4, 27]:
+        rect(img, x-4, 21, x+4, 28, (255,255,255,255))
+        rect(img, x-4, 29, x+4, 30, (60,140,200,255))
     return img
 
 def feet_sandals():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-6, 24, x+6, 28, (140,90,60,255))
+    for x in [4, 27]:
+        rect(img, x-4, 24, x+4, 28, (140,90,60,255))
         rect(img, x-1, 21, x+1, 23, (140,90,60,255))
     return img
 
 def feet_skates():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-7, 22, x+7, 26, (60,140,200,255))
-        rect(img, x-7, 27, x+7, 30, (160,160,180,255))
+    for x in [4, 27]:
+        rect(img, x-4, 22, x+4, 26, (60,140,200,255))
+        rect(img, x-4, 27, x+4, 30, (160,160,180,255))
     return img
 
 def feet_paws():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-7, 21, x+7, 28, (255,180,200,255))
+    for x in [4, 27]:
+        rect(img, x-4, 21, x+4, 28, (255,180,200,255))
         rect(img, x-2, 23, x+2, 26, (200,80,130,255))
     return img
 
 def feet_slippers():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-7, 22, x+7, 30, (255,180,200,255))
+    for x in [4, 27]:
+        rect(img, x-4, 22, x+4, 30, (255,180,200,255))
     return img
 
 def feet_glow():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-7, 22, x+7, 30, (255,255,200,255))
-        rect(img, x-6, 25, x+6, 28, (255,200,80,255))
+    for x in [4, 27]:
+        rect(img, x-4, 22, x+4, 30, (255,255,200,255))
+        rect(img, x-3, 25, x+3, 28, (255,200,80,255))
     return img
 
 def feet_stripe():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-6, 20, x+6, 30, (255,255,255,255))
+    for x in [4, 27]:
+        rect(img, x-4, 20, x+4, 30, (255,255,255,255))
         for y in [22, 24, 26, 28]:
-            hline(img, x-6, x+6, y, (60,140,200,255))
+            hline(img, x-4, x+4, y, (60,140,200,255))
     return img
 
 def feet_high():
     img = new()
-    for x in [7, 24]:
-        rect(img, x-6, 16, x+6, 30, (255,80,80,255))
-        rect(img, x-6, 16, x+6, 18, (200,40,60,255))
+    for x in [4, 27]:
+        rect(img, x-4, 16, x+4, 30, (255,80,80,255))
+        rect(img, x-4, 16, x+4, 18, (200,40,60,255))
     return img
 
 
