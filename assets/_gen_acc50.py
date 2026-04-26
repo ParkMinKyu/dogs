@@ -96,19 +96,19 @@ def hat_flower():
 
 def hat_horn():
     img = new()
-    # 작은 뿔 두 개 — +4 아래
+    # 작은 뿔 두 개 — +6 아래 (이전 +4 → +6)
     for x in [10, 21]:
         for i in range(4):
-            hline(img, x - i, x + i, 13 + i, OUT)
-        rect(img, x-1, 15, x+1, 17, (220,180,140,255))
+            hline(img, x - i, x + i, 15 + i, OUT)
+        rect(img, x-1, 17, x+1, 19, (220,180,140,255))
     return img
 
 def hat_bird():
     img = new()
-    # +1 아래
-    rect(img, 12, 15, 19, 19, (255,200,80,255))
-    px(img, 19, 16, (255,140,40,255))  # 부리
-    px(img, 13, 16, (40,30,25,255))  # 눈
+    # +2 아래 (이전 +1 → +2)
+    rect(img, 12, 16, 19, 20, (255,200,80,255))
+    px(img, 19, 17, (255,140,40,255))  # 부리
+    px(img, 13, 17, (40,30,25,255))  # 눈
     return img
 
 
