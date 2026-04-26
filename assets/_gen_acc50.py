@@ -190,7 +190,7 @@ def gl_round():
         hline(img, cx-6, cx+6, 20, (40,40,50,255))
         vline(img, cx-7, 13, 19, (40,40,50,255))
         vline(img, cx+7, 13, 19, (40,40,50,255))
-    hline(img, 14, 17, 16, (40,40,50,255))
+    hline(img, 12, 19, 16, (40,40,50,255))
     return img
 
 def gl_square():
@@ -202,14 +202,14 @@ def gl_square():
         rect(img, x, 20, x+14, 20, (40,40,50,255))
         vline(img, x, 12, 20, (40,40,50,255))
         vline(img, x+14, 12, 20, (40,40,50,255))
-    hline(img, 14, 17, 16, (40,40,50,255))
+    hline(img, 12, 19, 16, (40,40,50,255))
     return img
 
 def gl_sun():
     img = new()
     for x in [0, 16]:
         rect(img, x, 12, x+14, 20, (40,40,50,255))
-    hline(img, 14, 17, 16, (40,40,50,255))
+    hline(img, 12, 19, 16, (40,40,50,255))
     return img
 
 def gl_monocle():
