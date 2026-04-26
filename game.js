@@ -207,17 +207,17 @@
       for (const p of s.pets) {
         if (p && typeof p === 'object') {
           p.stage = 'puppy';
-          // species 누락 — breed에서 추론
-          if (!p.species && p.breed) {
+          // species는 항상 breed에서 재계산 (옛 데이터에 'dog' 박혀있어도 갱신)
+          if (p.breed) {
             const meta = BREEDS.find(b => b.id === p.breed);
-            p.species = meta?.species || 'dog';
+            if (meta) p.species = meta.species;
           }
         }
       }
-      // 활성 state.species도 동일 보정
-      if (!s.species && s.breed) {
+      // 활성 state.species도 breed에서 재계산
+      if (s.breed) {
         const meta = BREEDS.find(b => b.id === s.breed);
-        s.species = meta?.species || 'dog';
+        if (meta) s.species = meta.species;
       }
       if (s.busy && typeof s.busy === 'object') {
         if (typeof s.busy.action !== 'string' || typeof s.busy.endsAt !== 'number') s.busy = null;
