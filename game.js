@@ -44,11 +44,8 @@
   const CARE_TICK_MS = 12 * 1000;
 
   const BREEDS = [
-    // 강아지 (species: 'dog')
-    { id: 'shiba',   name: '시바이누', desc: '용감한 친구', species: 'dog' },
-    { id: 'maltese', name: '말티즈',   desc: '뽀송뽀송',    species: 'dog' },
-    { id: 'poodle',  name: '푸들',     desc: '곱슬곱슬',    species: 'dog' },
-    { id: 'husky',   name: '허스키',   desc: '눈송이 눈',   species: 'dog' },
+    // 강아지 (species: 'dog') — 1종 대표 (다른 종은 자체 sprite 가진 것만)
+    { id: 'shiba',   name: '강아지', desc: '귀여운 친구', species: 'dog' },
     // 고양이 (v2)
     { id: 'cat_yellow', name: '노랑이',   desc: '햇살 같은',  species: 'cat' },
     { id: 'cat_black',  name: '까망이',   desc: '신비로운',   species: 'cat' },
@@ -204,17 +201,20 @@
       if (typeof s.activePetId !== 'number') s.activePetId = 0;
       if (typeof s.nextPetId !== 'number') s.nextPetId = (s.pets.length > 0 ? Math.max(...s.pets.map(p => p.id || 0)) + 1 : 1);
       // 진화 비활성 — 모든 펫 stage='puppy' 강제 (snapshot에 저장된 옛 값도 puppy로)
+      // 폐기된 breed → shiba로 (maltese/poodle/husky)
+      const RETIRED_BREEDS = new Set(['maltese', 'poodle', 'husky']);
       for (const p of s.pets) {
         if (p && typeof p === 'object') {
           p.stage = 'puppy';
-          // species는 항상 breed에서 재계산 (옛 데이터에 'dog' 박혀있어도 갱신)
+          if (RETIRED_BREEDS.has(p.breed)) p.breed = 'shiba';
+          // species는 항상 breed에서 재계산
           if (p.breed) {
             const meta = BREEDS.find(b => b.id === p.breed);
             if (meta) p.species = meta.species;
           }
         }
       }
-      // 활성 state.species도 breed에서 재계산
+      if (RETIRED_BREEDS.has(s.breed)) s.breed = 'shiba';
       if (s.breed) {
         const meta = BREEDS.find(b => b.id === s.breed);
         if (meta) s.species = meta.species;

@@ -35,11 +35,9 @@
 
 /* TOD는 창문 안(.window-sky)에만 영향. 방(stage) 변수는 고정 — 어떤 시간이든 따뜻한 실내 톤. */
 
-/* Breed color tints — applied via filter on .puppy */
-.app[data-breed="shiba"]   .puppy { filter: drop-shadow(0 6px 0 #00000018); }
-.app[data-breed="maltese"] .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-30deg) saturate(0.25) brightness(1.2); }
-.app[data-breed="poodle"]  .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
-.app[data-breed="husky"]   .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
+/* Breed: shiba는 generic puppy sprite + drop-shadow.
+   cat/rabbit/hamster는 자체 sprite 색이라 hue-rotate 불필요. */
+.app[data-breed="shiba"] .puppy { filter: drop-shadow(0 6px 0 #00000018); }
 /* v2 — 새 동물 색감 */
 /* cat/rabbit/hamster — breed별 sprite에 색 하드코딩되어 filter 불필요 */
 .app[data-breed="cat_yellow"]   .puppy,
@@ -49,11 +47,8 @@
 .app[data-breed="rabbit_brown"] .puppy,
 .app[data-breed="hamster"]      .puppy { filter: drop-shadow(0 6px 0 #00000018); }
 
-/* 미니게임 강아지도 메인 강아지와 동일한 종별 색감 필터 */
-.minigame-arena[data-breed="shiba"]   .mg-dog { filter: drop-shadow(0 4px 0 #00000018); }
-.minigame-arena[data-breed="maltese"] .mg-dog { filter: drop-shadow(0 4px 0 #00000018) hue-rotate(-30deg) saturate(0.25) brightness(1.2); }
-.minigame-arena[data-breed="poodle"]  .mg-dog { filter: drop-shadow(0 4px 0 #00000018) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
-.minigame-arena[data-breed="husky"]   .mg-dog { filter: drop-shadow(0 4px 0 #00000018) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
+/* 미니게임 강아지 — shiba만 drop-shadow */
+.minigame-arena[data-breed="shiba"] .mg-dog { filter: drop-shadow(0 4px 0 #00000018); }
 /* cat/rabbit/hamster — breed별 sprite 자체 색이라 filter 불필요 (drop-shadow만) */
 .minigame-arena[data-breed="cat_yellow"]   .mg-dog,
 .minigame-arena[data-breed="cat_black"]    .mg-dog,
