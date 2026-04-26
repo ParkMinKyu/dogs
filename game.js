@@ -1536,14 +1536,17 @@
     return 'idle';
   }
 
-  // species(dog/cat/rabbit/hamster)별 sprite 라우팅. breed 색감은 CSS hue-rotate.
+  // species별 sprite 라우팅.
+  // - dog: assets/{stage}/{mood}.png + breed CSS hue-rotate
+  // - cat/rabbit/hamster: assets/{breed}/{mood}.png — breed별 sprite에 색 하드코딩
   const VALID_MOODS = new Set(['idle', 'happy', 'eating', 'sad', 'sleeping']);
-  const SPECIES_FOLDERS = new Set(['cat', 'rabbit', 'hamster']);
+  const NON_DOG_SPECIES = new Set(['cat', 'rabbit', 'hamster']);
   function decideSpriteSrc(mood, stage) {
     const m = VALID_MOODS.has(mood) ? mood : 'idle';
     const sp = state.species || 'dog';
-    if (SPECIES_FOLDERS.has(sp)) return `assets/${sp}/${m}.png`;
-    // dog: stage별 (puppy/teen/adult)
+    if (NON_DOG_SPECIES.has(sp) && state.breed) {
+      return `assets/${state.breed}/${m}.png`;
+    }
     const s = stage || state.stage || 'puppy';
     return `assets/${s}/${m}.png`;
   }
