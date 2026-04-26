@@ -1,6 +1,6 @@
 /* 우리 강아지 — Service Worker
    offline-first cache. 새 버전 배포 시 CACHE 이름 bump. */
-const CACHE = 'dogs-v2-v139';
+const CACHE = 'dogs-v2-v140';
 const PRECACHE = [
   './',
   'index.html',
@@ -12,26 +12,6 @@ const PRECACHE = [
   'assets/puppy/eating.png',
   'assets/puppy/sad.png',
   'assets/puppy/sleeping.png',
-  'assets/puppy/shiba_idle_f0.png',
-  'assets/puppy/shiba_idle_f1.png',
-  'assets/puppy/shiba_idle_f2.png',
-  'assets/puppy/shiba_idle_f3.png',
-  'assets/puppy/shiba_happy_f0.png',
-  'assets/puppy/shiba_happy_f1.png',
-  'assets/puppy/shiba_happy_f2.png',
-  'assets/puppy/shiba_happy_f3.png',
-  'assets/puppy/shiba_eating_f0.png',
-  'assets/puppy/shiba_eating_f1.png',
-  'assets/puppy/shiba_eating_f2.png',
-  'assets/puppy/shiba_eating_f3.png',
-  'assets/puppy/shiba_sad_f0.png',
-  'assets/puppy/shiba_sad_f1.png',
-  'assets/puppy/shiba_sad_f2.png',
-  'assets/puppy/shiba_sad_f3.png',
-  'assets/puppy/shiba_sleeping_f0.png',
-  'assets/puppy/shiba_sleeping_f1.png',
-  'assets/puppy/shiba_sleeping_f2.png',
-  'assets/puppy/shiba_sleeping_f3.png',
   'assets/teen/idle.png',
   'assets/teen/happy.png',
   'assets/teen/eating.png',
@@ -46,11 +26,6 @@ const PRECACHE = [
   'assets/breeds/maltese.png',
   'assets/breeds/poodle.png',
   'assets/breeds/husky.png',
-  'assets/accessories/hat_red.png',
-  'assets/accessories/ribbon.png',
-  'assets/accessories/collar.png',
-  'assets/accessories/scarf.png',
-  'assets/accessories/glasses.png',
   'assets/icons/icon-256.png',
   'assets/icons/icon-512.png',
 ];

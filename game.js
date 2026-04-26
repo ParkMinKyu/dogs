@@ -305,8 +305,7 @@
     if (typeof state.wanderY !== 'number') state.wanderY = 86;
     if (puppyWrap) {
       puppyWrap.classList.remove('is-bathing', 'is-on-cushion', 'is-evolving',
-        'is-happy', 'is-eating', 'is-sad', 'is-sleeping', 'shiba-anim', 'shiba-idle-anim');
-      delete puppyWrap.dataset.shibaMood;
+        'is-happy', 'is-eating', 'is-sad', 'is-sleeping');
       delete puppyWrap.dataset.mood;
       // 새 펫의 저장된 wander 위치로
       puppyWrap.style.left = state.wanderX + '%';
@@ -1401,11 +1400,7 @@
     const propHost = document.querySelector('.stage');
     if (!propHost) return null;
     let el = propHost.querySelector('.action-prop');
-    let desired = { feed: 'bowl', wash: 'bathtub', sleep: 'cushion' }[action];
-    // 시바 puppy 먹이 sprite에 이미 그릇이 들어있어 별도 prop 불필요
-    if (action === 'feed' && state.breed === 'shiba' && (state.stage || 'puppy') === 'puppy') {
-      desired = null;
-    }
+    const desired = { feed: 'bowl', wash: 'bathtub', sleep: 'cushion' }[action];
     if (!desired) { if (el) el.remove(); return null; }
     if (!el || el.dataset.kind !== desired) {
       if (el) el.remove();
@@ -1534,48 +1529,13 @@
     return 'idle';
   }
 
-  // 시바 puppy 4표정 4프레임 swap (200ms) — anim 모드 표정 attribute 사용
-  let shibaFrame = 0;
-  const SHIBA_MOODS = ['idle', 'happy', 'eating', 'sad', 'sleeping'];
-  const STATIC_MOODS = new Set(['sleeping']);
-  // 단일 src 결정 헬퍼 — render와 인터벌 양쪽에서 사용. 시바 puppy면 항상 새 sprite.
+  // 모든 종/단계: 정적 sprite (assets/{stage}/{mood}.png). breed 색감은 CSS hue-rotate.
+  const VALID_MOODS = new Set(['idle', 'happy', 'eating', 'sad', 'sleeping']);
   function decideSpriteSrc(mood, stage) {
     const s = stage || state.stage || 'puppy';
-    let m = SHIBA_MOODS.includes(mood) ? mood : 'idle';
-    if (state.breed === 'shiba' && s === 'puppy') {
-      // 씻기 진행 중엔 happy sprite frame 1 고정
-      if (state.busy?.action === 'wash') {
-        return `assets/puppy/shiba_happy_f1.png`;
-      }
-      const f = STATIC_MOODS.has(m) ? 0 : shibaFrame;
-      return `assets/puppy/shiba_${m}_f${f}.png`;
-    }
+    const m = VALID_MOODS.has(mood) ? mood : 'idle';
     return `assets/${s}/${m}.png`;
   }
-  // mood별 frame interval — 자연스러운 속도감
-  const SHIBA_FRAME_INTERVAL = { idle: 500, happy: 250, eating: 350, sad: 600, sleeping: 0 };
-  function shibaFrameTick() {
-    let delay = 500;
-    try {
-      if (!puppyEl) return;
-      if (state.breed !== 'shiba' || (state.stage || 'puppy') !== 'puppy') return;
-      // 씻기 진행 중 — happy frame 1 고정, 갱신 안 함
-      if (state.busy?.action === 'wash') {
-        const fixed = `assets/puppy/shiba_happy_f1.png`;
-        if (!puppyEl.src.endsWith(fixed)) puppyEl.src = fixed;
-        return;
-      }
-      const mood = puppyWrap?.dataset.shibaMood || 'idle';
-      delay = SHIBA_FRAME_INTERVAL[mood] || 500;
-      if (STATIC_MOODS.has(mood) || delay <= 0) return;
-      shibaFrame = (shibaFrame + 1) % 4;
-      const next = decideSpriteSrc(mood);
-      if (!puppyEl.src.endsWith(next)) puppyEl.src = next;
-    } finally {
-      setTimeout(shibaFrameTick, delay > 0 ? delay : 500);
-    }
-  }
-  setTimeout(shibaFrameTick, 500);
 
   function render() {
     const isWashing = state.busy?.action === 'wash';
@@ -1600,18 +1560,11 @@
 
     const s = pickPuppyState();
     const stage = state.stage || 'puppy';
-    const useShibaAnim = (state.breed === 'shiba') && (stage === 'puppy') && SHIBA_MOODS.includes(s);
-    // src는 항상 헬퍼로 결정 — render와 인터벌 일관성 보장
     const want = decideSpriteSrc(s, stage);
     if (!puppyEl.src.endsWith(want)) puppyEl.src = want;
-    if (useShibaAnim) puppyWrap.dataset.shibaMood = s;
-    else delete puppyWrap.dataset.shibaMood;
 
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
-    puppyWrap.classList.toggle('shiba-anim', useShibaAnim);
-    // 하위 호환: 옛 클래스명 유지 (CSS는 shiba-anim로 통일)
-    puppyWrap.classList.toggle('shiba-idle-anim', useShibaAnim && s === 'idle');
 
     // mood 데이터 — puppy-wrap에 data-mood 부여, stage에 mood-overlay 추가
     const crit = criticalLowGauge();

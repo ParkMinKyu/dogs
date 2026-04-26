@@ -37,14 +37,6 @@
 
 /* Breed color tints — applied via filter on .puppy */
 .app[data-breed="shiba"]   .puppy { filter: drop-shadow(0 6px 0 #00000018); }
-
-/* 시바 puppy 5표정 — JS가 200ms마다 img.src를 4프레임 사이로 교체.
-   원본 64×96 비율 보존을 위해 object-fit: contain. */
-.puppy-wrap.shiba-anim .puppy {
-  object-fit: contain;
-  object-position: center bottom;
-  image-rendering: pixelated;
-}
 .app[data-breed="maltese"] .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-30deg) saturate(0.25) brightness(1.2); }
 .app[data-breed="poodle"]  .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(-15deg) saturate(0.55) brightness(0.9) contrast(1.1); }
 .app[data-breed="husky"]   .puppy { filter: drop-shadow(0 6px 0 #00000018) hue-rotate(180deg) saturate(0.55) brightness(0.95); }
@@ -598,11 +590,9 @@ body.is-sick #vetBtn .dot { display: block; }
   transition: left 2.4s ease-in-out, bottom 2.4s ease-in-out, transform 600ms cubic-bezier(.2,1.4,.4,1);
 }
 .puppy-wrap[data-direction="left"] .puppy { transform: scaleX(-1); transition: transform 200ms; }
-/* 액세서리는 base transform: translateX(-50%) 유지하면서 scaleX만 추가
-   각 슬롯별로 base를 다시 명시 (translate가 사라지지 않게). */
-.puppy-wrap[data-direction="left"] .acc.acc-hat,
-.puppy-wrap[data-direction="left"] .acc.acc-neck,
-.puppy-wrap[data-direction="left"] .acc.acc-glasses {
+/* 액세서리는 base transform: translateX(-50%) 유지하면서 scaleX만 추가.
+   5 부위 모두 같이 mirror — 비대칭 아이템도 강아지 따라 뒤집힘. */
+.puppy-wrap[data-direction="left"] .acc {
   transform: translateX(-50%) scaleX(-1);
 }
 
@@ -638,19 +628,25 @@ body.is-sick #vetBtn .dot { display: block; }
   line-height: 0;
 }
 .acc.show { display: block; }
-.acc.acc-hat     { left: 50%; top: 4%;  width: 60%; height: 30%; transform: translateX(-50%); }
-.acc.acc-neck    { left: 50%; top: 56%; width: 64%; height: 20%; transform: translateX(-50%); }
-.acc.acc-glasses { left: 50%; top: 30%; width: 48%; height: 14%; transform: translateX(-50%); }
-.acc.acc-back    { left: 50%; top: 30%; width: 70%; height: 50%; transform: translateX(-50%); z-index: -1; }
-.acc.acc-feet    { left: 50%; top: 78%; width: 70%; height: 22%; transform: translateX(-50%); }
+/* 32×32 sprite 기준 위치 (% 단위로 wrap 크기에 따라 자동 스케일).
+   z-index: hat/glasses는 강아지 위, neck도 위, back은 뒤(-1), feet은 위. */
+.acc.acc-hat     { left: 50%; top: -2%; width: 56%; height: 28%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-glasses { left: 50%; top: 22%; width: 50%; height: 14%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-neck    { left: 50%; top: 48%; width: 60%; height: 18%; transform: translateX(-50%); z-index: 1; }
+.acc.acc-back    { left: 50%; top: 32%; width: 50%; height: 36%; transform: translateX(-50%); z-index: -1; }
+.acc.acc-feet    { left: 50%; top: 80%; width: 64%; height: 18%; transform: translateX(-50%); z-index: 2; }
 
-/* stage-specific positioning offsets */
-.app[data-stage="teen"]  .acc-hat     { top: 2%;  width: 56%; }
-.app[data-stage="teen"]  .acc-neck    { top: 50%; width: 56%; }
-.app[data-stage="teen"]  .acc-glasses { top: 28%; width: 42%; }
-.app[data-stage="adult"] .acc-hat     { top: 1%;  width: 56%; }
-.app[data-stage="adult"] .acc-neck    { top: 46%; width: 58%; }
-.app[data-stage="adult"] .acc-glasses { top: 25%; width: 44%; }
+/* stage별 미세 조정 — teen/adult은 wrap이 세로로 길어 머리 비율이 작아짐 */
+.app[data-stage="teen"]  .acc-hat     { top: -1%; width: 50%; height: 24%; }
+.app[data-stage="teen"]  .acc-glasses { top: 19%; width: 44%; height: 12%; }
+.app[data-stage="teen"]  .acc-neck    { top: 42%; width: 52%; height: 16%; }
+.app[data-stage="teen"]  .acc-back    { top: 28%; width: 46%; height: 36%; }
+.app[data-stage="teen"]  .acc-feet    { top: 84%; width: 56%; height: 14%; }
+.app[data-stage="adult"] .acc-hat     { top: 0%;  width: 46%; height: 20%; }
+.app[data-stage="adult"] .acc-glasses { top: 16%; width: 40%; height: 10%; }
+.app[data-stage="adult"] .acc-neck    { top: 38%; width: 48%; height: 14%; }
+.app[data-stage="adult"] .acc-back    { top: 26%; width: 44%; height: 36%; }
+.app[data-stage="adult"] .acc-feet    { top: 88%; width: 52%; height: 12%; }
 
 .acc img {
   width: 100%;
