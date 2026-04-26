@@ -642,10 +642,14 @@ body.is-sick #vetBtn .dot { display: block; }
    강아지 head/body 가로 폭 x:8~23 (25~75%).
    액세서리 PNG content는 박스의 일부만 차지하므로 CSS 박스를 더 크게 잡아 비율 보정. */
 .acc.acc-hat     { left: 50%; top:  -1%; width: 70%; height: 35%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-glasses { left: 50%; top:  22%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-glasses { left: 50%; top:  31%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 2; }
 .acc.acc-neck    { left: 50%; top:  44%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 3; }
 .acc.acc-clothes { left: 50%; top:  56%; width: 85%; height: 25%; transform: translateX(-50%); z-index: 1; }
-.acc.acc-feet    { left: 50%; top:  68%; width: 70%; height: 22%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-feet    { left: 50%; top:  59%; width: 70%; height: 22%; transform: translateX(-50%); z-index: 2; }
+/* clothes: PNG가 정사각형이라 contain이면 가로 확장이 짧은 변(height)에 맞춰
+   잘려서 무시됨. fill로 PNG가 box 비율 그대로 늘어나게 — 셔츠 모양은 가로
+   늘어나도 자연스러움. */
+.acc.acc-clothes img { object-fit: fill; }
 
 .acc img {
   width: 100%;
