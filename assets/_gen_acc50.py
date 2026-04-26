@@ -234,6 +234,8 @@ def gl_heart():
         # 위쪽 하트 봉오리
         for dx in [-3,-2,-1,1,2,3]:
             px(img, cx+dx, 13, (255,100,140,255))
+    # bridge — 두 하트 사이 연결
+    hline(img, 12, 19, 16, (255,100,140,255))
     return img
 
 def gl_star():
@@ -245,6 +247,8 @@ def gl_star():
         px(img, cx-4, 16, (245,210,80,255)); px(img, cx+4, 16, (245,210,80,255))
         px(img, cx-5, 16, (245,210,80,255)); px(img, cx+5, 16, (245,210,80,255))
         px(img, cx, 13, (245,210,80,255))
+    # bridge — 두 별 사이 연결
+    hline(img, 12, 19, 16, (245,210,80,255))
     return img
 
 def gl_mask():
