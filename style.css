@@ -642,9 +642,11 @@ body.is-sick #vetBtn .dot { display: block; }
    강아지 head/body 가로 폭 x:8~23 (25~75%).
    액세서리 PNG content는 박스의 일부만 차지하므로 CSS 박스를 더 크게 잡아 비율 보정. */
 .acc.acc-hat     { left: 50%; top:  -1%; width: 70%; height: 35%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-glasses { left: 50%; top:  28%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-neck    { left: 50%; top:  44%; width: 60%; height: 22%; transform: translateX(-50%); z-index: 3; }
+.acc.acc-neck    { left: 50%; top:  44%; width: 75%; height: 18%; transform: translateX(-50%); z-index: 3; }
 .acc.acc-feet    { left: 50%; top:  65%; width: 70%; height: 22%; transform: translateX(-50%); z-index: 2; }
+/* neck: PNG content가 24×9 wide ratio라 contain이면 짧은 변(height)에 fit되어 작아 보임.
+   fill로 box 비율 그대로 늘어나게 — 목걸이/스카프는 가로 늘어나도 자연스러움. */
+.acc.acc-neck img { object-fit: fill; }
 
 .acc img {
   width: 100%;

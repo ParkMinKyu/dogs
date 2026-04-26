@@ -61,20 +61,18 @@
   ];
 
   // v2 — 50개 액세서리 (5 부위 × 10), 자동 생성
-  const ACC_SLOTS = ['hat','neck','glasses','feet'];
+  const ACC_SLOTS = ['hat','neck','feet'];
   const ACC_SLOT_NAMES = {
-    hat: '머리', neck: '목', glasses: '얼굴', feet: '발',
+    hat: '머리', neck: '목', feet: '발',
   };
   const ACC_NAMES = {
     hat: ['빨간 모자', '밀짚 모자', '베레모', '캡 모자', '왕관', '헬멧', '머리띠', '꽃모자', '뿔모자', '새모자'],
     neck: ['목걸이', '스카프', '나비넥', '방울', '리본', '밧줄', '체인', '꽃다발', '이름표', '넥타이'],
-    glasses: ['동그란 안경', '네모 안경', '선글라스', '모노클', '하트 안경', '별 안경', '마스크', '안대', '페이스페인트', '콧수염'],
     feet: ['양말', '부츠', '운동화', '샌들', '스케이트', '발토시', '슬리퍼', '빛나는 신발', '줄무늬 양말', '하이힐'],
   };
   const ACC_PRICES = {
     hat: [80, 80, 100, 100, 250, 200, 60, 90, 220, 130],
     neck: [80, 90, 90, 60, 70, 70, 130, 100, 80, 100],
-    glasses: [120, 120, 150, 180, 140, 140, 80, 130, 100, 90],
     feet: [60, 110, 100, 70, 150, 90, 70, 200, 80, 180],
   };
   const ACCESSORIES = (() => {
@@ -95,7 +93,6 @@
   const ACC_LEGACY_MAP = {
     hat_red: 'hat_01', ribbon: 'hat_07',
     collar: 'neck_01', scarf: 'neck_02',
-    glasses: 'glasses_01',
   };
 
   const MISSION_TEMPLATES = [
@@ -160,10 +157,11 @@
       if (typeof s.points !== 'number') s.points = 0;
       if (!s.inventory || typeof s.inventory !== 'object') s.inventory = {};
       if (!s.equipped || typeof s.equipped !== 'object') s.equipped = {};
-      // 폐기된 슬롯 (back, clothes) — 키 자체 제거
+      // 폐기된 슬롯 (back, clothes, glasses) — 키 자체 제거
       delete s.equipped.back;
       delete s.equipped.clothes;
-      // 4 슬롯 모두 키 보장
+      delete s.equipped.glasses;
+      // 3 슬롯 모두 키 보장
       for (const slot of ACC_SLOTS) {
         if (!(slot in s.equipped)) s.equipped[slot] = null;
         // 옛 acc id → 새 id 마이그레이션
@@ -235,7 +233,7 @@
       breed: '',
       points: 0,
       inventory: {},
-      equipped: { hat: null, neck: null, glasses: null, feet: null },
+      equipped: { hat: null, neck: null, feet: null },
       minigameLastTs: 0,
       playLast: {},
       roomInv: {},
@@ -335,7 +333,7 @@
       id, name: '', breed: '', species: 'dog',
       hunger: 80, happy: 80, clean: 80, energy: 80, lastTs: Date.now(),
       care: 0, careLastTick: 0, stage: 'puppy',
-      equipped: { hat: null, neck: null, glasses: null, feet: null },
+      equipped: { hat: null, neck: null, feet: null },
       roomInv: {}, roomLayout: [],
       wallpaper: 'default', floor: 'default',
       furnitureInv: {}, furnitureLayout: [],
@@ -468,7 +466,7 @@
         lastTs: Date.now(), care: 35, stage: 'teen',
         name: '콩이', breed: 'shiba', points: 320,
         inventory: { hat_red: true, ribbon: true },
-        equipped: { hat: 'hat_red', neck: null, glasses: null },
+        equipped: { hat: 'hat_red', neck: null },
         minigameLastTs: 0,
         missions: { date: today, list: [
           { id: 'feed_3', action: 'feed', count: 3, name: '밥을 3번 주기', emoji: '🍖', reward: 20, progress: 2, claimed: false },
@@ -513,7 +511,6 @@
   const modalRoot  = $('#modalRoot');
   const accHatEl   = $('#accHat');
   const accNeckEl  = $('#accNeck');
-  const accGlassesEl = $('#accGlasses');
   const accFeetEl  = $('#accFeet');
   // 새 원형 게이지 — 각 .gauge[data-key]의 .gauge-circle 과 .pct 셀렉터
   const gaugeEls = {};
@@ -1947,7 +1944,6 @@
     const slots = [
       { slot: 'hat',     el: accHatEl },
       { slot: 'neck',    el: accNeckEl },
-      { slot: 'glasses', el: accGlassesEl },
       { slot: 'feet',    el: accFeetEl },
     ];
     for (const { slot, el } of slots) {
@@ -2304,7 +2300,7 @@
     // 5 부위 탭
     const tabs = document.createElement('div');
     tabs.className = 'shop-tabs';
-    for (const slot of ['hat','neck','glasses','feet']) {
+    for (const slot of ['hat','neck','feet']) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'shop-tab' + (slot === __shopTab ? ' active' : '');
@@ -4164,7 +4160,7 @@
       return id;
     },
     tryAccCycle() {
-      const slots = ['hat','neck','glasses','feet'];
+      const slots = ['hat','neck','feet'];
       const next = {};
       for (const slot of slots) {
         const cur = state.equipped[slot];
@@ -4182,7 +4178,7 @@
       return next;
     },
     tryAccUnequip() {
-      ['hat','neck','glasses','feet'].forEach(s => state.equipped[s] = null);
+      ['hat','neck','feet'].forEach(s => state.equipped[s] = null);
       saveState(); render();
     },
   };
@@ -4201,7 +4197,7 @@
         }
         document.querySelectorAll('.modal-backdrop, .modal').forEach(m => m.remove());
         window.__dogs.giveAllAcc();
-        ['hat','neck','glasses','feet'].forEach(s => {
+        ['hat','neck','feet'].forEach(s => {
           state.equipped[s] = `${s}_01`;
         });
         saveState(); render();
