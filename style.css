@@ -631,14 +631,13 @@ body.is-sick #vetBtn .dot { display: block; }
 /* 강아지 sprite 본체는 wrap의 일부만 차지 (puppy 19~78%, teen 10~88%, adult 6~92%).
    액세서리는 본체 영역에 맞춰 작게 배치 — 강아지 본체가 잘 보여야 함.
    back은 등 위쪽 작게, neck은 목 부분만, glasses는 눈 영역, hat은 머리 위. */
-/* puppy 32×32 sprite 기준 — 본체 row 6~25 (19~78%), 머리 ~41%, 눈 28~38%,
-   목 41~47%, 몸통 47~69%, 발 69~78%.
-   진화 비활성이라 puppy 한 단계만 정확히 맞춤. */
-.acc.acc-hat     { left: 50%; top:  8%; width: 32%; height: 16%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-glasses { left: 50%; top: 27%; width: 28%; height: 10%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-neck    { left: 50%; top: 37%; width: 26%; height: 11%; transform: translateX(-50%); z-index: 2; }
-.acc.acc-clothes { left: 50%; top: 45%; width: 50%; height: 25%; transform: translateX(-50%); z-index: 1; }
-.acc.acc-feet    { left: 50%; top: 65%; width: 42%; height: 15%; transform: translateX(-50%); z-index: 2; }
+/* puppy 32×32 sprite 기준 — 본체 row 6~25 (19~78%), 눈 28~38%, 목 41~50%,
+   가슴~배 47~69%, 발 69~78%. clothes는 가슴~배 전체를 충분히 덮어야. */
+.acc.acc-hat     { left: 50%; top: -5%; width: 50%; height: 32%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-glasses { left: 50%; top: 28%; width: 30%; height: 12%; transform: translateX(-50%); z-index: 2; }
+.acc.acc-neck    { left: 50%; top: 40%; width: 32%; height: 14%; transform: translateX(-50%); z-index: 3; }
+.acc.acc-clothes { left: 50%; top: 47%; width: 60%; height: 28%; transform: translateX(-50%); z-index: 1; }
+.acc.acc-feet    { left: 50%; top: 64%; width: 60%; height: 18%; transform: translateX(-50%); z-index: 2; }
 
 .acc img {
   width: 100%;
