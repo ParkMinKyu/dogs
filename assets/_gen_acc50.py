@@ -180,95 +180,103 @@ def neck_tie():
 
 
 # === GLASSES (10) ===
+# Glasses geometry — 두 lens 중심이 충분히 떨어져 bridge 자리 확보.
+LEFT_CX = 8
+RIGHT_CX = 23
+LENS_TOP = 11
+LENS_BOT = 19   # 직경 9px (반지름 4)
+BRIDGE_LEFT = 13
+BRIDGE_RIGHT = 18
+BRIDGE_Y = 15
+FRAME = (40, 40, 50, 255)
+LENS_TINT = (150, 200, 240, 180)
+
+
 def gl_round():
     img = new()
-    # 렌즈 더 큼직 (직경 ~10px) — 강아지 눈 row 11~12, x:12,18 정확히 덮음
-    for cx in [7, 24]:
-        rect(img, cx-7, 11, cx+7, 21, (150,200,240,180))
-        hline(img, cx-7, cx+7, 10, (40,40,50,255))
-        hline(img, cx-7, cx+7, 22, (40,40,50,255))
-        vline(img, cx-8, 11, 21, (40,40,50,255))
-        vline(img, cx+8, 11, 21, (40,40,50,255))
-    hline(img, 11, 20, 16, (40,40,50,255))
+    for cx in [LEFT_CX, RIGHT_CX]:
+        rect(img, cx-3, LENS_TOP+1, cx+3, LENS_BOT-1, LENS_TINT)
+        hline(img, cx-3, cx+3, LENS_TOP, FRAME)
+        hline(img, cx-3, cx+3, LENS_BOT, FRAME)
+        vline(img, cx-4, LENS_TOP+1, LENS_BOT-1, FRAME)
+        vline(img, cx+4, LENS_TOP+1, LENS_BOT-1, FRAME)
+    hline(img, BRIDGE_LEFT, BRIDGE_RIGHT, BRIDGE_Y, FRAME)
     return img
 
 def gl_square():
     img = new()
-    # 사각 lens 더 큼 (16×11)
-    for x in [0, 16]:
-        rect(img, x, 10, x+15, 22, (150,200,240,180))
-        rect(img, x, 10, x+15, 10, (40,40,50,255))
-        rect(img, x, 22, x+15, 22, (40,40,50,255))
-        vline(img, x, 10, 22, (40,40,50,255))
-        vline(img, x+15, 10, 22, (40,40,50,255))
-    hline(img, 11, 20, 16, (40,40,50,255))
+    for cx in [LEFT_CX, RIGHT_CX]:
+        rect(img, cx-4, LENS_TOP, cx+4, LENS_BOT, LENS_TINT)
+        rect(img, cx-4, LENS_TOP, cx+4, LENS_TOP, FRAME)
+        rect(img, cx-4, LENS_BOT, cx+4, LENS_BOT, FRAME)
+        vline(img, cx-4, LENS_TOP, LENS_BOT, FRAME)
+        vline(img, cx+4, LENS_TOP, LENS_BOT, FRAME)
+    hline(img, BRIDGE_LEFT, BRIDGE_RIGHT, BRIDGE_Y, FRAME)
     return img
 
 def gl_sun():
     img = new()
-    for x in [0, 16]:
-        rect(img, x, 10, x+15, 22, (40,40,50,255))
-    hline(img, 11, 20, 16, (40,40,50,255))
+    for cx in [LEFT_CX, RIGHT_CX]:
+        rect(img, cx-4, LENS_TOP, cx+4, LENS_BOT, FRAME)
+    hline(img, BRIDGE_LEFT, BRIDGE_RIGHT, BRIDGE_Y, FRAME)
     return img
 
 def gl_monocle():
     img = new()
-    # 외알 큼직 (12×10)
-    rect(img, 13, 11, 27, 21, (150,200,240,180))
-    hline(img, 13, 27, 10, (40,40,50,255))
-    hline(img, 13, 27, 22, (40,40,50,255))
-    vline(img, 12, 11, 21, (40,40,50,255))
-    vline(img, 28, 11, 21, (40,40,50,255))
-    vline(img, 10, 16, 25, (245,210,80,255))  # chain
+    cx = RIGHT_CX
+    rect(img, cx-3, LENS_TOP+1, cx+3, LENS_BOT-1, LENS_TINT)
+    hline(img, cx-3, cx+3, LENS_TOP, FRAME)
+    hline(img, cx-3, cx+3, LENS_BOT, FRAME)
+    vline(img, cx-4, LENS_TOP+1, LENS_BOT-1, FRAME)
+    vline(img, cx+4, LENS_TOP+1, LENS_BOT-1, FRAME)
+    vline(img, cx-6, BRIDGE_Y, 26, (245, 210, 80, 255))  # chain
     return img
 
 def gl_heart():
     img = new()
-    # 하트 더 큼 (가로 11×세로 8)
-    for cx in [7, 24]:
-        for (dx, dy) in [(-6,0),(-5,0),(-4,0),(-3,0),(-2,0),(-1,0),(0,0),(1,0),(2,0),(3,0),(4,0),(5,0),(6,0),
-                         (-6,1),(-5,1),(-4,1),(-3,1),(-2,1),(-1,1),(0,1),(1,1),(2,1),(3,1),(4,1),(5,1),(6,1),
-                         (-5,2),(-4,2),(-3,2),(-2,2),(-1,2),(0,2),(1,2),(2,2),(3,2),(4,2),(5,2),
-                         (-4,3),(-3,3),(-2,3),(-1,3),(0,3),(1,3),(2,3),(3,3),(4,3),
-                         (-3,4),(-2,4),(-1,4),(0,4),(1,4),(2,4),(3,4),
-                         (-2,5),(-1,5),(0,5),(1,5),(2,5),
-                         (-1,6),(0,6),(1,6)]:
-            px(img, cx+dx, 11+dy, (255,100,140,255))
-        # 위쪽 하트 봉오리
-        for dx in [-4,-3,-2,-1,1,2,3,4]:
-            px(img, cx+dx, 10, (255,100,140,255))
-    # bridge
-    hline(img, 11, 20, 16, (255,100,140,255))
+    color = (255, 100, 140, 255)
+    for cx in [LEFT_CX, RIGHT_CX]:
+        # 하트 (직경 ~9): 두 봉오리 + 점차 좁아지는 아래
+        for dx in [-3, -2, 2, 3]:
+            px(img, cx+dx, LENS_TOP, color)
+        for dx in range(-4, 5):
+            px(img, cx+dx, LENS_TOP+1, color)
+            px(img, cx+dx, LENS_TOP+2, color)
+        for dx in range(-3, 4):
+            px(img, cx+dx, LENS_TOP+3, color)
+        for dx in range(-2, 3):
+            px(img, cx+dx, LENS_TOP+4, color)
+        for dx in range(-1, 2):
+            px(img, cx+dx, LENS_TOP+5, color)
+        px(img, cx, LENS_TOP+6, color)
+    hline(img, BRIDGE_LEFT, BRIDGE_RIGHT, BRIDGE_Y, color)
     return img
 
 def gl_star():
     img = new()
-    # 별 더 큼
-    for cx in [7, 24]:
-        rect(img, cx-4, 12, cx+4, 18, (245,210,80,255))
-        for dy, dxs in [(13, [-5, 5]), (14, [-6, 6]), (15, [-6, 6]),
-                        (16, [-6, 6]), (17, [-5, 5]), (18, [-4, 4])]:
-            for dx in dxs:
-                px(img, cx+dx, dy, (245,210,80,255))
-        px(img, cx, 11, (245,210,80,255))
-        px(img, cx, 19, (245,210,80,255))
-    # bridge
-    hline(img, 11, 20, 16, (245,210,80,255))
+    color = (245, 210, 80, 255)
+    for cx in [LEFT_CX, RIGHT_CX]:
+        # 별 (직경 ~9): 가로 십자 + 세로 십자
+        rect(img, cx-3, LENS_TOP+2, cx+3, LENS_BOT-2, color)
+        rect(img, cx-1, LENS_TOP, cx+1, LENS_BOT, color)
+        for dy in [LENS_TOP+1, LENS_BOT-1]:
+            for dx in [-2, -1, 0, 1, 2]:
+                px(img, cx+dx, dy, color)
+        # 양쪽 가시
+        px(img, cx-4, LENS_TOP+4, color); px(img, cx+4, LENS_TOP+4, color)
+    hline(img, BRIDGE_LEFT, BRIDGE_RIGHT, BRIDGE_Y, color)
     return img
 
 def gl_mask():
     img = new()
-    # 마스크 더 크게 (4..27 → 2..29 너비, 14..26 높이)
-    rect(img, 2, 14, 29, 26, (255,255,255,255))
-    rect(img, 2, 14, 29, 15, (200,200,210,255))
+    rect(img, 2, 14, 29, 26, (255, 255, 255, 255))
+    rect(img, 2, 14, 29, 15, (200, 200, 210, 255))
     return img
 
 def gl_eyepatch():
     img = new()
-    # 패치 더 크게 (3..17 → 1..19)
-    rect(img, 1, 10, 19, 23, (40,40,50,255))
-    vline(img, 19, 10, 23, (40,40,50,255))
-    rect(img, 19, 16, 31, 17, (40,40,50,255))  # strap
+    rect(img, LEFT_CX-4, LENS_TOP, LEFT_CX+4, LENS_BOT, FRAME)
+    rect(img, LEFT_CX+4, BRIDGE_Y, 31, BRIDGE_Y+1, FRAME)  # strap
     return img
 
 def gl_paint():
