@@ -162,6 +162,28 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   transition: background 1.2s ease, color 1.2s ease, border-color 1.2s ease;
 }
 .stage-badge::before { content: '🐾 '; }
+.season-badge {
+  background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.65));
+}
+.app[data-season="spring"] .season-badge { background: linear-gradient(180deg, #ffe5ef, #ffc8da); border-color: #f0a3bc; }
+.app[data-season="summer"] .season-badge { background: linear-gradient(180deg, #fff5c4, #ffe079); border-color: #e6b943; }
+.app[data-season="autumn"] .season-badge { background: linear-gradient(180deg, #ffe6cc, #f4be84); border-color: #c98e51; }
+.app[data-season="winter"] .season-badge { background: linear-gradient(180deg, #e6f3ff, #bcd9f2); border-color: #7eaee0; }
+
+.mission-item.seasonal {
+  border: 2px solid #f4b183;
+  background: linear-gradient(180deg, #fff5e8, #ffe9d0);
+}
+.mission-season-tag {
+  display: inline-block;
+  font-size: 11px;
+  background: #ff9b6e;
+  color: #fff;
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-right: 4px;
+  font-weight: 700;
+}
 
 .title-avatar {
   width: 28px;

@@ -122,6 +122,28 @@
     return '🌱 쉬움';
   }
 
+  // ----- 시즌 -------------------------------------------------------------
+  const SEASONS = {
+    spring: { id: 'spring', name: '봄',   emoji: '🌸', months: [3,4,5] },
+    summer: { id: 'summer', name: '여름', emoji: '☀️', months: [6,7,8] },
+    autumn: { id: 'autumn', name: '가을', emoji: '🍂', months: [9,10,11] },
+    winter: { id: 'winter', name: '겨울', emoji: '❄️', months: [12,1,2] },
+  };
+  function currentSeason() {
+    const m = new Date().getMonth() + 1;
+    if (m >= 3 && m <= 5) return 'spring';
+    if (m >= 6 && m <= 8) return 'summer';
+    if (m >= 9 && m <= 11) return 'autumn';
+    return 'winter';
+  }
+  // 시즌 한정 미션 — 일일 미션 풀에 시즌별 1개씩 가산 (높은 보상)
+  const SEASONAL_MISSIONS = {
+    spring: { id: 'season_spring', action: 'minigame', count: 1, name: '봄맞이 산책 1번', emoji: '🌸', reward: 50 },
+    summer: { id: 'season_summer', action: 'wash',     count: 4, name: '여름 물놀이! 씻기 4번', emoji: '🌊', reward: 50 },
+    autumn: { id: 'season_autumn', action: 'play',     count: 5, name: '가을 단풍 산책 5번', emoji: '🍁', reward: 50 },
+    winter: { id: 'season_winter', action: 'sleep',    count: 3, name: '겨울 포근하게 재우기 3번', emoji: '🛌', reward: 50 },
+  };
+
   function timeOfDayFor(date) {
     const h = date.getHours();
     if (h >= 4 && h < 6)   return 'dawn';
@@ -537,6 +559,7 @@
   const bubbleEl   = $('#bubble');
   const stageBadge = $('#stageBadge');
   const todBadge   = $('#todBadge');
+  const seasonBadge = $('#seasonBadge');
   const careBadge  = $('#careBadge');
   const evolveFx   = $('#evolveFx');
   const titleEl    = $('#titleEl');
@@ -1539,6 +1562,11 @@
       root.dataset.tod = tod;
     }
     if (todBadge) todBadge.textContent = TOD_LABEL[tod];
+    // 시즌 — 월 기반이라 빠르게 안 변하지만 같이 갱신
+    const sId = currentSeason();
+    const s = SEASONS[sId];
+    if (root.dataset.season !== sId) root.dataset.season = sId;
+    if (seasonBadge && s) { seasonBadge.textContent = s.emoji + ' ' + s.name; seasonBadge.hidden = false; }
   }
   // 시간대 갱신 — 5분마다 + 페이지 visibility 회복 시 즉시
   setInterval(applyTod, 5 * 60 * 1000);
@@ -2225,7 +2253,12 @@
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    const picked = pool.slice(0, 3).map(t => ({ ...t, progress: 0, claimed: false }));
+    // 시즌 한정 미션 1개를 가장 위에 고정 + 일반 풀에서 2개
+    const seasonal = SEASONAL_MISSIONS[currentSeason()];
+    const picked = [
+      { ...seasonal, seasonal: true, progress: 0, claimed: false },
+      ...pool.slice(0, 2).map(t => ({ ...t, progress: 0, claimed: false })),
+    ];
     state.missions = { date: today, list: picked };
     saveState();
   }
@@ -2335,11 +2368,11 @@
     state.missions.list.forEach(m => {
       const item = document.createElement('div');
       const done = m.progress >= m.count;
-      item.className = 'mission-item' + (done ? ' done' : '');
+      item.className = 'mission-item' + (done ? ' done' : '') + (m.seasonal ? ' seasonal' : '');
       item.innerHTML = `
         <span class="emo">${m.emoji}</span>
         <div class="body">
-          <div class="name">${m.name}</div>
+          <div class="name">${m.seasonal ? '<span class="mission-season-tag">시즌 한정</span> ' : ''}${m.name}</div>
           <div class="progress">${m.progress} / ${m.count}</div>
         </div>
         <div class="reward">${done ? '✓' : '+'}${m.reward}🌟</div>
