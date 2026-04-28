@@ -3316,24 +3316,20 @@
     judge.className = 'ddr-judge';
     arena.appendChild(judge);
 
-    // 하단 버튼 — DDR 스타일 SVG 화살표 (투명 버튼)
+    // 하단 버튼 — 4 레인 컬러 원형 receptor
     const KEYS = ['ArrowLeft','ArrowUp','ArrowDown','ArrowRight'];
-    // 레인별 색상 + 회전 (위가 base. left=-90, up=0, down=180, right=90)
     const LANE_COLORS = ['#ff5d8f', '#4ea1d3', '#76c043', '#f4a623'];
-    const LANE_ROT = [-90, 0, 180, 90];
-    function arrowSVG(lane, opts = {}) {
+    function noteSVG(lane, opts = {}) {
       const c = LANE_COLORS[lane];
-      const rot = LANE_ROT[lane];
       const stroke = opts.stroke || '#ffffff';
       const sw = opts.strokeWidth != null ? opts.strokeWidth : 2.5;
       const fillOpacity = opts.fillOpacity != null ? opts.fillOpacity : 1;
-      // base = 위쪽 화살표. 십자형 윤곽 (전형적인 DDR 모양).
       return `<svg viewBox="0 0 44 44" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-        <g transform="rotate(${rot} 22 22)">
-          <polygon points="22,3 41,22 31,22 31,41 13,41 13,22 3,22"
-            fill="${c}" fill-opacity="${fillOpacity}"
-            stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>
-        </g>
+        <circle cx="22" cy="22" r="17"
+          fill="${c}" fill-opacity="${fillOpacity}"
+          stroke="${stroke}" stroke-width="${sw}"/>
+        <circle cx="22" cy="22" r="6"
+          fill="${stroke}" fill-opacity="0.9"/>
       </svg>`;
     }
     const btnRow = document.createElement('div');
@@ -3344,7 +3340,7 @@
       b.type = 'button';
       b.className = 'ddr-btn';
       b.dataset.lane = String(i);
-      b.innerHTML = arrowSVG(i, { stroke: 'rgba(255,255,255,0.95)', strokeWidth: 2 });
+      b.innerHTML = noteSVG(i, { stroke: 'rgba(255,255,255,0.95)', strokeWidth: 2 });
       b.setAttribute('aria-label', ['왼쪽','위','아래','오른쪽'][i]);
       btnRow.appendChild(b);
       btns.push(b);
@@ -3445,7 +3441,6 @@
     const HIT_GREAT_PX = 36;
     const HIT_GOOD_PX = 80;
     const started = performance.now();
-    let lastSpawn = -SPAWN_MS;
     const arrows = [];
 
     function arenaRect() { return arena.getBoundingClientRect(); }
@@ -3455,14 +3450,16 @@
       return hr.top - r.top + hr.height / 2;
     }
 
-    function spawnArrow() {
+    function spawnArrow(scheduledTs) {
       const lane = Math.floor(Math.random() * 4);
       const el = document.createElement('div');
       el.className = 'ddr-arrow';
       el.dataset.lane = String(lane);
-      el.innerHTML = arrowSVG(lane);
+      el.innerHTML = noteSVG(lane);
       arena.appendChild(el);
-      arrows.push({ el, lane, spawnTs: performance.now(), hit: false });
+      // spawnTs를 RAF의 실제 now가 아닌 스케줄된 비트 시각으로 기록 →
+      // FALL_MS 후 정확히 다음 spawn 비트와 같은 시각에 hit 라인에 도달
+      arrows.push({ el, lane, spawnTs: scheduledTs, hit: false });
     }
 
     function showJudge(text, klass) {
@@ -3586,16 +3583,14 @@
       if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
 
       // 박자 음악 — 8th note 간격으로 schedule. RAF lag 시 따라잡기 위해 while 루프.
+      // 화살표 spawn 도 같은 스케줄러 안에서 처리해 비트와 영구히 동기화.
       if (nextBeatAt === 0) nextBeatAt = now;
       while (now >= nextBeatAt) {
+        const scheduled = nextBeatAt;
+        const isSpawnBeat = beatIdx % 2 === 0; // 4분음표마다 spawn
         playBeat(beatIdx++);
+        if (isSpawnBeat && remain > FALL_MS) spawnArrow(scheduled);
         nextBeatAt += STEP_MS;
-      }
-
-      // 마지막 FALL_MS는 spawn 정지 — 화면 밖으로 떨어지는 화살표 방지
-      if (remain > FALL_MS && now - lastSpawn >= SPAWN_MS) {
-        lastSpawn = now;
-        spawnArrow();
       }
 
       // 화살표 이동
