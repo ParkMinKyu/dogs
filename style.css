@@ -2844,13 +2844,14 @@ body.is-editing-room .stage {
 
 .ddr-dog-wrap {
   position: absolute;
-  left: 6px;
-  bottom: 90px;
-  width: 70px;
-  height: 70px;
+  left: 50%;
+  bottom: 92px;
+  width: 88px;
+  height: 88px;
+  margin-left: -44px;
   pointer-events: none;
   z-index: 2;
-  filter: drop-shadow(0 4px 0 rgba(0,0,0,0.12));
+  filter: drop-shadow(0 6px 4px rgba(0,0,0,0.18));
 }
 .ddr-dog {
   position: absolute;
