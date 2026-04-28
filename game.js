@@ -227,12 +227,23 @@
     } catch { return null; }
   }
 
-  function saveState() {
+  // saveState — 800ms 디바운스로 동일 tick 내 다중 저장 합치기 (배터리/IO 절감).
+  // 페이지 hidden/unload 시점은 flushSaveState()로 즉시 저장.
+  let _saveTimer = null;
+  function _saveStateImmediate() {
     try {
       // active 펫의 현재 필드값을 pets 배열에 snapshot
       if (typeof snapshotActivePet === 'function') snapshotActivePet();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {}
+  }
+  function flushSaveState() {
+    if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+    _saveStateImmediate();
+  }
+  function saveState() {
+    if (_saveTimer) return;
+    _saveTimer = setTimeout(() => { _saveTimer = null; _saveStateImmediate(); }, 800);
   }
 
   function defaultState() {
@@ -4123,10 +4134,11 @@
 
   // ----- visibility / lifecycle -------------------------------------------
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') saveState();
+    if (document.visibilityState === 'hidden') flushSaveState();
     else { applyTod(); ensureTodayMissions(); render(); }
   });
-  window.addEventListener('beforeunload', saveState);
+  window.addEventListener('beforeunload', flushSaveState);
+  window.addEventListener('pagehide', flushSaveState);
 
   // ----- PWA: service worker 등록 ----------------------------------------
   if ('serviceWorker' in navigator) {
