@@ -2887,23 +2887,26 @@
     const body = document.createElement('div');
     const grid = document.createElement('div');
     grid.className = 'play-grid';
+    const cards = []; // {el, id, cdEl, lastCool}
     PLAY_GAMES.forEach(g => {
       const cd = playCooldownRemain(g.id);
       const card = document.createElement('button');
       card.type = 'button';
       card.className = 'play-card' + (cd > 0 ? ' is-cooling' : '') + (g.id === 'walk' ? ' play-card-wide' : '');
-      let cdText = '';
-      if (cd > 0) {
+      const cdEl = document.createElement('div');
+      cdEl.className = 'cd';
+      if (cd <= 0) cdEl.style.display = 'none';
+      else {
         const sec = Math.ceil(cd / 1000);
         const mm = Math.floor(sec / 60), ss = sec % 60;
-        cdText = `<div class="cd">${mm}:${String(ss).padStart(2,'0')}</div>`;
+        cdEl.textContent = `${mm}:${String(ss).padStart(2,'0')}`;
       }
       card.innerHTML = `
         <div class="emo">${g.emoji}</div>
         <div class="name">${g.name}</div>
         <div class="desc">${g.desc}</div>
-        ${cdText}
       `;
+      card.appendChild(cdEl);
       card.addEventListener('click', () => {
         if (playCooldownRemain(g.id) > 0) { SOUNDS.pop(); return; }
         SOUNDS.pop();
@@ -2911,6 +2914,7 @@
         setTimeout(() => g.open(), 80);
       });
       grid.appendChild(card);
+      cards.push({ el: card, id: g.id, cdEl });
     });
     body.appendChild(grid);
     const hint = document.createElement('p');
@@ -2918,7 +2922,29 @@
     hint.textContent = '한 번 놀고 나면 5분 후에 다시 놀 수 있어요';
     hint.style.marginTop = '12px';
     body.appendChild(hint);
-    openModal({ title: '🎉 놀이 골라요', body });
+
+    // 1초마다 쿨다운 시간 갱신
+    const refresher = setInterval(() => {
+      cards.forEach(c => {
+        const cd = playCooldownRemain(c.id);
+        if (cd <= 0) {
+          c.el.classList.remove('is-cooling');
+          c.cdEl.style.display = 'none';
+        } else {
+          c.el.classList.add('is-cooling');
+          const sec = Math.ceil(cd / 1000);
+          const mm = Math.floor(sec / 60), ss = sec % 60;
+          c.cdEl.textContent = `${mm}:${String(ss).padStart(2,'0')}`;
+          c.cdEl.style.display = '';
+        }
+      });
+    }, 1000);
+
+    openModal({
+      title: '🎉 놀이 골라요',
+      body,
+      onClose: () => { clearInterval(refresher); },
+    });
   }
 
   // ----- 풍선 터뜨리기: 풍선 3초 안에 탭, 못 누르면 끝 (최대 30초) ----------
