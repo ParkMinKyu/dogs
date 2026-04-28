@@ -2064,9 +2064,21 @@
     if (cb && !silent) try { cb(); } catch {}
   }
 
-  // ESC key
+  // ESC key + 액션 단축키 (1/2/3/4)
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && activeModal && !activeModal.mandatory) closeModal();
+    if (e.key === 'Escape' && activeModal && !activeModal.mandatory) { closeModal(); return; }
+    // 입력 폼 포커스 중이거나 modifier 누르면 무시
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const tag = (e.target && e.target.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.target && e.target.isContentEditable) return;
+    // 모달 열려 있으면 액션 단축키 비활성
+    if (activeModal) return;
+    const map = { '1': 'feed', '2': 'play_menu', '3': 'wash', '4': 'sleep' };
+    const action = map[e.key];
+    if (!action) return;
+    const btn = document.querySelector(`.action[data-action="${action}"]`);
+    if (btn) { e.preventDefault(); btn.click(); }
   });
   // backdrop click
   modalRoot.addEventListener('click', (e) => {
