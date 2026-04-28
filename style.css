@@ -108,6 +108,20 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   min-height: 100dvh;
 }
 
+/* PWA 설치 (standalone) 모드: viewport-fit=cover로 status/nav bar 영역까지
+   viewport에 포함되므로 safe-area 만큼 padding 추가하고, 외부 스크롤 차단. */
+@media (display-mode: standalone) {
+  html, body { height: 100dvh; overflow: hidden; overscroll-behavior: none; }
+  .app {
+    min-height: 0;
+    height: 100dvh;
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+    padding-left: calc(18px + env(safe-area-inset-left, 0px));
+    padding-right: calc(18px + env(safe-area-inset-right, 0px));
+  }
+}
+
 /* ---------- Top bar ---------- */
 
 .topbar {
