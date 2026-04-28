@@ -2749,14 +2749,14 @@ body.is-editing-room .stage {
 }
 .balloon {
   position: absolute;
-  width: 50px;
-  height: 60px;
-  margin-left: -25px;
-  margin-top: -30px;
+  width: 56px;
+  height: 68px;
+  margin-left: -28px;
+  margin-top: -34px;
   border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%;
   cursor: pointer;
   z-index: 6;
-  transition: transform 80ms ease;
+  transform-origin: center center;
 }
 .balloon::after {
   content: '';

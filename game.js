@@ -2927,7 +2927,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = `🎈 풍선을 <b>탭하면 강아지가 점프!</b> (15초) <span class="mg-diff">${diffLabel()}</span>`;
+    guide.innerHTML = `🎈 풍선이 나오면 <b>0.5초 안에 터뜨려요!</b> 놓치면 끝! <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
 
     const stats = document.createElement('div');
@@ -2970,20 +2970,21 @@
     let endedFlag = false;
     const TOTAL = 15000;
     const _diff = diffMul();
-    const SPAWN_MS = 900 / _diff;        // 어려울수록 풍선 많이
-    const RISE_PX_S = 60 * _diff;        // 어려울수록 빠르게 떠오름
+    const SPAWN_MS = 350 / _diff;        // 어려울수록 더 자주 등장
+    const LIFE_MS = 500;                  // 0.5초 안에 안 누르면 자동 폭발
     const started = performance.now();
     let lastSpawn = -SPAWN_MS;
     let lastPopAt = -9999;
-    const balloons = []; // {el, x, y, vx, color}
+    const balloons = []; // {el, x, y, color, birthTs, popped}
 
     const COLORS = ['#ff7aa1','#5eb8ff','#7ad06e','#ffc94a','#c685ff','#ff9466'];
     function arenaRect() { return arena.getBoundingClientRect(); }
 
     function spawnBalloon() {
       const r = arenaRect();
-      const x = 30 + Math.random() * (r.width - 60);
-      const y = r.height + 30;
+      // 화면 랜덤 위치 — 강아지 영역(아래쪽 100px) + 가장자리 회피
+      const x = 35 + Math.random() * (r.width - 70);
+      const y = 35 + Math.random() * (r.height - 140);
       const color = COLORS[Math.floor(Math.random() * COLORS.length)];
       const el = document.createElement('div');
       el.className = 'balloon';
@@ -2991,14 +2992,9 @@
       el.style.boxShadow = `inset -6px -8px 0 rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.18)`;
       el.style.left = x + 'px';
       el.style.top = y + 'px';
-      // 끈
-      const string = document.createElement('div');
-      string.className = 'balloon-string';
-      el.appendChild(string);
+      el.style.transform = 'scale(0)';
       arena.appendChild(el);
-      const vx = (Math.random() - 0.5) * 12; // 옆으로 살짝 흔들
-      const wob = Math.random() * Math.PI * 2;
-      balloons.push({ el, x, y, vx, color, wob, popped: false });
+      balloons.push({ el, x, y, color, birthTs: performance.now(), popped: false });
     }
 
     let dogJumpUntil = 0;
@@ -3097,34 +3093,37 @@
       tFill.style.width = (remain / TOTAL * 100) + '%';
       if (remain < TOTAL / 3) tFill.classList.add('low'); else tFill.classList.remove('low');
 
-      // spawn — 마지막 1초는 정지 (탈출 풍선 줄임)
-      if (remain > 1000 && now - lastSpawn >= SPAWN_MS) {
+      // spawn — 마지막 LIFE_MS는 정지 (놓친 폭발 방지)
+      if (remain > LIFE_MS && now - lastSpawn >= SPAWN_MS) {
         lastSpawn = now;
         spawnBalloon();
-        // 어려움일 때 가끔 한 번에 2개
-        if (_diff > 1.2 && Math.random() < 0.3) spawnBalloon();
       }
 
-      // 풍선 위로 떠오름 + 옆으로 흔들림
-      const r = arenaRect();
+      // 풍선 — 점점 커지면서 점점 흔들림. LIFE_MS 지나면 자동 폭발 → 게임 끝.
       for (let i = balloons.length - 1; i >= 0; i--) {
         const b = balloons[i];
         if (b.popped) continue;
-        b.wob += dt * 2;
-        b.y -= RISE_PX_S * dt;
-        b.x += b.vx * dt + Math.sin(b.wob) * 0.5;
-        // 화면 가장자리 반사
-        if (b.x < 25) { b.x = 25; b.vx = Math.abs(b.vx); }
-        if (b.x > r.width - 25) { b.x = r.width - 25; b.vx = -Math.abs(b.vx); }
-        b.el.style.left = b.x + 'px';
-        b.el.style.top = b.y + 'px';
-        // 화면 위로 탈출
-        if (b.y < -50) {
+        const age = now - b.birthTs;
+        const ratio = Math.min(1, age / LIFE_MS);
+        // 흔들림 — 시간 지날수록 진폭 ↑ (나이 ratio 비례)
+        const wobAmp = ratio * 14;                       // 최대 14도
+        const wobAngle = Math.sin(now * 0.04) * wobAmp;
+        // 스케일 — 마지막 15%에 부풀음 강조
+        let scale = ratio;
+        if (ratio > 0.85) scale = 1 + (ratio - 0.85) * 1.5;
+        b.el.style.transform = `rotate(${wobAngle}deg) scale(${scale})`;
+
+        if (age >= LIFE_MS) {
+          // 자동 폭발 — 즉시 게임 종료
+          b.popped = true;
           escaped += 1;
-          combo = 0;
-          comboEl.textContent = '';
-          try { b.el.remove(); } catch {}
+          spawnPopFx(b.x, b.y, b.color);
+          try { SOUNDS.whimper(); } catch {}
+          b.el.classList.add('popped');
+          setTimeout(() => { try { b.el.remove(); } catch {} }, 200);
           balloons.splice(i, 1);
+          endGame();
+          return;
         }
       }
 
@@ -3144,12 +3143,12 @@
       // 남은 풍선 정리
       while (balloons.length) { try { balloons[0].el.remove(); } catch {}; balloons.shift(); }
 
-      // 차등 보상 — 풍선 터뜨린 개수 기준
+      // 0.5초 게임 — 놓치면 끝나므로 popped 개수가 곧 살아남은 결과
       let happyGain, careBoost, badge, tier;
-      if (popped >= 18)     { happyGain = 50; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
-      else if (popped >= 12){ happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
-      else if (popped >= 6) { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
-      else                   { happyGain = 10; careBoost = 0; badge = '😅 조금만 더!'; tier = 'low'; }
+      if (popped >= 15)     { happyGain = 50; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
+      else if (popped >= 10){ happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (popped >= 5) { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else                   { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low'; }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
         state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
