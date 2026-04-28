@@ -399,6 +399,8 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   overflow: hidden;
   box-shadow: var(--shadow);
   transition: background 1.2s ease, border-color 1.2s ease;
+  /* 씻기 스크럽 등 드래그 동작이 페이지 스크롤로 새지 않게 */
+  touch-action: none;
 }
 
 .ground {
@@ -2824,7 +2826,7 @@ body.is-editing-room .stage {
 .minigame-arena.dance-arena { cursor: default; background: linear-gradient(180deg, #ffe4f3 0%, #fff7ec 60%, #f6c993 100%); }
 
 /* DDR 춤추기 */
-.ddr-arena { position: relative; overflow: hidden; }
+.ddr-arena { position: relative; overflow: hidden; min-height: 440px; }
 .ddr-lanes {
   position: absolute; inset: 0;
   display: flex;
