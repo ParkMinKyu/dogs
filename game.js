@@ -2870,13 +2870,14 @@
 
   function minigameCooldownRemain() { return playCooldownRemain('ball'); }
 
-  // 4가지 놀이 카탈로그
+  // 놀이 카탈로그
   const PLAY_GAMES = [
-    { id: 'ball',  name: '공놀이',  emoji: '🎾', desc: '공 받기 (30초)',    open: () => openMinigame() },
-    { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '풍선 탭하면 강아지가 점프! (15초)', open: () => openPetGame() },
-    { id: 'dance', name: '춤추기',  emoji: '🎵', desc: '박자 맞추기 (30초)', open: () => openDanceGame() },
-    { id: 'treat', name: '간식 받기', emoji: '🦴', desc: '많이 받기 (30초)',  open: () => openTreatGame() },
-    { id: 'walk',  name: '산책',    emoji: '🚶', desc: '아이템 찾기 (30초)', open: () => openWalkGame() },
+    { id: 'ball',  name: '공놀이',     emoji: '🎾', desc: '공 받기 (30초)',         open: () => openMinigame() },
+    { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '풍선 탭하면 강아지 점프! (15초)', open: () => openPetGame() },
+    { id: 'dance', name: '춤추기',     emoji: '🎵', desc: '박자 맞추기 (30초)',       open: () => openDanceGame() },
+    { id: 'treat', name: '간식 받기',   emoji: '🦴', desc: '많이 받기 (30초)',         open: () => openTreatGame() },
+    { id: 'walk',  name: '산책',       emoji: '🚶', desc: '아이템 찾기 (30초)',       open: () => openWalkGame() },
+    { id: 'seq',   name: '발자국 따라가기', emoji: '🐾', desc: '순서대로 누르기',           open: () => openSequenceGame() },
   ];
 
   function openPlayMenu() {
@@ -4452,6 +4453,172 @@
   }
 
 
+  // ----- 발자국 따라가기 (Simon-says) ------------------------------------
+  function openSequenceGame() {
+    decayPaused = true;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = `🐾 발자국 <b>순서대로 따라 눌러요!</b> <span class="mg-diff">${diffLabel()}</span>`;
+    body.appendChild(guide);
+
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const roundEl = document.createElement('span');
+    const stateEl = document.createElement('span');
+    roundEl.textContent = '🎯 라운드 1';
+    stateEl.textContent = '👀 잘 봐요...';
+    stats.appendChild(roundEl); stats.appendChild(stateEl);
+    body.appendChild(stats);
+
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big seq-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+
+    // 4개 컬러 발자국 패드
+    const COLORS = ['#ff7aa1','#5eb8ff','#7ad06e','#ffc94a'];
+    const pad = document.createElement('div');
+    pad.className = 'seq-pad';
+    const btns = [];
+    for (let i = 0; i < 4; i++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'seq-btn';
+      b.dataset.idx = String(i);
+      b.style.background = COLORS[i];
+      b.textContent = '🐾';
+      pad.appendChild(b);
+      btns.push(b);
+    }
+    arena.appendChild(pad);
+    body.appendChild(arena);
+
+    const endBtn = document.createElement('button');
+    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    endBtn.style.marginTop = '6px';
+    body.appendChild(endBtn);
+
+    let endedFlag = false;
+    let round = 1;
+    let sequence = [];
+    let userIdx = 0;
+    let acceptInput = false;
+
+    const _diff = diffMul();
+    const PLAY_MS = Math.max(280, 480 - 60 * (_diff - 1) * 4); // 어려울수록 빠르게 보여줌
+
+    function flash(i) {
+      const b = btns[i];
+      b.classList.add('lit');
+      // 발자국 톤 — 음정으로 다른 위치 표시
+      try {
+        const ctx = ensureAudio();
+        if (ctx) {
+          const t0 = ctx.currentTime;
+          const o = ctx.createOscillator(); const g = ctx.createGain();
+          o.type = 'triangle';
+          o.frequency.value = [392, 523, 659, 784][i];
+          g.gain.setValueAtTime(0.05, t0);
+          g.gain.exponentialRampToValueAtTime(0.001, t0 + PLAY_MS / 1000 * 0.9);
+          o.connect(g).connect(ctx.destination);
+          o.start(t0); o.stop(t0 + PLAY_MS / 1000);
+        }
+      } catch {}
+      setTimeout(() => b.classList.remove('lit'), Math.max(160, PLAY_MS * 0.7));
+    }
+
+    function playSequence() {
+      stateEl.textContent = '👀 잘 봐요...';
+      acceptInput = false;
+      let i = 0;
+      function next() {
+        if (endedFlag) return;
+        if (i >= sequence.length) {
+          stateEl.textContent = '✋ 따라하세요!';
+          acceptInput = true;
+          userIdx = 0;
+          return;
+        }
+        flash(sequence[i]);
+        i += 1;
+        setTimeout(next, PLAY_MS);
+      }
+      setTimeout(next, 400);
+    }
+
+    function startRound() {
+      sequence.push(Math.floor(Math.random() * 4));
+      roundEl.textContent = '🎯 라운드 ' + round;
+      playSequence();
+    }
+
+    function onTap(i) {
+      if (!acceptInput || endedFlag) return;
+      const expected = sequence[userIdx];
+      const b = btns[i];
+      b.classList.add('press');
+      setTimeout(() => b.classList.remove('press'), 160);
+      flash(i);
+      if (i !== expected) {
+        endGame(false);
+        return;
+      }
+      userIdx += 1;
+      if (userIdx >= sequence.length) {
+        // 라운드 클리어
+        round += 1;
+        acceptInput = false;
+        try { SOUNDS.fanfare(); } catch {}
+        stateEl.textContent = '✨ 잘했어요!';
+        setTimeout(() => { if (!endedFlag) startRound(); }, 700);
+      }
+    }
+
+    btns.forEach((b, i) => {
+      b.addEventListener('click', (e) => { e.preventDefault(); onTap(i); });
+      b.addEventListener('touchstart', (e) => { e.preventDefault(); onTap(i); }, { passive: false });
+    });
+
+    function endGame(success) {
+      if (endedFlag) return;
+      endedFlag = true;
+      decayPaused = false;
+      const reached = round - 1;       // 클리어한 라운드 수
+      const final = round;              // 마지막 시도한 라운드
+      const score = reached * 5 + (success ? 0 : 0);
+      let happyGain, careBoost, badge, tier;
+      if (reached >= 6)      { happyGain = 50; careBoost = 2; badge = '⭐ 천재예요!';     tier = 'best'; }
+      else if (reached >= 4) { happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';     tier = 'good'; }
+      else if (reached >= 2) { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';       tier = 'ok';   }
+      else                    { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!';   tier = 'low';  }
+      state.happy = clamp(state.happy + happyGain);
+      for (let i = 0; i < careBoost; i++) {
+        state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+        addCareScore();
+      }
+      state.points = (state.points || 0) + reached * 3;
+      markPlayDone('seq');
+      progressMission('minigame', 1);
+      saveState(); render(); SOUNDS.fanfare();
+      openResultModal({
+        title: '발자국 따라가기 끝!',
+        bigCount: reached + ' 라운드',
+        countLabel: '클리어',
+        badge, tier,
+        rewards: [
+          ['💖', '행복', '+' + happyGain],
+          ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
+        ],
+      });
+    }
+
+    endBtn.addEventListener('click', () => endGame(true));
+    openModal({
+      title: '🐾 발자국 따라가기', body, mandatory: true,
+      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('seq'); saveState(); } },
+    });
+    setTimeout(startRound, 600);
+  }
 
   // ----- 설정 모달 --------------------------------------------------------
   function openSettingsModal() {
