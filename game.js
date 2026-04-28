@@ -122,6 +122,34 @@
     return '🌱 쉬움';
   }
 
+  // ----- 병원 시스템 — 질병/약품 카탈로그 -----------------------------------
+  const DISEASES = {
+    cold:  { id:'cold',  name:'감기',     emoji:'🤧', cause:'energy', cost:40, med:'fever',  bubble:'🤧 콜록콜록...', tip:'에너지가 부족하면 잘 걸려요' },
+    upset: { id:'upset', name:'배탈',     emoji:'🤢', cause:'hunger', cost:40, med:'digest', bubble:'🤢 배가 아파...',   tip:'배고픔을 방치하면 와요' },
+    skin:  { id:'skin',  name:'피부병',   emoji:'🩹', cause:'clean',  cost:70, med:'cream',  bubble:'🩹 간지러워...',     tip:'씻기지 않으면 생겨요' },
+    flea:  { id:'flea',  name:'벼룩',     emoji:'🐛', cause:'clean',  cost:50, med:'spray',  bubble:'🐛 근질근질...',     tip:'더러우면 벼룩이 와요' },
+    blue:  { id:'blue',  name:'우울증',   emoji:'😔', cause:'happy',  cost:60, med:'vitamin',bubble:'😔 같이 놀고 싶어...', tip:'외로우면 우울해져요' },
+  };
+  const MEDICINES = {
+    fever:   { id:'fever',   name:'해열제',     emoji:'💊', price:80,  treats:'cold' },
+    digest:  { id:'digest',  name:'지사제',     emoji:'💊', price:80,  treats:'upset' },
+    cream:   { id:'cream',   name:'연고',       emoji:'🧴', price:120, treats:'skin' },
+    spray:   { id:'spray',   name:'벼룩 스프레이', emoji:'🧴', price:90,  treats:'flea' },
+    vitamin: { id:'vitamin', name:'영양제',     emoji:'🥤', price:70,  treats:'blue' },
+    vaccine: { id:'vaccine', name:'예방주사',   emoji:'💉', price:200, vaccine:true },
+  };
+  const VACCINE_DAYS = 7;
+  const CHECKUP_INTERVAL_DAYS = 7;
+  const CHECKUP_REWARD = 30;
+
+  // 질병 결정 — 가장 낮은 게이지 기반
+  function pickDiseaseFromState(p) {
+    const map = { hunger:'upset', clean: Math.random()<0.5?'skin':'flea', energy:'cold', happy:'blue' };
+    const sorted = GAUGES.map(g=>({g,v:p[g]})).sort((a,b)=>a.v-b.v);
+    const low = sorted[0].g;
+    return map[low] || 'cold';
+  }
+
   // ----- 시즌 -------------------------------------------------------------
   const SEASONS = {
     spring: { id: 'spring', name: '봄',   emoji: '🌸', months: [3,4,5] },
@@ -225,7 +253,13 @@
       if (!Array.isArray(s.messes)) s.messes = [];
       if (s.sick && typeof s.sick === 'object') {
         if (typeof s.sick.since !== 'number') s.sick = null;
+        else if (s.sick && !s.sick.id) s.sick.id = 'cold';   // 마이그: 옛 boolean-ish 객체
       } else { s.sick = null; }
+      // 새 필드 기본값
+      if (typeof s.vaccineUntil !== 'number') s.vaccineUntil = 0;
+      if (typeof s.lastCheckup !== 'number') s.lastCheckup = 0;
+      if (!s.medInv || typeof s.medInv !== 'object') s.medInv = {};
+      if (!Array.isArray(s.vetLog)) s.vetLog = [];
       if (typeof s.lowCleanSince !== 'number') s.lowCleanSince = 0;
       if (!s.gaugeZeroSince || typeof s.gaugeZeroSince !== 'object') s.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null };
       if (typeof s.gameOver !== 'boolean') s.gameOver = false;
@@ -315,6 +349,10 @@
       missions: { date: '', list: [] },
       pets: [{ id: 0 }],
       activePetId: 0,
+      vaccineUntil: 0,
+      lastCheckup: 0,
+      medInv: {},
+      vetLog: [],
       nextPetId: 1,
     };
   }
@@ -889,19 +927,24 @@
     }
     p.lastTs = Date.now();
     const now = Date.now();
+    // 면역 — 예방접종 유효 기간 내라면 발병 안 함
+    const immune = (state.vaccineUntil || 0) > now;
     if (p.clean <= 10) {
       if (!p.lowCleanSince) p.lowCleanSince = now;
-      if (!p.sick && now - p.lowCleanSince > 5 * 60 * 1000) {
-        p.sick = { since: now };
+      if (!p.sick && !immune && now - p.lowCleanSince > 5 * 60 * 1000) {
+        const id = pickDiseaseFromState(p);
+        p.sick = { id, since: now };
       }
     } else {
       p.lowCleanSince = 0;
     }
-    if (!p.sick && GAUGES.filter(g => p[g] <= 10).length >= 2) {
-      p.sick = { since: now };
+    if (!p.sick && !immune && GAUGES.filter(g => p[g] <= 10).length >= 2) {
+      const id = pickDiseaseFromState(p);
+      p.sick = { id, since: now };
     }
-    if (!p.sick && Math.random() < 0.05 / (30 * 60 * 1000 / TICK_MS)) {
-      p.sick = { since: now };
+    if (!p.sick && !immune && Math.random() < 0.05 / (30 * 60 * 1000 / TICK_MS)) {
+      const id = pickDiseaseFromState(p);
+      p.sick = { id, since: now };
     }
     if (!p.gaugeZeroSince) p.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null };
     for (const g of GAUGES) {
@@ -5369,56 +5412,356 @@
     openModal({ title: '강아지가 떠났어요', body, mandatory: true });
   }
 
-  // ----- 병원 -------------------------------------------------------------
-  const VET_COST = 50;
+  // ----- 병원 — 메인 메뉴 + 진단 + 치료 + 약품 + 예방 + 기록 ----------------
+  function isEmergency() {
+    if (!state.sick) return false;
+    return GAUGES.filter(g => state[g] <= 10).length >= 2;
+  }
+
+  function performHeal(diseaseId, sourceLabel, costPaid) {
+    const d = DISEASES[diseaseId] || DISEASES.cold;
+    state.sick = null;
+    state.happy = clamp(state.happy + 20);
+    for (const g of GAUGES) state[g] = clamp(state[g] + 10);
+    if (!Array.isArray(state.vetLog)) state.vetLog = [];
+    state.vetLog.unshift({
+      ts: Date.now(),
+      disease: d.id,
+      diseaseName: d.name,
+      cost: costPaid,
+      source: sourceLabel || '병원',
+    });
+    if (state.vetLog.length > 30) state.vetLog.length = 30;
+    saveState(); render();
+    SOUNDS.fanfare();
+    showSpeech('다 나았어요! 💖 고마워요!', 3000);
+  }
+
   function openVetModal() {
     const body = document.createElement('div');
-    const p = document.createElement('p');
-    p.className = 'modal-sub';
-    const nm = state.name || '강아지';
-    if (!state.sick) {
-      p.textContent = '강아지가 건강해요! 😊';
-      body.appendChild(p);
-      const ok = document.createElement('button');
-      ok.type = 'button'; ok.className = 'modal-btn'; ok.textContent = '확인';
-      ok.addEventListener('click', () => closeModal());
-      body.appendChild(ok);
-      openModal({ title: '🏥 병원', body });
-      return;
+
+    // 헤더 — 의사 강아지 + 인사말
+    const npc = document.createElement('div');
+    npc.className = 'vet-npc';
+    npc.innerHTML = `<span class="vet-doc">👨‍⚕️</span><span class="vet-msg"></span>`;
+    const msgEl = npc.querySelector('.vet-msg');
+    body.appendChild(npc);
+
+    // 상태 카드
+    const status = document.createElement('div');
+    status.className = 'vet-status';
+    if (state.sick) {
+      const d = DISEASES[state.sick.id] || DISEASES.cold;
+      const emerg = isEmergency();
+      msgEl.textContent = emerg ? '🚨 응급이에요! 빨리 치료해요' : `${d.bubble}`;
+      status.innerHTML = `
+        <div class="vet-disease ${emerg ? 'emergency' : ''}">
+          <span class="vet-disease-emoji">${d.emoji}</span>
+          <div>
+            <div class="vet-disease-name">${d.name}${emerg ? ' (응급)' : ''}</div>
+            <div class="vet-disease-tip">${d.tip}</div>
+          </div>
+        </div>
+      `;
+    } else {
+      msgEl.textContent = '오늘은 건강하네요! 👍';
+      status.innerHTML = `<div class="vet-healthy">🌟 ${state.name || '강아지'}는 건강해요</div>`;
     }
-    p.innerHTML = `${nameWithSubject(nm)} 아파요 🤒<br>병원에 갈까요?<br><br>케어 점수 ${VET_COST} 소모`;
-    body.appendChild(p);
-    const yes = document.createElement('button');
-    yes.type = 'button'; yes.className = 'modal-btn';
-    yes.textContent = '네, 병원 가요';
-    yes.addEventListener('click', () => {
-      state.points = (state.points || 0) - VET_COST;
-      // 5초 진행 — busy 시뮬
-      closeModal();
-      const stageEl = document.querySelector('.stage');
-      if (stageEl) {
-        const cel = document.createElement('div');
-        cel.className = 'wash-celebrate';
-        cel.textContent = '🏥 진료 중...';
-        stageEl.appendChild(cel);
-        setTimeout(() => cel.remove(), 4500);
+    body.appendChild(status);
+
+    // 메인 액션 — 카드 그리드
+    const grid = document.createElement('div');
+    grid.className = 'vet-grid';
+    const cards = [];
+
+    if (state.sick) {
+      const d = DISEASES[state.sick.id] || DISEASES.cold;
+      const emerg = isEmergency();
+      const cost = emerg ? d.cost + 50 : d.cost;
+      // 1) 직접 치료 (병원)
+      cards.push({
+        title: emerg ? '🚨 응급 치료' : '🩺 진료받기',
+        sub: `${d.name} 치료 — ${cost}점`,
+        onClick: () => {
+          if ((state.points || 0) < cost) { showSpeech('🌟 점수가 부족해요', 1800); return; }
+          state.points -= cost;
+          closeModal();
+          const stageEl = document.querySelector('.stage');
+          if (stageEl) {
+            const cel = document.createElement('div');
+            cel.className = 'wash-celebrate';
+            cel.textContent = emerg ? '🚨 응급 처치 중...' : '🏥 진료 중...';
+            stageEl.appendChild(cel);
+            setTimeout(() => cel.remove(), 4500);
+          }
+          setTimeout(() => performHeal(d.id, emerg ? '응급실' : '병원', cost), emerg ? 3500 : 5000);
+        },
+      });
+      // 2) 약품 인벤토리에 맞는 약 있으면
+      const med = MEDICINES[d.med];
+      const have = (state.medInv || {})[d.med] || 0;
+      if (med && have > 0) {
+        cards.push({
+          title: `${med.emoji} ${med.name}`,
+          sub: `보유 ${have}개 — 집에서 치료 (무료)`,
+          onClick: () => {
+            state.medInv[d.med] = have - 1;
+            closeModal();
+            // 처치 미니게임 또는 즉시
+            openTreatMinigame(d.id, () => performHeal(d.id, '집에서 약', 0));
+          },
+        });
       }
-      setTimeout(() => {
-        state.sick = null;
-        state.happy = clamp(state.happy + 20);
-        for (const g of GAUGES) state[g] = clamp(state[g] + 10);
+    } else {
+      // 정기 검진
+      const last = state.lastCheckup || 0;
+      const daysAgo = Math.floor((Date.now() - last) / (24 * 60 * 60 * 1000));
+      const canCheckup = !last || daysAgo >= CHECKUP_INTERVAL_DAYS;
+      cards.push({
+        title: '🩺 정기 검진',
+        sub: canCheckup ? `보너스 +${CHECKUP_REWARD}점` : `${CHECKUP_INTERVAL_DAYS - daysAgo}일 후 다시 가능`,
+        disabled: !canCheckup,
+        onClick: () => {
+          state.points = (state.points || 0) + CHECKUP_REWARD;
+          state.lastCheckup = Date.now();
+          saveState(); render();
+          showSpeech(`✨ 검진 완료! +${CHECKUP_REWARD}점`, 2400);
+          SOUNDS.fanfare();
+          closeModal();
+        },
+      });
+    }
+    // 예방접종 — 유효기간 표시
+    const now = Date.now();
+    const vu = state.vaccineUntil || 0;
+    const vaccineActive = vu > now;
+    const remDays = vaccineActive ? Math.ceil((vu - now) / (24 * 60 * 60 * 1000)) : 0;
+    const vaccineMed = MEDICINES.vaccine;
+    cards.push({
+      title: `💉 예방접종`,
+      sub: vaccineActive ? `${remDays}일 면역 중` : `${vaccineMed.price}점 — ${VACCINE_DAYS}일 동안 안 아파요`,
+      disabled: vaccineActive,
+      onClick: () => {
+        if ((state.points || 0) < vaccineMed.price) { showSpeech('🌟 점수가 부족해요', 1800); return; }
+        state.points -= vaccineMed.price;
+        state.vaccineUntil = now + VACCINE_DAYS * 24 * 60 * 60 * 1000;
         saveState(); render();
+        showSpeech('💉 예방접종 완료!', 2400);
         SOUNDS.fanfare();
-        showSpeech('다 나았어요! 💖 고마워요!', 3000);
-      }, 5000);
+        closeModal();
+      },
     });
-    body.appendChild(yes);
-    const no = document.createElement('button');
-    no.type = 'button'; no.className = 'modal-btn secondary'; no.textContent = '나중에';
-    no.style.marginTop = '8px';
-    no.addEventListener('click', () => closeModal());
-    body.appendChild(no);
+    // 약품 사기 (상점)
+    cards.push({
+      title: '🛒 약 사기',
+      sub: '집에 두면 가벼운 병 셀프 치료',
+      onClick: () => { closeModal(); openMedShopModal(); },
+    });
+    // 진료 기록
+    cards.push({
+      title: '📋 진료 기록',
+      sub: `최근 ${(state.vetLog || []).length}건`,
+      onClick: () => { closeModal(); openVetLogModal(); },
+    });
+
+    cards.forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'vet-card' + (c.disabled ? ' is-disabled' : '');
+      b.innerHTML = `<div class="vet-card-title">${c.title}</div><div class="vet-card-sub">${c.sub}</div>`;
+      if (!c.disabled) b.addEventListener('click', () => { SOUNDS.pop(); c.onClick(); });
+      grid.appendChild(b);
+    });
+    body.appendChild(grid);
+
     openModal({ title: '🏥 병원', body });
+  }
+
+  function openMedShopModal() {
+    const body = document.createElement('div');
+    const grid = document.createElement('div');
+    grid.className = 'vet-grid';
+    Object.values(MEDICINES).forEach(m => {
+      if (m.vaccine) return; // 예방접종은 메인 메뉴에
+      const owned = (state.medInv || {})[m.id] || 0;
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'vet-card';
+      const canBuy = (state.points || 0) >= m.price;
+      if (!canBuy) card.classList.add('is-disabled');
+      card.innerHTML = `
+        <div class="vet-card-title">${m.emoji} ${m.name}</div>
+        <div class="vet-card-sub">${m.price}점 — ${DISEASES[m.treats]?.name || ''} 치료</div>
+        <div class="vet-card-tag">보유 ${owned}</div>
+      `;
+      if (canBuy) card.addEventListener('click', () => {
+        state.points -= m.price;
+        if (!state.medInv) state.medInv = {};
+        state.medInv[m.id] = owned + 1;
+        SOUNDS.pop();
+        saveState(); render();
+        openMedShopModal();
+      });
+      grid.appendChild(card);
+    });
+    body.appendChild(grid);
+    const back = document.createElement('button');
+    back.type = 'button'; back.className = 'modal-btn secondary'; back.textContent = '← 병원';
+    back.style.marginTop = '8px';
+    back.addEventListener('click', () => { closeModal(); openVetModal(); });
+    body.appendChild(back);
+    openModal({ title: '🛒 약국', body });
+  }
+
+  function openVetLogModal() {
+    const body = document.createElement('div');
+    const log = (state.vetLog || []);
+    if (!log.length) {
+      const p = document.createElement('p'); p.className = 'modal-sub';
+      p.textContent = '아직 진료 기록이 없어요';
+      body.appendChild(p);
+    } else {
+      const list = document.createElement('div');
+      list.className = 'vet-log-list';
+      log.forEach(e => {
+        const d = new Date(e.ts);
+        const item = document.createElement('div');
+        item.className = 'vet-log-item';
+        item.innerHTML = `
+          <div class="vet-log-date">${d.getMonth()+1}월 ${d.getDate()}일</div>
+          <div class="vet-log-body">${DISEASES[e.disease]?.emoji || ''} ${e.diseaseName} · ${e.source}</div>
+          <div class="vet-log-cost">${e.cost > 0 ? '−' + e.cost : '무료'}</div>
+        `;
+        list.appendChild(item);
+      });
+      body.appendChild(list);
+    }
+    const back = document.createElement('button');
+    back.type = 'button'; back.className = 'modal-btn secondary'; back.textContent = '← 병원';
+    back.style.marginTop = '12px';
+    back.addEventListener('click', () => { closeModal(); openVetModal(); });
+    body.appendChild(back);
+    openModal({ title: '📋 진료 기록', body });
+  }
+
+  // 처치 미니게임 — 약 먹이기 (떨어지는 알약을 강아지 입에 받기, 5초)
+  function openTreatMinigame(diseaseId, onDone) {
+    const d = DISEASES[diseaseId] || DISEASES.cold;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = `${d.emoji} <b>${d.name}</b> 치료 중! 약을 입에 받아주세요`;
+    body.appendChild(guide);
+
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const timeEl = document.createElement('span');
+    const gotEl = document.createElement('span');
+    timeEl.textContent = '⏱ 6';
+    gotEl.textContent = '💊 0/3';
+    stats.appendChild(timeEl); stats.appendChild(gotEl);
+    body.appendChild(stats);
+
+    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill); body.appendChild(tBar);
+
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big treat-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+    const dog = document.createElement('img');
+    dog.className = 'mg-dog treat-dog';
+    dog.src = decideSpriteSrc('eating');
+    arena.appendChild(dog);
+    body.appendChild(arena);
+
+    let got = 0, missed = 0, dogX = null;
+    const TARGET = 3;
+    const TOTAL = 6000;
+    const started = performance.now();
+    let lastFrame = started;
+    let nextSpawn = 700;
+    let spawnAccum = 0;
+    const pills = [];
+    let endedFlag = false;
+
+    function arenaRect() { return arena.getBoundingClientRect(); }
+    function spawnPill() {
+      const r = arenaRect();
+      const x = 30 + Math.random() * (r.width - 60);
+      const el = document.createElement('div');
+      el.className = 'treat-item';
+      el.textContent = '💊';
+      el.style.left = x + 'px';
+      el.style.top = '0px';
+      arena.appendChild(el);
+      pills.push({ el, x, y: 0, vy: 70 });
+    }
+    function onTap(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      const r = arenaRect();
+      const t = e.touches && e.touches[0] ? e.touches[0] : e;
+      const cx = (t.clientX !== undefined) ? (t.clientX - r.left) : r.width / 2;
+      dogX = Math.max(40, Math.min(r.width - 40, cx));
+    }
+    arena.addEventListener('click', onTap);
+    arena.addEventListener('touchstart', onTap, { passive: false });
+    arena.addEventListener('touchmove', onTap, { passive: false });
+
+    function step(now) {
+      if (endedFlag) return;
+      const dt = Math.min(40, now - lastFrame) / 1000;
+      lastFrame = now;
+      const elapsed = now - started;
+      const remain = Math.max(0, TOTAL - elapsed);
+      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
+      tFill.style.width = (remain / TOTAL * 100) + '%';
+      const r = arenaRect();
+      if (dogX === null) dogX = r.width / 2;
+      dog.style.left = dogX + 'px';
+      dog.style.transform = 'translateX(-50%)';
+      spawnAccum += (now - (step._lastT || now));
+      step._lastT = now;
+      if (spawnAccum >= nextSpawn) {
+        spawnAccum = 0; nextSpawn = 700 + Math.random() * 400;
+        if (got < TARGET) spawnPill();
+      }
+      for (let i = pills.length - 1; i >= 0; i--) {
+        const p = pills[i];
+        p.vy += 200 * dt;
+        p.y += p.vy * dt;
+        p.el.style.top = p.y + 'px';
+        const dogY = r.height - 60;
+        if (p.y >= dogY - 30 && Math.abs(p.x - dogX) < 50) {
+          got += 1;
+          gotEl.textContent = `💊 ${got}/${TARGET}`;
+          try { SOUNDS.eat(); } catch {}
+          p.el.remove();
+          pills.splice(i, 1);
+          if (got >= TARGET) { endedFlag = true; finish(true); return; }
+          continue;
+        }
+        if (p.y > r.height + 40) { missed += 1; p.el.remove(); pills.splice(i, 1); }
+      }
+      if (remain <= 0) { endedFlag = true; finish(false); return; }
+      requestAnimationFrame(step);
+    }
+    function finish(success) {
+      while (pills.length) { try { pills[0].el.remove(); } catch {}; pills.shift(); }
+      const body2 = document.createElement('div');
+      const p = document.createElement('p'); p.className = 'modal-sub';
+      p.innerHTML = success ? `✨ ${d.name} 치료 성공!<br>약 ${got}개 다 먹었어요` : `약을 ${got}개만 먹어서 효과가 약해요...<br>그래도 조금은 나아졌어요`;
+      body2.appendChild(p);
+      const ok = document.createElement('button');
+      ok.className = 'modal-btn'; ok.type = 'button'; ok.textContent = '좋아요';
+      ok.addEventListener('click', () => { closeModal(); if (typeof onDone === 'function') onDone(); });
+      body2.appendChild(ok);
+      openModal({ title: success ? '💊 완치!' : '💊 부분 치료', body: body2, mandatory: true });
+    }
+    openModal({ title: '💊 약 먹이기', body, mandatory: true,
+      onClose: () => { endedFlag = true; }
+    });
+    setTimeout(() => { lastFrame = performance.now(); step._lastT = lastFrame; requestAnimationFrame(step); }, 80);
   }
 
   function performReset() {
