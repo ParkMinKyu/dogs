@@ -4626,46 +4626,30 @@
   }
 
   // ----- 숨바꼭질 ---------------------------------------------------------
+  // 야바위 — 박스 6개 중 강아지 들어있는 위치 추적
   function openHideSeekGame() {
     decayPaused = true;
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = `🌳 강아지가 숨었어요! <b>찾아보세요!</b> <span class="mg-diff">${diffLabel()}</span>`;
+    guide.innerHTML = `📦 강아지가 들어간 상자를 <b>잘 따라가요!</b> <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
 
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
-    const timeEl = document.createElement('span');
-    const foundEl = document.createElement('span');
-    timeEl.textContent = '⏱ 30';
-    foundEl.textContent = '✓ 0';
-    stats.appendChild(timeEl); stats.appendChild(foundEl);
+    const roundEl = document.createElement('span');
+    const stateEl = document.createElement('span');
+    roundEl.textContent = '🎯 라운드 1';
+    stateEl.textContent = '👀 보세요...';
+    stats.appendChild(roundEl); stats.appendChild(stateEl);
     body.appendChild(stats);
-
-    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
-    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
-    tBar.appendChild(tFill); body.appendChild(tBar);
 
     const arena = document.createElement('div');
     arena.className = 'minigame-arena big hide-arena';
     arena.dataset.breed = state.breed || 'shiba';
 
-    // 6개 숨는 곳 (3x2 그리드)
-    const SPOT_EMOJIS = ['🌳','🪴','📦','🪑','🌵','🛏️'];
     const grid = document.createElement('div');
     grid.className = 'hide-grid';
-    const spots = [];
-    for (let i = 0; i < 6; i++) {
-      const s = document.createElement('button');
-      s.type = 'button';
-      s.className = 'hide-spot';
-      s.dataset.idx = String(i);
-      const sprite = decideSpriteSrc('happy');
-      s.innerHTML = `<span class="hide-cover">${SPOT_EMOJIS[i]}</span><img class="hide-dog" src="${sprite}" alt="" draggable="false">`;
-      grid.appendChild(s);
-      spots.push(s);
-    }
     arena.appendChild(grid);
     body.appendChild(arena);
 
@@ -4674,104 +4658,159 @@
     endBtn.style.marginTop = '6px';
     body.appendChild(endBtn);
 
+    const NUM = 6, COLS = 3, ROWS = 2;
+    const spots = [];
+    let positions = Array.from({length: NUM}, (_, i) => i); // spot[i] → cell positions[i]
+    let dogIdx = 0;
     let endedFlag = false;
-    let found = 0, wrong = 0;
-    const TOTAL = 30000;
+    let round = 1;
+    let totalFound = 0, totalWrong = 0;
     const _diff = diffMul();
-    const PEEK_MS = Math.max(600, 1100 / _diff);
-    const started = performance.now();
-    let hidingIdx = -1;
-    let acceptInput = false;
 
-    function newRound() {
+    for (let i = 0; i < NUM; i++) {
+      const s = document.createElement('button');
+      s.type = 'button';
+      s.className = 'hide-spot';
+      s.dataset.idx = String(i);
+      const sprite = decideSpriteSrc('happy');
+      s.innerHTML = `<span class="hide-cover">📦</span><img class="hide-dog" src="${sprite}" alt="" draggable="false">`;
+      grid.appendChild(s);
+      spots.push(s);
+    }
+
+    function applyPositions(animate) {
+      const r = grid.getBoundingClientRect();
+      const gap = 8;
+      const w = (r.width - gap * (COLS - 1)) / COLS;
+      const h = (r.height - gap * (ROWS - 1)) / ROWS;
+      spots.forEach((s, i) => {
+        s.style.width = w + 'px';
+        s.style.height = h + 'px';
+        const cell = positions[i];
+        const col = cell % COLS, row = Math.floor(cell / COLS);
+        s.style.left = (col * (w + gap)) + 'px';
+        s.style.top = (row * (h + gap)) + 'px';
+        s.style.transition = animate ? 'left 480ms cubic-bezier(0.55, 0.1, 0.45, 1), top 480ms cubic-bezier(0.55, 0.1, 0.45, 1)' : 'none';
+      });
+    }
+
+    let acceptInput = false;
+    function setStatus(t) { stateEl.textContent = t; }
+
+    function startRound() {
       if (endedFlag) return;
-      hidingIdx = Math.floor(Math.random() * 6);
       acceptInput = false;
-      // 모두 닫힌 상태로
-      spots.forEach(s => s.classList.remove('peek','correct','wrong'));
-      // peek — 정답 위치만 잠시 강아지 보임
+      roundEl.textContent = '🎯 라운드 ' + round;
+      // 위치 초기화 (식별 단순화)
+      positions = Array.from({length: NUM}, (_, i) => i);
+      spots.forEach(s => s.classList.remove('peek','correct','wrong','open'));
+      applyPositions(false);
+      // 새 강아지 위치 선택
+      dogIdx = Math.floor(Math.random() * NUM);
+      // 보여주기
       setTimeout(() => {
         if (endedFlag) return;
-        spots[hidingIdx].classList.add('peek');
+        setStatus('👀 강아지 봤어요!');
+        spots[dogIdx].classList.add('peek');
         try { SOUNDS.pop(); } catch {}
-        setTimeout(() => {
+      }, 200);
+      // 가리기 → 셔플
+      const PEEK_MS = Math.max(700, 1100 / _diff);
+      setTimeout(() => {
+        if (endedFlag) return;
+        spots[dogIdx].classList.remove('peek');
+        setStatus('🌀 섞는 중...');
+        // 라운드별 셔플 횟수: 3 / 4 / 5 / 6 / 7
+        const shuffles = Math.min(7, 2 + round);
+        const SWAP_MS = Math.max(420, 600 / _diff);
+        let i = 0;
+        function nextSwap() {
           if (endedFlag) return;
-          spots[hidingIdx].classList.remove('peek');
-          acceptInput = true;
-        }, PEEK_MS);
-      }, 350);
+          if (i >= shuffles) {
+            setStatus('🤔 어디 있을까?');
+            acceptInput = true;
+            return;
+          }
+          let a, b;
+          do {
+            a = Math.floor(Math.random() * NUM);
+            b = Math.floor(Math.random() * NUM);
+          } while (a === b);
+          [positions[a], positions[b]] = [positions[b], positions[a]];
+          applyPositions(true);
+          i += 1;
+          setTimeout(nextSwap, SWAP_MS);
+        }
+        setTimeout(nextSwap, 250);
+      }, 200 + PEEK_MS);
     }
 
     spots.forEach((s, i) => {
       const trigger = (e) => {
         e.preventDefault();
         if (!acceptInput || endedFlag) return;
-        if (i === hidingIdx) {
-          found += 1;
-          foundEl.textContent = '✓ ' + found;
-          s.classList.add('correct');
+        acceptInput = false;
+        if (i === dogIdx) {
+          totalFound += 1;
+          s.classList.add('correct','peek');
+          setStatus('✨ 정답!');
           try { SOUNDS.fanfare(); } catch {}
-          acceptInput = false;
-          setTimeout(newRound, 600);
+          round += 1;
+          if (round > 5) setTimeout(() => endGame(), 900);
+          else setTimeout(startRound, 1100);
         } else {
-          wrong += 1;
+          totalWrong += 1;
           s.classList.add('wrong');
+          // 정답 위치도 공개
+          spots[dogIdx].classList.add('peek');
+          setStatus('😢 여기였어요');
           try { SOUNDS.whimper(); } catch {}
-          setTimeout(() => s.classList.remove('wrong'), 500);
+          round += 1;
+          if (round > 5) setTimeout(() => endGame(), 1300);
+          else setTimeout(startRound, 1400);
         }
       };
       s.addEventListener('click', trigger);
       s.addEventListener('touchstart', trigger, { passive: false });
     });
 
-    function step(now) {
-      if (endedFlag) return;
-      const elapsed = now - started;
-      const remain = Math.max(0, TOTAL - elapsed);
-      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
-      tFill.style.width = (remain / TOTAL * 100) + '%';
-      if (remain < TOTAL / 3) tFill.classList.add('low'); else tFill.classList.remove('low');
-      if (remain <= 0) { endGame(); return; }
-      requestAnimationFrame(step);
-    }
-
     function endGame() {
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
       let happyGain, careBoost, badge, tier;
-      if (found >= 12)     { happyGain = 50; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
-      else if (found >= 8) { happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
-      else if (found >= 4) { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
-      else                  { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low';  }
+      if (totalFound >= 5)     { happyGain = 50; careBoost = 2; badge = '⭐ 완벽해요!';   tier = 'best'; }
+      else if (totalFound >= 4){ happyGain = 38; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (totalFound >= 2){ happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else                      { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low';  }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
         state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
         addCareScore();
       }
-      state.points = (state.points || 0) + found * 3;
+      state.points = (state.points || 0) + totalFound * 6;
       markPlayDone('hide');
       progressMission('minigame', 1);
       saveState(); render(); SOUNDS.fanfare();
       openResultModal({
         title: '숨바꼭질 끝!',
-        bigCount: found + '번',
-        countLabel: '찾았어요',
+        bigCount: totalFound + '/5',
+        countLabel: '맞춤',
         badge, tier,
         rewards: [
           ['💖', '행복', '+' + happyGain],
           ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
-          ['❌', '틀림', wrong],
+          ['❌', '틀림', totalWrong],
         ],
       });
     }
 
     endBtn.addEventListener('click', () => endGame());
     openModal({
-      title: '🌳 숨바꼭질', body, mandatory: true,
+      title: '📦 숨바꼭질', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('hide'); saveState(); } },
     });
-    setTimeout(() => { newRound(); requestAnimationFrame(step); }, 80);
+    setTimeout(() => { applyPositions(false); startRound(); }, 100);
   }
 
   // ----- 짝 맞추기 (메모리 카드) ------------------------------------------
