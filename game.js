@@ -2873,7 +2873,7 @@
   // 4가지 놀이 카탈로그
   const PLAY_GAMES = [
     { id: 'ball',  name: '공놀이',  emoji: '🎾', desc: '공 받기 (30초)',    open: () => openMinigame() },
-    { id: 'pet',   name: '문지르기', emoji: '✋', desc: '손가락으로 문지르기 (30초)', open: () => openPetGame() },
+    { id: 'pet',   name: '문지르기', emoji: '✋', desc: '손가락으로 문지르기 (10초)', open: () => openPetGame() },
     { id: 'dance', name: '춤추기',  emoji: '🎵', desc: '박자 맞추기 (30초)', open: () => openDanceGame() },
     { id: 'treat', name: '간식 받기', emoji: '🦴', desc: '많이 받기 (30초)',  open: () => openTreatGame() },
     { id: 'walk',  name: '산책',    emoji: '🚶', desc: '아이템 찾기 (30초)', open: () => openWalkGame() },
@@ -2917,19 +2917,19 @@
     openModal({ title: '🎉 놀이 골라요', body });
   }
 
-  // ----- 문지르기: 30초 동안 손가락 드래그 누적 거리 30px당 +1 ------
+  // ----- 문지르기: 10초 동안 손가락 드래그 누적 거리 30px당 +1 ------
   function openPetGame() {
     decayPaused = true;
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = `✋ 강아지를 <b>문질러주세요!</b> (30초) <span class="mg-diff">${diffLabel()}</span>`;
+    guide.innerHTML = `✋ 강아지를 <b>문질러주세요!</b> (10초) <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
     const timeEl = document.createElement('span');
     const cntEl = document.createElement('span');
-    timeEl.textContent = '⏱ 30';
+    timeEl.textContent = '⏱ 10';
     cntEl.textContent = '❤️ 0';
     stats.appendChild(timeEl);
     stats.appendChild(cntEl);
@@ -2955,7 +2955,7 @@
 
     let count = 0;
     let endedFlag = false;
-    const TOTAL = 30000;
+    const TOTAL = 10000;
     const started = performance.now();
     let lastFrame = started;
 
@@ -3021,7 +3021,7 @@
       const remain = Math.max(0, TOTAL - elapsed);
       timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
       tFill.style.width = (remain / TOTAL * 100) + '%';
-      if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
+      if (remain < TOTAL / 3) tFill.classList.add('low'); else tFill.classList.remove('low');
       if (remain <= 0) { endGame(); return; }
       requestAnimationFrame(step);
     }
@@ -3030,11 +3030,11 @@
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
-      // 차등 보상
+      // 10초 게임에 맞춰 임계값 1/3 스케일 (best=10, good=7, ok=4)
       let happyGain, careBoost, badge, tier;
-      if (count >= 30)      { happyGain = 40; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
-      else if (count >= 20) { happyGain = 30; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
-      else if (count >= 10) { happyGain = 20; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      if (count >= 10)      { happyGain = 40; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
+      else if (count >= 7)  { happyGain = 30; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (count >= 4)  { happyGain = 20; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
       else                   { happyGain = 10; careBoost = 0; badge = '😅 조금만 더!'; tier = 'low'; }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
