@@ -84,8 +84,7 @@ body {
   background:
     radial-gradient(1200px 600px at 50% -10%, var(--bg-2) 0%, transparent 60%),
     linear-gradient(180deg, var(--bg-1) 0%, var(--stage-1) 100%);
-  /* background-attachment: fixed 제거 — iOS Safari 에서 전체 리페인트 유발해
-     터치/탭 응답이 0.5~1s 밀리는 주범 */
+  background-attachment: fixed;
   min-height: 100vh; min-height: 100dvh;
   overflow-x: hidden;
   transition: background-color 1.2s ease, color 1.2s ease;
@@ -368,7 +367,6 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   transition: transform 80ms ease;
   position: relative;
   padding: 0;
-  touch-action: manipulation;
 }
 .icon-btn:active { transform: translateY(2px) scale(0.96); }
 .mission-in-stage {
@@ -1393,8 +1391,6 @@ body.is-sick #vetBtn .dot { display: block; }
   gap: 6px;
   transition: transform 80ms ease, box-shadow 120ms ease, background 120ms;
   position: relative;
-  /* iOS Safari 탭 지연 제거 */
-  touch-action: manipulation;
 }
 .action .big { font-size: clamp(30px, 7vw, 44px); line-height: 1; }
 .action .lbl { letter-spacing: 0.5px; }
