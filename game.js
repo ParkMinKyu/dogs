@@ -192,8 +192,11 @@
       if (!raw) return null;
       const s = JSON.parse(raw);
       if (!s || typeof s !== 'object') return null;
+      // 게이지 하나가 NaN/누락이어도 전체 초기화하지 않고 50 으로 복구.
+      // 과거에 단일 깨진 값으로 저장본 통째 폐기되어 캐릭터가 통째로
+      // 사라지는 사례 방지.
       for (const g of GAUGES) {
-        if (typeof s[g] !== 'number') return null;
+        if (typeof s[g] !== 'number' || !Number.isFinite(s[g])) s[g] = 50;
       }
       if (typeof s.lastTs !== 'number') s.lastTs = Date.now();
       if (typeof s.care !== 'number') s.care = 0;
@@ -6170,7 +6173,11 @@
   }
   bootstrap();
 
-  function clamp(v) { return Math.max(0, Math.min(MAX, Math.round(v))); }
+  function clamp(v) {
+    const n = Math.round(v);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(MAX, n));
+  }
 
   // ----- Dev hooks --------------------------------------------------------
   window.__dogs = {
