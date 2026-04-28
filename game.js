@@ -2873,7 +2873,7 @@
   // 놀이 카탈로그 — walk는 항상 마지막 (메뉴에서 두 칸 차지)
   const PLAY_GAMES = [
     { id: 'ball',  name: '공놀이',     emoji: '🎾', desc: '공 받기 (30초)',         open: () => openMinigame() },
-    { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '풍선 탭하면 강아지 점프! (15초)', open: () => openPetGame() },
+    { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '0.5초 안에 풍선 터뜨리기! (30초)', open: () => openPetGame() },
     { id: 'dance', name: '춤추기',     emoji: '🎵', desc: '박자 맞추기 (30초)',       open: () => openDanceGame() },
     { id: 'treat', name: '간식 받기',   emoji: '🦴', desc: '많이 받기 (30초)',         open: () => openTreatGame() },
     { id: 'seq',   name: '발자국 따라가기', emoji: '🐾', desc: '순서대로 누르기',           open: () => openSequenceGame() },
@@ -2921,7 +2921,7 @@
     openModal({ title: '🎉 놀이 골라요', body });
   }
 
-  // ----- 풍선 터뜨리기: 풍선 탭 → 강아지 점프해서 터뜨리기 (15초) ----------
+  // ----- 풍선 터뜨리기: 풍선 0.5초 안에 탭, 못 누르면 끝 (최대 30초) ----------
   function openPetGame() {
     decayPaused = true;
     const body = document.createElement('div');
@@ -2935,7 +2935,7 @@
     const timeEl = document.createElement('span');
     const comboEl = document.createElement('span');
     const scoreEl = document.createElement('span');
-    timeEl.textContent = '⏱ 15';
+    timeEl.textContent = '⏱ 30';
     comboEl.textContent = '';
     scoreEl.textContent = '🎈 0';
     stats.appendChild(timeEl); stats.appendChild(comboEl); stats.appendChild(scoreEl);
@@ -2968,7 +2968,7 @@
     // 게임 상태
     let popped = 0, escaped = 0, score = 0, combo = 0, maxCombo = 0;
     let endedFlag = false;
-    const TOTAL = 15000;
+    const TOTAL = 30000;
     const _diff = diffMul();
     const SPAWN_MS = 350 / _diff;        // 어려울수록 더 자주 등장
     const LIFE_MS = 500;                  // 0.5초 안에 안 누르면 자동 폭발
