@@ -4478,12 +4478,12 @@
     arena.className = 'minigame-arena big seq-arena';
     arena.dataset.breed = state.breed || 'shiba';
 
-    // 4개 컬러 발자국 패드
-    const COLORS = ['#ff7aa1','#5eb8ff','#7ad06e','#ffc94a'];
+    // 6개 컬러 발자국 패드 (3x2)
+    const COLORS = ['#ff7aa1','#5eb8ff','#7ad06e','#ffc94a','#c685ff','#ff9466'];
     const pad = document.createElement('div');
     pad.className = 'seq-pad';
     const btns = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'seq-btn';
@@ -4513,14 +4513,14 @@
     function flash(i) {
       const b = btns[i];
       b.classList.add('lit');
-      // 발자국 톤 — 음정으로 다른 위치 표시
+      // 6개 발자국 — 펜타토닉 6 노트
       try {
         const ctx = ensureAudio();
         if (ctx) {
           const t0 = ctx.currentTime;
           const o = ctx.createOscillator(); const g = ctx.createGain();
           o.type = 'triangle';
-          o.frequency.value = [392, 523, 659, 784][i];
+          o.frequency.value = [392, 440, 523, 587, 659, 784][i];
           g.gain.setValueAtTime(0.05, t0);
           g.gain.exponentialRampToValueAtTime(0.001, t0 + PLAY_MS / 1000 * 0.9);
           o.connect(g).connect(ctx.destination);
@@ -4550,7 +4550,10 @@
     }
 
     function startRound() {
-      sequence.push(Math.floor(Math.random() * 4));
+      // 매 라운드 새로 랜덤 — 길이만 라운드+1
+      const len = round + 1;
+      sequence = [];
+      for (let i = 0; i < len; i++) sequence.push(Math.floor(Math.random() * 6));
       roundEl.textContent = '🎯 라운드 ' + round;
       playSequence();
     }
@@ -4785,7 +4788,7 @@
     const timeEl = document.createElement('span');
     const pairEl = document.createElement('span');
     timeEl.textContent = '⏱ 60';
-    pairEl.textContent = '🎯 0/6';
+    pairEl.textContent = '🎯 0/4';
     stats.appendChild(timeEl); stats.appendChild(pairEl);
     body.appendChild(stats);
 
@@ -4797,8 +4800,8 @@
     arena.className = 'minigame-arena big match-arena';
     arena.dataset.breed = state.breed || 'shiba';
 
-    // 6 페어 = 12 카드, 3x4 그리드
-    const SYMBOLS = ['🦴','🎾','🍖','🐾','💖','⭐'];
+    // 4 페어 = 8 카드, 4x2 그리드 (더 큰 버튼)
+    const SYMBOLS = ['🦴','🎾','🍖','🐾'];
     let deck = [];
     SYMBOLS.forEach(sym => { deck.push(sym); deck.push(sym); });
     // shuffle
@@ -4852,9 +4855,9 @@
           b.classList.add('matched');
           flipped = [];
           pairs += 1;
-          pairEl.textContent = `🎯 ${pairs}/6`;
+          pairEl.textContent = `🎯 ${pairs}/4`;
           try { SOUNDS.fanfare(); } catch {}
-          if (pairs >= 6) endGame();
+          if (pairs >= 4) endGame();
         } else {
           // mismatch — 잠시 후 다시 뒤집기
           setTimeout(() => {
@@ -4887,11 +4890,11 @@
       decayPaused = false;
       const elapsed = performance.now() - started;
       const remainSec = Math.max(0, (TOTAL - elapsed) / 1000);
-      const cleared = pairs >= 6;
+      const cleared = pairs >= 4;
       let happyGain, careBoost, badge, tier;
       if (cleared && remainSec >= 30)     { happyGain = 50; careBoost = 2; badge = '⭐ 천재예요!';     tier = 'best'; }
       else if (cleared)                    { happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
-      else if (pairs >= 3)                 { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else if (pairs >= 2)                 { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
       else                                  { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low';  }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
@@ -4904,7 +4907,7 @@
       saveState(); render(); SOUNDS.fanfare();
       openResultModal({
         title: '짝 맞추기 끝!',
-        bigCount: pairs + '/6',
+        bigCount: pairs + '/4',
         countLabel: '짝 맞춤',
         badge, tier,
         rewards: [
@@ -4945,11 +4948,11 @@
     arena.className = 'minigame-arena big bury-arena';
     arena.dataset.breed = state.breed || 'shiba';
 
-    // 5개 흙더미
+    // 6개 흙더미 (3x2 그리드)
     const moundsRow = document.createElement('div');
     moundsRow.className = 'bury-row';
     const mounds = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       const m = document.createElement('button');
       m.type = 'button';
       m.className = 'bury-mound';
@@ -4982,7 +4985,7 @@
       const PEEK_MS = Math.max(900, 1500 / _diff);
       bones = new Set();
       dug = new Set();
-      while (bones.size < n) bones.add(Math.floor(Math.random() * 5));
+      while (bones.size < n) bones.add(Math.floor(Math.random() * 6));
       mounds.forEach(m => m.classList.remove('reveal','correct','wrong','dug'));
       stateEl.textContent = '👀 보세요...';
       // 보여주기
