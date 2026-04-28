@@ -298,24 +298,17 @@
     } catch { return null; }
   }
 
-  // saveState — 800ms 디바운스로 동일 tick 내 다중 저장 합치기 (배터리/IO 절감).
-  // 페이지 hidden/unload 시점은 flushSaveState()로 즉시 저장.
-  let _saveTimer = null;
+  // saveState — 즉시 저장. 디바운스 800ms 였으나 새로고침 시 timer
+  // pending 상태에서 페이지가 사라져 데이터가 가끔 누락되던 문제로 제거.
+  // 호출 빈도는 액션 경계(수십회/세션) 수준이라 IO 부담 없음.
   function _saveStateImmediate() {
     try {
-      // active 펫의 현재 필드값을 pets 배열에 snapshot
       if (typeof snapshotActivePet === 'function') snapshotActivePet();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {}
   }
-  function flushSaveState() {
-    if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
-    _saveStateImmediate();
-  }
-  function saveState() {
-    if (_saveTimer) return;
-    _saveTimer = setTimeout(() => { _saveTimer = null; _saveStateImmediate(); }, 800);
-  }
+  function flushSaveState() { _saveStateImmediate(); }
+  function saveState() { _saveStateImmediate(); }
 
   function defaultState() {
     return {
