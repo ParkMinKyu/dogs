@@ -1320,6 +1320,8 @@
       state.busy = { action: 'wash', startedAt: Date.now(), endsAt: null };
       tempFaceState = ACTION_FACE.wash?.state;
       tempFaceUntil = Date.now() + 60000;
+      // 욕조/표정을 100ms tick 기다리지 않고 즉시 표시
+      try { ensureProp('wash'); puppyWrap.classList.add('is-bathing'); } catch {}
       saveState();
       render();
       return;
@@ -1390,8 +1392,8 @@
     busyGaugeEl = null;
   }
 
-  // 씻기 인터랙티브 — 문지르기(드래그) 누적 거리 30px당 청결 +1
-  const SCRUB_PIXELS_PER_POINT = 30;
+  // 씻기 인터랙티브 — 문지르기(드래그) 누적 거리 15px당 청결 +1
+  const SCRUB_PIXELS_PER_POINT = 15;
   let scrubLastX = null, scrubLastY = null, scrubAccum = 0, scrubBubbleCooldown = 0;
 
   function spawnScrubBubble(clientX, clientY) {
