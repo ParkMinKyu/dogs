@@ -889,8 +889,7 @@ body.is-sick #vetBtn .dot { display: block; }
   place-items: center;
   position: relative;
   box-shadow: 0 4px 0 rgba(74,58,46,0.12), 0 6px 14px rgba(74,58,46,0.10);
-  /* conic-gradient transition은 iOS Safari 가 GPU 가속 못해 매 프레임 CPU
-     리페인트 → 게이지 채워지는 게 끊겨 보이고 숫자도 느려 보임. 즉시 갱신. */
+  transition: background 240ms ease;
 }
 .gauge-circle::before {
   content: '';
