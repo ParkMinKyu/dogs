@@ -4662,7 +4662,8 @@
       s.type = 'button';
       s.className = 'hide-spot';
       s.dataset.idx = String(i);
-      s.innerHTML = `<span class="hide-cover">${SPOT_EMOJIS[i]}</span><span class="hide-dog">🐶</span>`;
+      const sprite = decideSpriteSrc('happy');
+      s.innerHTML = `<span class="hide-cover">${SPOT_EMOJIS[i]}</span><img class="hide-dog" src="${sprite}" alt="" draggable="false">`;
       grid.appendChild(s);
       spots.push(s);
     }
