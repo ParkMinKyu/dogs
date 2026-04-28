@@ -2870,17 +2870,17 @@
 
   function minigameCooldownRemain() { return playCooldownRemain('ball'); }
 
-  // 놀이 카탈로그
+  // 놀이 카탈로그 — walk는 항상 마지막 (메뉴에서 두 칸 차지)
   const PLAY_GAMES = [
     { id: 'ball',  name: '공놀이',     emoji: '🎾', desc: '공 받기 (30초)',         open: () => openMinigame() },
     { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '풍선 탭하면 강아지 점프! (15초)', open: () => openPetGame() },
     { id: 'dance', name: '춤추기',     emoji: '🎵', desc: '박자 맞추기 (30초)',       open: () => openDanceGame() },
     { id: 'treat', name: '간식 받기',   emoji: '🦴', desc: '많이 받기 (30초)',         open: () => openTreatGame() },
-    { id: 'walk',  name: '산책',       emoji: '🚶', desc: '아이템 찾기 (30초)',       open: () => openWalkGame() },
     { id: 'seq',   name: '발자국 따라가기', emoji: '🐾', desc: '순서대로 누르기',           open: () => openSequenceGame() },
     { id: 'hide',  name: '숨바꼭질',    emoji: '🌳', desc: '숨은 강아지 찾기 (30초)',     open: () => openHideSeekGame() },
     { id: 'match', name: '짝 맞추기',   emoji: '🃏', desc: '같은 카드 찾기 (60초)',       open: () => openMatchGame() },
     { id: 'bury',  name: '뼈 묻기',     emoji: '⛰️', desc: '묻은 뼈 위치 기억!',         open: () => openBuryGame() },
+    { id: 'walk',  name: '산책',       emoji: '🚶', desc: '아이템 찾기 (30초)',       open: () => openWalkGame() },
   ];
 
   function openPlayMenu() {
@@ -2891,7 +2891,7 @@
       const cd = playCooldownRemain(g.id);
       const card = document.createElement('button');
       card.type = 'button';
-      card.className = 'play-card' + (cd > 0 ? ' is-cooling' : '');
+      card.className = 'play-card' + (cd > 0 ? ' is-cooling' : '') + (g.id === 'walk' ? ' play-card-wide' : '');
       let cdText = '';
       if (cd > 0) {
         const sec = Math.ceil(cd / 1000);

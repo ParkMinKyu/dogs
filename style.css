@@ -2491,7 +2491,7 @@ body.is-editing-room .stage {
   gap: 10px;
   margin: 4px 0 0;
 }
-.play-grid > .play-card:nth-child(5):last-child { grid-column: 1 / -1; }
+.play-grid > .play-card-wide { grid-column: 1 / -1; }
 .play-card {
   appearance: none;
   border: 3px solid #f1d9c2;
