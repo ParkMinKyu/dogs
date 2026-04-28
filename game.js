@@ -3237,9 +3237,17 @@
         o.connect(g).connect(ctx.destination);
         o.start(t0); o.stop(t0 + 0.32);
       }
-      // 모든 4분음표마다 히트라인 펄스 — 화살표 spawn과 정확히 동기
+      // 모든 4분음표마다 히트라인 펄스 + receptor 박자 깜빡 — 화살표 spawn과 정확히 동기
       if (s % 2 === 0) {
         try { hitLine.classList.add('beat'); setTimeout(() => hitLine.classList.remove('beat'), 110); } catch {}
+        try {
+          btns.forEach(b => {
+            b.classList.remove('beat-pulse');
+            // reflow로 애니메이션 재시작
+            void b.offsetWidth;
+            b.classList.add('beat-pulse');
+          });
+        } catch {}
       }
     }
     const HIT_GREAT_PX = 36;
@@ -3280,6 +3288,43 @@
       dogJumpUntil = performance.now() + 350;
     }
 
+    // 히트 시 receptor 위에서 파티클 폭발 + 링 확장
+    function spawnHitBurst(lane, klass) {
+      const btn = btns[lane];
+      if (!btn) return;
+      const r = btn.getBoundingClientRect();
+      const aR = arenaRect();
+      const cx = r.left - aR.left + r.width / 2;
+      const cy = r.top - aR.top + r.height / 2;
+      const color = LANE_COLORS[lane];
+      const N = klass === 'great' ? 10 : 6;
+      for (let i = 0; i < N; i++) {
+        const p = document.createElement('div');
+        p.className = 'ddr-burst';
+        p.style.left = cx + 'px';
+        p.style.top = cy + 'px';
+        const angle = (Math.PI * 2 * i) / N + Math.random() * 0.4;
+        const speed = 40 + Math.random() * (klass === 'great' ? 50 : 25);
+        p.style.setProperty('--dx', `${Math.cos(angle) * speed}px`);
+        p.style.setProperty('--dy', `${Math.sin(angle) * speed - 10}px`);
+        p.style.background = color;
+        p.style.boxShadow = `0 0 8px ${color}`;
+        arena.appendChild(p);
+        setTimeout(() => p.remove(), 600);
+      }
+      // 링 확장
+      const ring = document.createElement('div');
+      ring.className = 'ddr-ring ' + klass;
+      ring.style.left = cx + 'px';
+      ring.style.top = cy + 'px';
+      ring.style.borderColor = color;
+      arena.appendChild(ring);
+      setTimeout(() => ring.remove(), 500);
+      // receptor 강한 글로우
+      btn.classList.add('hit-strong');
+      setTimeout(() => btn.classList.remove('hit-strong'), 300);
+    }
+
     function tryHit(lane) {
       if (endedFlag) return;
       // 가장 가까운 미타격 화살표
@@ -3314,6 +3359,7 @@
         jumpDog(Math.min(0.6, 0.2 + combo / 18));
         try { SOUNDS.catch(); } catch {}
       }
+      spawnHitBurst(lane, klass);
       showJudge(label, klass);
       best.hit = true;
       best.el.classList.add('hit');

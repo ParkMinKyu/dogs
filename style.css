@@ -2688,6 +2688,80 @@ body.is-editing-room .stage {
   filter: drop-shadow(0 0 8px rgba(255,255,255,0.9));
 }
 
+/* 박자 깜빡 — 매 4분음표마다 모든 receptor */
+.ddr-btn.beat-pulse {
+  animation: ddr-receptor-beat 220ms ease-out;
+}
+@keyframes ddr-receptor-beat {
+  0%   { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.8); }
+  35%  { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,1); }
+  100% { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.8); }
+}
+.ddr-btn.beat-pulse svg {
+  animation: ddr-receptor-svg-beat 220ms ease-out;
+}
+@keyframes ddr-receptor-svg-beat {
+  0%   { opacity: 0.4; }
+  35%  { opacity: 0.85; filter: drop-shadow(0 0 6px rgba(255,255,255,0.7)); }
+  100% { opacity: 0.4; filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+}
+
+/* 히트 강한 글로우 — 한 receptor만 */
+.ddr-btn.hit-strong {
+  background: rgba(255,255,255,0.45);
+  border-color: rgba(255,255,255,1);
+  box-shadow: 0 0 20px rgba(255,255,255,0.85);
+  animation: ddr-receptor-hit 300ms ease-out;
+}
+@keyframes ddr-receptor-hit {
+  0%   { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.ddr-btn.hit-strong svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 10px rgba(255,255,255,1));
+}
+
+/* 히트 파티클 */
+.ddr-burst {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 8;
+  animation: ddr-burst 600ms cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+}
+@keyframes ddr-burst {
+  0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+  60%  { opacity: 1; }
+  100% { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.2); opacity: 0; }
+}
+
+/* 히트 링 확장 */
+.ddr-ring {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  margin-left: -20px;
+  margin-top: -20px;
+  border: 4px solid white;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 8;
+  animation: ddr-ring 480ms ease-out forwards;
+}
+.ddr-ring.great {
+  animation-duration: 520ms;
+  border-width: 5px;
+}
+@keyframes ddr-ring {
+  0%   { transform: scale(0.4); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
 /* 산책 — 야외 배경 + 아이템 */
 /* 기존 walk-arena (하위 호환) */
 .minigame-arena.walk-arena {
