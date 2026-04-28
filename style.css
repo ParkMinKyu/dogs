@@ -2855,8 +2855,18 @@ body.is-editing-room .stage {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .puppy-wrap, .puppy-wrap.is-happy, .puppy-wrap.is-eating, .puppy-wrap.is-sad, .puppy-wrap.is-sleeping,
-  .fill.is-low, .action.cheer {
+  /* OS 설정 존중 — 전체 애니메이션/트랜지션 무력화.
+     진행 표시는 1ms로 즉시 종료시켜 콜백/이벤트 흐름은 유지. */
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 무한 반복 idle/ambient 애니메이션은 완전 정지 */
+  .w-cloud1, .w-cloud2, .w-sun, .w-moon, .w-star,
+  .puppy-wrap.is-happy, .puppy-wrap.is-eating, .puppy-wrap.is-sad, .puppy-wrap.is-sleeping,
+  .fill.is-low, .action.cheer, .care-dot {
     animation: none !important;
   }
 }
