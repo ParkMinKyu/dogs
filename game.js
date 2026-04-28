@@ -2968,8 +2968,15 @@
     hint.style.marginTop = '12px';
     body.appendChild(hint);
 
-    // 1초마다 쿨다운 시간 갱신
+    // 1초마다 쿨다운 시간 갱신.
+    // 모달이 다른 모달로 교체될 때 closeModal(silent=true)가 onClose를
+    // 호출하지 않아 interval이 leak되는 것을 방지하기 위해 매 tick마다
+    // DOM 부착 여부를 직접 체크한다.
     const refresher = setInterval(() => {
+      if (!cards.length || !cards[0].el.isConnected) {
+        clearInterval(refresher);
+        return;
+      }
       cards.forEach(c => {
         const cd = playCooldownRemain(c.id);
         if (cd <= 0) {
