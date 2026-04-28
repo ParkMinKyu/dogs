@@ -2873,7 +2873,7 @@
   // 놀이 카탈로그 — walk는 항상 마지막 (메뉴에서 두 칸 차지)
   const PLAY_GAMES = [
     { id: 'ball',  name: '공놀이',     emoji: '🎾', desc: '공 받기 (30초)',         open: () => openMinigame() },
-    { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '0.5초 안에 풍선 터뜨리기! (30초)', open: () => openPetGame() },
+    { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '3초 안에 풍선 터뜨리기! (30초)', open: () => openPetGame() },
     { id: 'dance', name: '춤추기',     emoji: '🎵', desc: '박자 맞추기 (30초)',       open: () => openDanceGame() },
     { id: 'treat', name: '간식 받기',   emoji: '🦴', desc: '많이 받기 (30초)',         open: () => openTreatGame() },
     { id: 'seq',   name: '발자국 따라가기', emoji: '🐾', desc: '순서대로 누르기',           open: () => openSequenceGame() },
@@ -2921,13 +2921,13 @@
     openModal({ title: '🎉 놀이 골라요', body });
   }
 
-  // ----- 풍선 터뜨리기: 풍선 0.5초 안에 탭, 못 누르면 끝 (최대 30초) ----------
+  // ----- 풍선 터뜨리기: 풍선 3초 안에 탭, 못 누르면 끝 (최대 30초) ----------
   function openPetGame() {
     decayPaused = true;
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = `🎈 풍선이 나오면 <b>0.5초 안에 터뜨려요!</b> 놓치면 끝! <span class="mg-diff">${diffLabel()}</span>`;
+    guide.innerHTML = `🎈 풍선이 나오면 <b>3초 안에 터뜨려요!</b> 놓치면 끝! <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
 
     const stats = document.createElement('div');
@@ -2971,7 +2971,7 @@
     const TOTAL = 30000;
     const _diff = diffMul();
     const SPAWN_MS = 350 / _diff;        // 어려울수록 더 자주 등장
-    const LIFE_MS = 500;                  // 0.5초 안에 안 누르면 자동 폭발
+    const LIFE_MS = 3000;                 // 3초 안에 안 누르면 자동 폭발 → 게임 끝
     const started = performance.now();
     let lastSpawn = -SPAWN_MS;
     let lastPopAt = -9999;
