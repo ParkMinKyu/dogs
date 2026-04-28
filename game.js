@@ -2970,7 +2970,8 @@
     let endedFlag = false;
     const TOTAL = 30000;
     const _diff = diffMul();
-    const SPAWN_MS = 350 / _diff;        // 어려울수록 더 자주 등장
+    // 어린이 난이도 — 쉬움 1.5초 / 보통 1초 / 어려움 0.5초
+    const SPAWN_MS = _diff < 1.1 ? 1500 : _diff < 1.25 ? 1000 : 500;
     const LIFE_MS = 3000;                 // 3초 안에 안 누르면 자동 폭발 → 게임 끝
     const started = performance.now();
     let lastSpawn = -SPAWN_MS;
