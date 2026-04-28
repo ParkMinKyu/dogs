@@ -1612,9 +1612,12 @@
     return `assets/${s}/${m}.png`;
   }
 
-  function render() {
+  // ----- Render — 분할된 부분 함수들 ---------------------------------------
+  // 각 함수는 독립적으로 호출 가능 → 후속 최적화에서 변경된 영역만 갱신 가능.
+  // render()는 호환성 유지를 위해 모두 호출.
+
+  function renderGauges() {
     const isWashing = state.busy?.action === 'wash';
-    // 원형 게이지 갱신: pct, 색, critical pulse, 씻기 중 highlight
     for (const g of GAUGES) {
       const v = state[g];
       const els = gaugeEls[g];
@@ -1623,16 +1626,18 @@
       els.circle.style.setProperty('--col', colorForGauge(g, v));
       els.pct.textContent = v;
       els.circle.classList.toggle('is-critical', v <= 20);
-      // 씻기 진행 중엔 clean 게이지만 highlight (다른건 dim)
       els.root.classList.toggle('is-washing', isWashing && g === 'clean');
       els.root.classList.toggle('is-dim', isWashing && g !== 'clean');
     }
-    // 욕조 prop 안 청결 % 표시 갱신
+    // 욕조 prop 안 청결 % 표시
     const tubPct = document.querySelector('.prop-bathtub .bath-pct');
     if (tubPct) tubPct.textContent = state.clean + '%';
     const tubLbl = document.querySelector('.prop-bathtub .bath-label');
     if (tubLbl) tubLbl.textContent = state.clean >= 100 ? '깨끗해졌어요! ✨' : '🛁 씻는 중!';
+  }
 
+  function renderPuppyAndMood() {
+    const isWashing = state.busy?.action === 'wash';
     const s = pickPuppyState();
     const stage = state.stage || 'puppy';
     const want = decideSpriteSrc(s, stage);
@@ -1641,17 +1646,13 @@
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
 
-    // mood 데이터 — puppy-wrap에 data-mood 부여, stage에 mood-overlay 추가
+    // mood 데이터
     const crit = criticalLowGauge();
-    if (crit) {
-      puppyWrap.dataset.mood = crit;
-    } else if (state.energy <= 20) {
-      puppyWrap.dataset.mood = 'energy';
-    } else {
-      delete puppyWrap.dataset.mood;
-    }
-    // 청결 레벨 4단계 — 점진적 더러움 (clean이 critical이 아니어도 50/30 단계 표현)
-    // 씻는 중엔 더러움 표현 OFF
+    if (crit) puppyWrap.dataset.mood = crit;
+    else if (state.energy <= 20) puppyWrap.dataset.mood = 'energy';
+    else delete puppyWrap.dataset.mood;
+
+    // 청결 레벨 4단계 (씻는 중은 'clean' 강제)
     const cleanLevel = isWashing ? 'clean'
       : state.clean >= 70 ? 'clean'
       : state.clean >= 50 ? 'mild'
@@ -1659,23 +1660,23 @@
       : 'filthy';
     puppyWrap.dataset.cleanLevel = cleanLevel;
 
-    // overlay element 관리 — clean 레벨도 반영
+    // mood overlay 관리
     const stageEl = document.querySelector('.stage');
     let ov = stageEl.querySelector('.mood-overlay');
-    let needOverlay = !!crit || state.energy <= 20 || cleanLevel === 'dirty' || cleanLevel === 'filthy';
+    const needOverlay = !!crit || state.energy <= 20 || cleanLevel === 'dirty' || cleanLevel === 'filthy';
     if (needOverlay) {
       if (!ov) { ov = document.createElement('div'); ov.className = 'mood-overlay'; stageEl.appendChild(ov); }
       const cls = ['mood-overlay'];
       if (crit === 'hunger') cls.push('hunger');
       else if (crit === 'happy') cls.push('happy');
       if (state.energy <= 20) cls.push('sleepy');
-      // 청결 별도 레벨
       if (cleanLevel === 'filthy') cls.push('filthy');
       else if (cleanLevel === 'dirty') cls.push('dirty');
       ov.className = cls.join(' ');
     } else if (ov) { ov.remove(); }
+  }
 
-    // 액션 dim — 거부 상태일 때, 요청 중이면 빨간 점
+  function renderActionStates() {
     const reqs = activeRequestsFor(state);
     const reqByAction = {};
     for (const [g, r] of Object.entries(reqs)) reqByAction[r.def.action] = r.severity;
@@ -1683,7 +1684,6 @@
     actionBtns.forEach(btn => {
       const a = btn.dataset.action;
       if (!a) return;
-      // sleep은 절대 안 막음. lows 있으면 그 게이지 회복하는 액션만 허용.
       let blocked = false;
       if (a !== 'sleep' && a !== 'minigame' && lows.length > 0) {
         const ag = ACTION_GAUGE[a];
@@ -1694,7 +1694,10 @@
       btn.classList.toggle('has-request', !!sev);
       btn.classList.toggle('req-critical', sev === 'hard');
     });
+  }
 
+  function renderHeaderBadges() {
+    const stage = state.stage || 'puppy';
     if (root) {
       root.dataset.stage = stage;
       root.dataset.breed = state.breed || 'shiba';
@@ -1714,16 +1717,25 @@
       if (!titleAvatar.src.endsWith(want)) titleAvatar.src = want;
     }
     if (titleName) titleName.textContent = state.name || '우리 강아지';
+  }
 
+  function renderSickness() {
+    if (vetBtn) vetBtn.hidden = !state.sick;
+    document.body.classList.toggle('is-sick', !!state.sick);
+  }
+
+  function render() {
+    renderGauges();
+    renderPuppyAndMood();
+    renderActionStates();
+    renderHeaderBadges();
     renderAccessories();
     renderActionCooldowns();
     renderMissionDot();
     renderRoomDeco();
     renderMessLayer();
     renderPetSlots();
-    // 아플 때 — 병원 버튼 노출 + sick 클래스
-    if (vetBtn) vetBtn.hidden = !state.sick;
-    document.body.classList.toggle('is-sick', !!state.sick);
+    renderSickness();
     applyTod();
   }
 
