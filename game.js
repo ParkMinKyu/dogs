@@ -3124,9 +3124,26 @@
     judge.className = 'ddr-judge';
     arena.appendChild(judge);
 
-    // 하단 버튼
-    const ARROWS = ['⬅️','⬆️','⬇️','➡️'];
+    // 하단 버튼 — DDR 스타일 SVG 화살표 (투명 버튼)
     const KEYS = ['ArrowLeft','ArrowUp','ArrowDown','ArrowRight'];
+    // 레인별 색상 + 회전 (위가 base. left=-90, up=0, down=180, right=90)
+    const LANE_COLORS = ['#ff5d8f', '#4ea1d3', '#76c043', '#f4a623'];
+    const LANE_ROT = [-90, 0, 180, 90];
+    function arrowSVG(lane, opts = {}) {
+      const c = LANE_COLORS[lane];
+      const rot = LANE_ROT[lane];
+      const stroke = opts.stroke || '#ffffff';
+      const sw = opts.strokeWidth != null ? opts.strokeWidth : 2.5;
+      const fillOpacity = opts.fillOpacity != null ? opts.fillOpacity : 1;
+      // base = 위쪽 화살표. 십자형 윤곽 (전형적인 DDR 모양).
+      return `<svg viewBox="0 0 44 44" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+        <g transform="rotate(${rot} 22 22)">
+          <polygon points="22,3 41,22 31,22 31,41 13,41 13,22 3,22"
+            fill="${c}" fill-opacity="${fillOpacity}"
+            stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>
+        </g>
+      </svg>`;
+    }
     const btnRow = document.createElement('div');
     btnRow.className = 'ddr-btns';
     const btns = [];
@@ -3135,7 +3152,7 @@
       b.type = 'button';
       b.className = 'ddr-btn';
       b.dataset.lane = String(i);
-      b.textContent = ARROWS[i];
+      b.innerHTML = arrowSVG(i, { stroke: 'rgba(255,255,255,0.95)', strokeWidth: 2 });
       b.setAttribute('aria-label', ['왼쪽','위','아래','오른쪽'][i]);
       btnRow.appendChild(b);
       btns.push(b);
@@ -3243,7 +3260,7 @@
       const el = document.createElement('div');
       el.className = 'ddr-arrow';
       el.dataset.lane = String(lane);
-      el.textContent = ARROWS[lane];
+      el.innerHTML = arrowSVG(lane);
       arena.appendChild(el);
       arrows.push({ el, lane, spawnTs: performance.now(), hit: false });
     }
