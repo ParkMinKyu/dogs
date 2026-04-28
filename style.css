@@ -2861,8 +2861,8 @@ body.is-editing-room .stage {
 
 .ddr-hitline {
   position: absolute;
-  left: 4%;
-  right: 4%;
+  left: 0;
+  right: 0;
   bottom: 80px;
   height: 6px;
   background: linear-gradient(90deg, transparent, rgba(255, 100, 140, 0.85), transparent);
@@ -2926,13 +2926,14 @@ body.is-editing-room .stage {
 .ddr-btns {
   position: absolute;
   bottom: 6px;
-  left: 4%;
-  right: 4%;
+  left: 0;
+  right: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  gap: 0;
   z-index: 7;
 }
+.ddr-btn { justify-self: center; width: 100%; max-width: 84px; }
 .ddr-btn {
   aspect-ratio: 1;
   border: 2px dashed rgba(255, 255, 255, 0.8);
