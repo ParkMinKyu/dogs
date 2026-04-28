@@ -4828,7 +4828,7 @@
     const timeEl = document.createElement('span');
     const pairEl = document.createElement('span');
     timeEl.textContent = '⏱ 60';
-    pairEl.textContent = '🎯 0/4';
+    pairEl.textContent = '🎯 0/8';
     stats.appendChild(timeEl); stats.appendChild(pairEl);
     body.appendChild(stats);
 
@@ -4840,8 +4840,8 @@
     arena.className = 'minigame-arena big match-arena';
     arena.dataset.breed = state.breed || 'shiba';
 
-    // 4 페어 = 8 카드, 4x2 그리드 (더 큰 버튼)
-    const SYMBOLS = ['🦴','🎾','🍖','🐾'];
+    // 8 페어 = 16 카드, 4x4 그리드
+    const SYMBOLS = ['🦴','🎾','🍖','🐾','💖','⭐','🎀','🦋'];
     let deck = [];
     SYMBOLS.forEach(sym => { deck.push(sym); deck.push(sym); });
     // shuffle
@@ -4895,9 +4895,9 @@
           b.classList.add('matched');
           flipped = [];
           pairs += 1;
-          pairEl.textContent = `🎯 ${pairs}/4`;
+          pairEl.textContent = `🎯 ${pairs}/8`;
           try { SOUNDS.fanfare(); } catch {}
-          if (pairs >= 4) endGame();
+          if (pairs >= 8) endGame();
         } else {
           // mismatch — 잠시 후 다시 뒤집기
           setTimeout(() => {
@@ -4930,11 +4930,12 @@
       decayPaused = false;
       const elapsed = performance.now() - started;
       const remainSec = Math.max(0, (TOTAL - elapsed) / 1000);
-      const cleared = pairs >= 4;
+      const cleared = pairs >= 8;
       let happyGain, careBoost, badge, tier;
-      if (cleared && remainSec >= 30)     { happyGain = 50; careBoost = 2; badge = '⭐ 천재예요!';     tier = 'best'; }
-      else if (cleared)                    { happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
-      else if (pairs >= 2)                 { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      if (cleared && remainSec >= 25)     { happyGain = 55; careBoost = 2; badge = '⭐ 천재예요!';     tier = 'best'; }
+      else if (cleared)                    { happyGain = 40; careBoost = 2; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (pairs >= 5)                 { happyGain = 28; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else if (pairs >= 2)                 { happyGain = 18; careBoost = 1; badge = '🙂 괜찮아요';   tier = 'ok';   }
       else                                  { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low';  }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
@@ -4947,7 +4948,7 @@
       saveState(); render(); SOUNDS.fanfare();
       openResultModal({
         title: '짝 맞추기 끝!',
-        bigCount: pairs + '/4',
+        bigCount: pairs + '/8',
         countLabel: '짝 맞춤',
         badge, tier,
         rewards: [

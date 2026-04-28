@@ -2582,15 +2582,15 @@ body.is-editing-room .stage {
   75%      { transform: translateX(6px); }
 }
 
-/* 짝 맞추기 — 8 카드 (4x2) 큰 폰트 */
+/* 짝 맞추기 — 16 카드 (4x4) */
 .minigame-arena.match-arena { background: linear-gradient(180deg, #ffe5f0 0%, #e5e8ff 100%); padding: 8px; }
 .match-grid {
   position: absolute;
-  inset: 5% 4% 5% 4%;
+  inset: 4% 3% 4% 3%;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-rows: repeat(4, 1fr);
+  gap: 5px;
 }
 .match-card {
   position: relative;
@@ -2608,23 +2608,23 @@ body.is-editing-room .stage {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48px;
-  border-radius: 14px;
+  font-size: 30px;
+  border-radius: 10px;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transition: transform 280ms ease;
-  box-shadow: 0 4px 0 rgba(0,0,0,0.18);
+  box-shadow: 0 3px 0 rgba(0,0,0,0.18);
 }
 .match-card .match-back {
   background: linear-gradient(135deg, #b18cff, #6c8aff);
   color: white;
   font-weight: 700;
-  font-size: 40px;
-  border: 3px solid rgba(255,255,255,0.9);
+  font-size: 26px;
+  border: 2px solid rgba(255,255,255,0.9);
 }
 .match-card .match-face {
   background: linear-gradient(180deg, #fff, #fff5e8);
-  border: 3px solid #f4b183;
+  border: 2px solid #f4b183;
   transform: rotateY(180deg);
 }
 .match-card.flipped .match-back { transform: rotateY(180deg); }
