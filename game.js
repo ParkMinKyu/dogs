@@ -3474,8 +3474,16 @@
 
     let dogJumpUntil = 0;
     function jumpDog(amount) {
-      // amount 0..1 → 점프 높이
-      const h = 14 + amount * 90;
+      // amount 0..1 → 점프 높이. arena top 까지 헤드룸을 보고 클램프해
+      // 작은 viewport(아이패드 split-screen 등)에서 모달이 스크롤될 때
+      // 머리가 잘리지 않게 함.
+      let h = 14 + amount * 90;
+      try {
+        const ar = arena.getBoundingClientRect();
+        const wr = dogWrap.getBoundingClientRect();
+        const headroom = wr.top - ar.top - 8;
+        if (headroom > 0) h = Math.min(h, headroom);
+      } catch {}
       dog.style.transform = `translateY(${-h}px)`;
       dogJumpUntil = performance.now() + 350;
     }
