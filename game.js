@@ -3987,6 +3987,24 @@
       body.appendChild(div);
     });
 
+    // 백업/복원 — 설정 안에 별도 영역
+    const backup = document.createElement('div');
+    backup.className = 'settings-row';
+    const bLbl = document.createElement('span'); bLbl.className = 'lbl'; bLbl.textContent = '백업';
+    const bVal = document.createElement('span'); bVal.className = 'val'; bVal.textContent = '내보내기/불러오기';
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button'; exportBtn.textContent = '⬇️ 내보내기';
+    exportBtn.addEventListener('click', () => { SOUNDS.pop(); exportSaveFile(); });
+    const importBtn = document.createElement('button');
+    importBtn.type = 'button'; importBtn.textContent = '⬆️ 불러오기';
+    importBtn.style.marginLeft = '6px';
+    importBtn.addEventListener('click', () => { SOUNDS.pop(); openImportModal(); });
+    backup.appendChild(bLbl);
+    backup.appendChild(bVal);
+    backup.appendChild(exportBtn);
+    backup.appendChild(importBtn);
+    body.appendChild(backup);
+
     // 처음부터 다시 시작 — 설정 맨 아래 위험 액션 영역
     const danger = document.createElement('div');
     danger.className = 'settings-danger';
@@ -3999,6 +4017,96 @@
     body.appendChild(danger);
 
     openModal({ title: '⚙️ 설정', body });
+  }
+
+  // ----- 백업/복원 --------------------------------------------------------
+  function exportSaveFile() {
+    flushSaveState();
+    try {
+      const payload = {
+        app: 'dogs',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        state: state,
+      };
+      const json = JSON.stringify(payload, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const nm = (state.name || 'pet').replace(/[^a-zA-Z0-9가-힣_-]/g, '');
+      a.href = url;
+      a.download = `dogs-save-${nm}-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      try { SOUNDS.fanfare(); } catch {}
+    } catch (e) {
+      alert('내보내기 실패 — 브라우저 저장 권한을 확인해주세요.');
+    }
+  }
+
+  function openImportModal() {
+    const body = document.createElement('div');
+    const warn = document.createElement('p');
+    warn.className = 'modal-sub';
+    warn.textContent = '불러오면 지금 저장된 데이터를 덮어써요. 먼저 내보내기로 백업하는 걸 추천해요.';
+    body.appendChild(warn);
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'application/json,.json';
+    fileInput.style.display = 'block';
+    fileInput.style.margin = '10px 0';
+    body.appendChild(fileInput);
+
+    const status = document.createElement('p');
+    status.className = 'modal-sub';
+    status.style.minHeight = '1.4em';
+    body.appendChild(status);
+
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'modal-btn';
+    okBtn.textContent = '불러오기';
+    okBtn.disabled = true;
+    body.appendChild(okBtn);
+
+    let pendingState = null;
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(String(reader.result));
+          const s = (obj && obj.state) ? obj.state : obj;
+          if (!s || typeof s !== 'object' || typeof s.hunger !== 'number') {
+            throw new Error('형식이 올바르지 않아요');
+          }
+          pendingState = s;
+          status.textContent = '✓ 파일 확인됨 — "불러오기" 버튼을 눌러주세요';
+          okBtn.disabled = false;
+        } catch (e) {
+          pendingState = null;
+          status.textContent = '✕ 올바른 백업 파일이 아니에요';
+          okBtn.disabled = true;
+        }
+      };
+      reader.readAsText(f);
+    });
+    okBtn.addEventListener('click', () => {
+      if (!pendingState) return;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingState));
+        location.reload();
+      } catch (e) {
+        status.textContent = '✕ 저장 실패';
+      }
+    });
+
+    openModal({ title: '⬆️ 불러오기', body });
   }
 
   // ----- 리셋 확인 + 핸들러 -----------------------------------------------
