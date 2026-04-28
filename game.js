@@ -227,12 +227,23 @@
     } catch { return null; }
   }
 
-  function saveState() {
+  // saveState — 800ms 디바운스로 동일 tick 내 다중 저장 합치기 (배터리/IO 절감).
+  // 페이지 hidden/unload 시점은 flushSaveState()로 즉시 저장.
+  let _saveTimer = null;
+  function _saveStateImmediate() {
     try {
       // active 펫의 현재 필드값을 pets 배열에 snapshot
       if (typeof snapshotActivePet === 'function') snapshotActivePet();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {}
+  }
+  function flushSaveState() {
+    if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+    _saveStateImmediate();
+  }
+  function saveState() {
+    if (_saveTimer) return;
+    _saveTimer = setTimeout(() => { _saveTimer = null; _saveStateImmediate(); }, 800);
   }
 
   function defaultState() {
@@ -1061,11 +1072,18 @@
   actionBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const action = btn.dataset.action;
+      // 보호자 일일 제한 체크 — 모든 액션 차단
+      if (typeof checkDailyLimit === 'function' && checkDailyLimit()) return;
       if (state.sick && action !== 'vet') {
         btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
         showSpeech('🤒 아파서 못 해요... 병원에 데려가 주세요!');
         try { SOUNDS.whimper(); } catch {}
         return;
+      }
+      // 액션 통계 카운트 (play_menu는 미니게임 진입, 실제 카운트는 미니게임에서)
+      if (typeof logGuardianAction === 'function') {
+        if (action === 'feed' || action === 'wash' || action === 'sleep') logGuardianAction(action);
+        else if (action === 'play_menu') logGuardianAction('play');
       }
       if (action === 'play_menu') { openPlayMenu(); return; }
       if (action === 'minigame')  { openMinigame(); return; } // 하위 호환
@@ -2053,9 +2071,21 @@
     if (cb && !silent) try { cb(); } catch {}
   }
 
-  // ESC key
+  // ESC key + 액션 단축키 (1/2/3/4)
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && activeModal && !activeModal.mandatory) closeModal();
+    if (e.key === 'Escape' && activeModal && !activeModal.mandatory) { closeModal(); return; }
+    // 입력 폼 포커스 중이거나 modifier 누르면 무시
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const tag = (e.target && e.target.tagName || '').toUpperCase();
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.target && e.target.isContentEditable) return;
+    // 모달 열려 있으면 액션 단축키 비활성
+    if (activeModal) return;
+    const map = { '1': 'feed', '2': 'play_menu', '3': 'wash', '4': 'sleep' };
+    const action = map[e.key];
+    if (!action) return;
+    const btn = document.querySelector(`.action[data-action="${action}"]`);
+    if (btn) { e.preventDefault(); btn.click(); }
   });
   // backdrop click
   modalRoot.addEventListener('click', (e) => {
@@ -2775,6 +2805,7 @@
     if (!state.playLast) state.playLast = {};
     state.playLast[id] = Date.now();
     if (id === 'ball') state.minigameLastTs = Date.now(); // 하위 호환
+    if (typeof logGuardianAction === 'function') logGuardianAction('minigame');
   }
 
   function minigameCooldownRemain() { return playCooldownRemain('ball'); }
@@ -3964,6 +3995,39 @@
       body.appendChild(div);
     });
 
+    // 백업/복원 — 설정 안에 별도 영역
+    const backup = document.createElement('div');
+    backup.className = 'settings-row';
+    const bLbl = document.createElement('span'); bLbl.className = 'lbl'; bLbl.textContent = '백업';
+    const bVal = document.createElement('span'); bVal.className = 'val'; bVal.textContent = '내보내기/불러오기';
+    const exportBtn = document.createElement('button');
+    exportBtn.type = 'button'; exportBtn.textContent = '⬇️ 내보내기';
+    exportBtn.addEventListener('click', () => { SOUNDS.pop(); exportSaveFile(); });
+    const importBtn = document.createElement('button');
+    importBtn.type = 'button'; importBtn.textContent = '⬆️ 불러오기';
+    importBtn.style.marginLeft = '6px';
+    importBtn.addEventListener('click', () => { SOUNDS.pop(); openImportModal(); });
+    backup.appendChild(bLbl);
+    backup.appendChild(bVal);
+    backup.appendChild(exportBtn);
+    backup.appendChild(importBtn);
+    body.appendChild(backup);
+
+    // 보호자 모드 진입
+    const guardianRow = document.createElement('div');
+    guardianRow.className = 'settings-row';
+    const gl = document.createElement('span'); gl.className = 'lbl'; gl.textContent = '보호자 모드';
+    const gv = document.createElement('span'); gv.className = 'val';
+    gv.textContent = guardian.pin
+      ? (guardian.limitMin > 0 ? `켜짐 (${guardian.limitMin}분/일)` : '켜짐')
+      : '꺼짐';
+    const gBtn = document.createElement('button');
+    gBtn.type = 'button';
+    gBtn.textContent = guardian.pin ? '열기' : '설정';
+    gBtn.addEventListener('click', () => { SOUNDS.pop(); openGuardianEntry(); });
+    guardianRow.appendChild(gl); guardianRow.appendChild(gv); guardianRow.appendChild(gBtn);
+    body.appendChild(guardianRow);
+
     // 처음부터 다시 시작 — 설정 맨 아래 위험 액션 영역
     const danger = document.createElement('div');
     danger.className = 'settings-danger';
@@ -3976,6 +4040,96 @@
     body.appendChild(danger);
 
     openModal({ title: '⚙️ 설정', body });
+  }
+
+  // ----- 백업/복원 --------------------------------------------------------
+  function exportSaveFile() {
+    flushSaveState();
+    try {
+      const payload = {
+        app: 'dogs',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        state: state,
+      };
+      const json = JSON.stringify(payload, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const nm = (state.name || 'pet').replace(/[^a-zA-Z0-9가-힣_-]/g, '');
+      a.href = url;
+      a.download = `dogs-save-${nm}-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      try { SOUNDS.fanfare(); } catch {}
+    } catch (e) {
+      alert('내보내기 실패 — 브라우저 저장 권한을 확인해주세요.');
+    }
+  }
+
+  function openImportModal() {
+    const body = document.createElement('div');
+    const warn = document.createElement('p');
+    warn.className = 'modal-sub';
+    warn.textContent = '불러오면 지금 저장된 데이터를 덮어써요. 먼저 내보내기로 백업하는 걸 추천해요.';
+    body.appendChild(warn);
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'application/json,.json';
+    fileInput.style.display = 'block';
+    fileInput.style.margin = '10px 0';
+    body.appendChild(fileInput);
+
+    const status = document.createElement('p');
+    status.className = 'modal-sub';
+    status.style.minHeight = '1.4em';
+    body.appendChild(status);
+
+    const okBtn = document.createElement('button');
+    okBtn.type = 'button';
+    okBtn.className = 'modal-btn';
+    okBtn.textContent = '불러오기';
+    okBtn.disabled = true;
+    body.appendChild(okBtn);
+
+    let pendingState = null;
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const obj = JSON.parse(String(reader.result));
+          const s = (obj && obj.state) ? obj.state : obj;
+          if (!s || typeof s !== 'object' || typeof s.hunger !== 'number') {
+            throw new Error('형식이 올바르지 않아요');
+          }
+          pendingState = s;
+          status.textContent = '✓ 파일 확인됨 — "불러오기" 버튼을 눌러주세요';
+          okBtn.disabled = false;
+        } catch (e) {
+          pendingState = null;
+          status.textContent = '✕ 올바른 백업 파일이 아니에요';
+          okBtn.disabled = true;
+        }
+      };
+      reader.readAsText(f);
+    });
+    okBtn.addEventListener('click', () => {
+      if (!pendingState) return;
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingState));
+        location.reload();
+      } catch (e) {
+        status.textContent = '✕ 저장 실패';
+      }
+    });
+
+    openModal({ title: '⬆️ 불러오기', body });
   }
 
   // ----- 리셋 확인 + 핸들러 -----------------------------------------------
@@ -4121,12 +4275,358 @@
     openModal({ title: '🌟 ' + (state.points || 0), body });
   }
 
+  // ----- 보호자 모드 ------------------------------------------------------
+  // 4~7세 사용자 대상 → PIN은 토들러 차단용 (보안 아님). 별도 storage 키.
+  const GUARDIAN_KEY = 'dogs.guardian.v1';
+  function todayKey() {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${m}-${dd}`;
+  }
+  function loadGuardian() {
+    try {
+      const raw = localStorage.getItem(GUARDIAN_KEY);
+      if (!raw) return { pin: '', limitMin: 0, log: {}, actions: {}, sessionStart: 0 };
+      const g = JSON.parse(raw);
+      return {
+        pin: typeof g.pin === 'string' ? g.pin : '',
+        limitMin: typeof g.limitMin === 'number' ? g.limitMin : 0,
+        log: (g.log && typeof g.log === 'object') ? g.log : {},
+        actions: (g.actions && typeof g.actions === 'object') ? g.actions : {},
+        sessionStart: 0,
+      };
+    } catch { return { pin: '', limitMin: 0, log: {}, actions: {}, sessionStart: 0 }; }
+  }
+  function saveGuardian() {
+    try {
+      const persisted = { pin: guardian.pin, limitMin: guardian.limitMin, log: guardian.log, actions: guardian.actions };
+      localStorage.setItem(GUARDIAN_KEY, JSON.stringify(persisted));
+    } catch {}
+  }
+  const guardian = loadGuardian();
+
+  // 7일 초과한 로그 정리 (저장공간 절약 — 통계는 7일치만 보여줌)
+  function pruneGuardianLog() {
+    const keys = Object.keys(guardian.log).sort();
+    if (keys.length <= 14) return; // 2주치는 보존 (안전 여유)
+    const keep = keys.slice(-14);
+    const keepSet = new Set(keep);
+    for (const k of keys) if (!keepSet.has(k)) delete guardian.log[k];
+  }
+
+  // 플레이 시간 트래킹 — 보이는 동안만 누적
+  function startGuardianSession() {
+    if (guardian.sessionStart) return;
+    guardian.sessionStart = Date.now();
+  }
+  function commitGuardianSession() {
+    if (!guardian.sessionStart) return;
+    const elapsedMin = (Date.now() - guardian.sessionStart) / 60000;
+    if (elapsedMin > 0.05) {
+      const k = todayKey();
+      guardian.log[k] = Math.round(((guardian.log[k] || 0) + elapsedMin) * 10) / 10;
+      pruneGuardianLog();
+      saveGuardian();
+    }
+    guardian.sessionStart = 0;
+  }
+  function todayPlayedMin() {
+    let m = guardian.log[todayKey()] || 0;
+    if (guardian.sessionStart) m += (Date.now() - guardian.sessionStart) / 60000;
+    return m;
+  }
+  function logGuardianAction(action) {
+    if (!action) return;
+    guardian.actions[action] = (guardian.actions[action] || 0) + 1;
+    // 액션 통계는 자주 호출되므로 saveGuardian은 디바운스
+    if (!logGuardianAction._t) {
+      logGuardianAction._t = setTimeout(() => { logGuardianAction._t = null; saveGuardian(); }, 1500);
+    }
+  }
+  function isOverDailyLimit() {
+    if (!guardian.limitMin || guardian.limitMin <= 0) return false;
+    return todayPlayedMin() >= guardian.limitMin;
+  }
+  let lockShown = false;
+  function showLockModal() {
+    if (lockShown) return;
+    lockShown = true;
+    const body = document.createElement('div');
+    const p = document.createElement('p');
+    p.className = 'modal-sub';
+    p.textContent = `오늘은 ${guardian.limitMin}분 다 놀았어요. 내일 또 만나요!`;
+    body.appendChild(p);
+    const hint = document.createElement('p');
+    hint.className = 'modal-sub';
+    hint.style.opacity = '0.7';
+    hint.style.fontSize = '0.9em';
+    hint.textContent = '보호자: 설정 → 보호자 모드에서 시간을 늘릴 수 있어요.';
+    body.appendChild(hint);
+    openModal({ title: '⏰ 잠시 쉬어요', body, mandatory: true });
+  }
+  function checkDailyLimit() {
+    if (isOverDailyLimit()) { showLockModal(); return true; }
+    return false;
+  }
+
+  // 1분마다 세션 누적 저장 (백그라운드 손실 최소화)
+  setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    commitGuardianSession();
+    startGuardianSession();
+    if (isOverDailyLimit()) showLockModal();
+  }, 60 * 1000);
+
+  // ----- 보호자 PIN/설정 모달 ----------------------------------------------
+  function openGuardianGateModal({ onPass }) {
+    if (!guardian.pin) { onPass(); return; }
+    const body = document.createElement('div');
+    const p = document.createElement('p');
+    p.className = 'modal-sub';
+    p.textContent = '보호자 PIN 4자리를 입력해 주세요';
+    body.appendChild(p);
+
+    const display = document.createElement('div');
+    display.style.fontSize = '32px';
+    display.style.letterSpacing = '12px';
+    display.style.textAlign = 'center';
+    display.style.margin = '12px 0';
+    display.style.minHeight = '40px';
+    body.appendChild(display);
+
+    const pad = document.createElement('div');
+    pad.style.display = 'grid';
+    pad.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    pad.style.gap = '8px';
+    let pin = '';
+    function refresh() {
+      display.textContent = '●'.repeat(pin.length) + '○'.repeat(4 - pin.length);
+    }
+    refresh();
+    const layout = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+    layout.forEach(ch => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'modal-btn secondary';
+      b.style.fontSize = '20px';
+      b.style.padding = '14px';
+      if (!ch) { b.disabled = true; b.style.visibility = 'hidden'; }
+      b.textContent = ch || '';
+      b.addEventListener('click', () => {
+        if (ch === '⌫') { pin = pin.slice(0, -1); }
+        else if (/^\d$/.test(ch) && pin.length < 4) { pin += ch; }
+        refresh();
+        if (pin.length === 4) {
+          if (pin === guardian.pin) { closeModal(); onPass(); }
+          else {
+            display.textContent = '✕ 다시 시도';
+            pin = '';
+            setTimeout(refresh, 700);
+          }
+        }
+      });
+      pad.appendChild(b);
+    });
+    body.appendChild(pad);
+
+    openModal({ title: '🛡️ 보호자', body });
+  }
+
+  function openGuardianSetupModal() {
+    const body = document.createElement('div');
+    const p = document.createElement('p');
+    p.className = 'modal-sub';
+    p.textContent = '새 PIN 4자리를 설정해 주세요 (보호자만 알 수 있도록)';
+    body.appendChild(p);
+
+    const display = document.createElement('div');
+    display.style.fontSize = '32px';
+    display.style.letterSpacing = '12px';
+    display.style.textAlign = 'center';
+    display.style.margin = '12px 0';
+    body.appendChild(display);
+
+    let pin = '';
+    function refresh() { display.textContent = pin + '○'.repeat(4 - pin.length); }
+    refresh();
+
+    const pad = document.createElement('div');
+    pad.style.display = 'grid';
+    pad.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    pad.style.gap = '8px';
+    const layout = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+    layout.forEach(ch => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'modal-btn secondary';
+      b.style.fontSize = '20px';
+      b.style.padding = '14px';
+      if (!ch) { b.disabled = true; b.style.visibility = 'hidden'; }
+      b.textContent = ch || '';
+      b.addEventListener('click', () => {
+        if (ch === '⌫') pin = pin.slice(0, -1);
+        else if (/^\d$/.test(ch) && pin.length < 4) pin += ch;
+        refresh();
+      });
+      pad.appendChild(b);
+    });
+    body.appendChild(pad);
+
+    const ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'modal-btn';
+    ok.textContent = '저장';
+    ok.style.marginTop = '12px';
+    ok.addEventListener('click', () => {
+      if (pin.length !== 4) return;
+      guardian.pin = pin;
+      saveGuardian();
+      openGuardianDashboard();
+    });
+    body.appendChild(ok);
+
+    openModal({ title: '🛡️ 보호자 PIN 설정', body });
+  }
+
+  function openGuardianDashboard() {
+    const body = document.createElement('div');
+
+    // 오늘 플레이 시간
+    const today = todayPlayedMin();
+    const todayRow = document.createElement('div');
+    todayRow.className = 'settings-row';
+    const tl = document.createElement('span'); tl.className = 'lbl'; tl.textContent = '오늘 놀이 시간';
+    const tv = document.createElement('span'); tv.className = 'val';
+    tv.textContent = `${today.toFixed(1)}분` + (guardian.limitMin > 0 ? ` / ${guardian.limitMin}분` : '');
+    todayRow.appendChild(tl); todayRow.appendChild(tv);
+    body.appendChild(todayRow);
+
+    // 일일 시간 제한
+    const limitRow = document.createElement('div');
+    limitRow.className = 'settings-row';
+    const ll = document.createElement('span'); ll.className = 'lbl'; ll.textContent = '일일 시간 제한';
+    const lv = document.createElement('span'); lv.className = 'val';
+    lv.textContent = guardian.limitMin > 0 ? `${guardian.limitMin}분` : '없음';
+    limitRow.appendChild(ll); limitRow.appendChild(lv);
+    [0, 30, 60, 120].forEach(min => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = min === 0 ? '없음' : `${min}분`;
+      if (guardian.limitMin === min) b.style.fontWeight = 'bold';
+      b.style.marginLeft = '4px';
+      b.addEventListener('click', () => {
+        guardian.limitMin = min;
+        saveGuardian();
+        lockShown = false;
+        openGuardianDashboard();
+      });
+      limitRow.appendChild(b);
+    });
+    body.appendChild(limitRow);
+
+    // 7일 미니 차트 (텍스트)
+    const chartRow = document.createElement('div');
+    chartRow.style.padding = '10px 0';
+    const chartTitle = document.createElement('div');
+    chartTitle.style.fontSize = '0.9em';
+    chartTitle.style.opacity = '0.7';
+    chartTitle.textContent = '최근 7일 놀이 시간';
+    chartRow.appendChild(chartTitle);
+    const chart = document.createElement('div');
+    chart.style.display = 'flex';
+    chart.style.alignItems = 'flex-end';
+    chart.style.gap = '4px';
+    chart.style.height = '60px';
+    chart.style.marginTop = '6px';
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      days.push({ k, label: ['일','월','화','수','목','금','토'][d.getDay()], min: guardian.log[k] || 0 });
+    }
+    if (days[6].k === todayKey() && guardian.sessionStart) {
+      days[6].min += (Date.now() - guardian.sessionStart) / 60000;
+    }
+    const maxMin = Math.max(30, ...days.map(d => d.min));
+    days.forEach(d => {
+      const col = document.createElement('div');
+      col.style.flex = '1';
+      col.style.textAlign = 'center';
+      col.style.fontSize = '0.75em';
+      const bar = document.createElement('div');
+      bar.style.height = `${Math.max(2, (d.min / maxMin) * 50)}px`;
+      bar.style.background = 'var(--accent, #f4b183)';
+      bar.style.borderRadius = '3px';
+      bar.style.marginBottom = '2px';
+      bar.title = `${d.k}: ${d.min.toFixed(1)}분`;
+      col.appendChild(bar);
+      const lbl = document.createElement('div');
+      lbl.textContent = d.label;
+      col.appendChild(lbl);
+      chart.appendChild(col);
+    });
+    chartRow.appendChild(chart);
+    body.appendChild(chartRow);
+
+    // 액션 통계
+    const statsTitle = document.createElement('div');
+    statsTitle.style.fontSize = '0.9em';
+    statsTitle.style.opacity = '0.7';
+    statsTitle.style.marginTop = '8px';
+    statsTitle.textContent = '액션 통계';
+    body.appendChild(statsTitle);
+    const labels = { feed: '🍖 먹이', play: '💖 놀이', wash: '🫧 씻기', sleep: '⚡ 재우기', minigame: '🎮 미니게임' };
+    Object.entries(labels).forEach(([k, v]) => {
+      const r = document.createElement('div');
+      r.className = 'settings-row';
+      const a = document.createElement('span'); a.className = 'lbl'; a.textContent = v;
+      const c = document.createElement('span'); c.className = 'val'; c.textContent = `${guardian.actions[k] || 0}회`;
+      r.appendChild(a); r.appendChild(c);
+      body.appendChild(r);
+    });
+
+    // PIN 변경 / 해제
+    const danger = document.createElement('div');
+    danger.className = 'settings-danger';
+    const changePin = document.createElement('button');
+    changePin.type = 'button';
+    changePin.className = 'modal-btn secondary';
+    changePin.textContent = 'PIN 바꾸기';
+    changePin.addEventListener('click', () => openGuardianSetupModal());
+    danger.appendChild(changePin);
+    const removePin = document.createElement('button');
+    removePin.type = 'button';
+    removePin.className = 'modal-btn secondary';
+    removePin.textContent = '보호자 모드 끄기';
+    removePin.style.marginTop = '6px';
+    removePin.addEventListener('click', () => {
+      guardian.pin = '';
+      guardian.limitMin = 0;
+      saveGuardian();
+      lockShown = false;
+      closeModal();
+    });
+    danger.appendChild(removePin);
+    body.appendChild(danger);
+
+    openModal({ title: '🛡️ 보호자 모드', body });
+  }
+
+  function openGuardianEntry() {
+    if (!guardian.pin) { openGuardianSetupModal(); return; }
+    openGuardianGateModal({ onPass: openGuardianDashboard });
+  }
+
   // ----- visibility / lifecycle -------------------------------------------
+  startGuardianSession();
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') saveState();
-    else { applyTod(); ensureTodayMissions(); render(); }
+    if (document.visibilityState === 'hidden') { commitGuardianSession(); flushSaveState(); }
+    else { startGuardianSession(); applyTod(); ensureTodayMissions(); render(); if (isOverDailyLimit()) showLockModal(); }
   });
-  window.addEventListener('beforeunload', saveState);
+  window.addEventListener('beforeunload', () => { commitGuardianSession(); flushSaveState(); });
+  window.addEventListener('pagehide', () => { commitGuardianSession(); flushSaveState(); });
 
   // ----- PWA: service worker 등록 ----------------------------------------
   if ('serviceWorker' in navigator) {
