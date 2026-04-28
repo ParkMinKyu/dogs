@@ -2873,7 +2873,7 @@
   // 4가지 놀이 카탈로그
   const PLAY_GAMES = [
     { id: 'ball',  name: '공놀이',  emoji: '🎾', desc: '공 받기 (30초)',    open: () => openMinigame() },
-    { id: 'pet',   name: '문지르기', emoji: '✋', desc: '손가락으로 문지르기 (10초)', open: () => openPetGame() },
+    { id: 'pet',   name: '풍선 터뜨리기', emoji: '🎈', desc: '풍선 탭하면 강아지가 점프! (15초)', open: () => openPetGame() },
     { id: 'dance', name: '춤추기',  emoji: '🎵', desc: '박자 맞추기 (30초)', open: () => openDanceGame() },
     { id: 'treat', name: '간식 받기', emoji: '🦴', desc: '많이 받기 (30초)',  open: () => openTreatGame() },
     { id: 'walk',  name: '산책',    emoji: '🚶', desc: '아이템 찾기 (30초)', open: () => openWalkGame() },
@@ -2917,22 +2917,24 @@
     openModal({ title: '🎉 놀이 골라요', body });
   }
 
-  // ----- 문지르기: 10초 동안 손가락 드래그 누적 거리 30px당 +1 ------
+  // ----- 풍선 터뜨리기: 풍선 탭 → 강아지 점프해서 터뜨리기 (15초) ----------
   function openPetGame() {
     decayPaused = true;
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = `✋ 강아지를 <b>문질러주세요!</b> (10초) <span class="mg-diff">${diffLabel()}</span>`;
+    guide.innerHTML = `🎈 풍선을 <b>탭하면 강아지가 점프!</b> (15초) <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
+
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
     const timeEl = document.createElement('span');
-    const cntEl = document.createElement('span');
-    timeEl.textContent = '⏱ 10';
-    cntEl.textContent = '❤️ 0';
-    stats.appendChild(timeEl);
-    stats.appendChild(cntEl);
+    const comboEl = document.createElement('span');
+    const scoreEl = document.createElement('span');
+    timeEl.textContent = '⏱ 15';
+    comboEl.textContent = '';
+    scoreEl.textContent = '🎈 0';
+    stats.appendChild(timeEl); stats.appendChild(comboEl); stats.appendChild(scoreEl);
     body.appendChild(stats);
 
     const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
@@ -2940,12 +2942,18 @@
     tBar.appendChild(tFill); body.appendChild(tBar);
 
     const arena = document.createElement('div');
-    arena.className = 'minigame-arena big pet-arena';
+    arena.className = 'minigame-arena big balloon-arena';
     arena.dataset.breed = state.breed || 'shiba';
+
+    // 강아지 — 바닥 가운데
+    const dogWrap = document.createElement('div');
+    dogWrap.className = 'balloon-dog-wrap';
     const dog = document.createElement('img');
-    dog.className = 'mg-dog pet-dog';
+    dog.className = 'mg-dog balloon-dog';
     dog.src = decideSpriteSrc('happy');
-    arena.appendChild(dog);
+    dogWrap.appendChild(dog);
+    arena.appendChild(dogWrap);
+
     body.appendChild(arena);
 
     const endBtn = document.createElement('button');
@@ -2953,75 +2961,174 @@
     endBtn.style.marginTop = '6px';
     body.appendChild(endBtn);
 
-    let count = 0;
+    // 게임 상태
+    let popped = 0, escaped = 0, score = 0, combo = 0, maxCombo = 0;
     let endedFlag = false;
-    const TOTAL = 10000;
+    const TOTAL = 15000;
+    const _diff = diffMul();
+    const SPAWN_MS = 900 / _diff;        // 어려울수록 풍선 많이
+    const RISE_PX_S = 60 * _diff;        // 어려울수록 빠르게 떠오름
     const started = performance.now();
-    let lastFrame = started;
+    let lastSpawn = -SPAWN_MS;
+    let lastPopAt = -9999;
+    const balloons = []; // {el, x, y, vx, color}
 
-    // 문지르기 — 씻기 패턴: pointermove 누적 거리 30px당 +1 (난이도에 따라 더 많이 필요)
-    const PIXELS_PER_HEART = 30 * diffMul();
-    let petActive = false;
-    let petLastX = null, petLastY = null, petAccum = 0;
-    let lastHeartTs = 0;
-    function spawnHeart(clientX, clientY) {
-      const r = arena.getBoundingClientRect();
-      const h = document.createElement('div');
-      h.className = 'pet-heart';
-      h.textContent = '❤️';
-      h.style.left = (clientX - r.left) + 'px';
-      h.style.top  = (clientY - r.top)  + 'px';
-      arena.appendChild(h);
-      setTimeout(() => h.remove(), 700);
+    const COLORS = ['#ff7aa1','#5eb8ff','#7ad06e','#ffc94a','#c685ff','#ff9466'];
+    function arenaRect() { return arena.getBoundingClientRect(); }
+
+    function spawnBalloon() {
+      const r = arenaRect();
+      const x = 30 + Math.random() * (r.width - 60);
+      const y = r.height + 30;
+      const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+      const el = document.createElement('div');
+      el.className = 'balloon';
+      el.style.background = color;
+      el.style.boxShadow = `inset -6px -8px 0 rgba(0,0,0,0.12), 0 4px 8px rgba(0,0,0,0.18)`;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      // 끈
+      const string = document.createElement('div');
+      string.className = 'balloon-string';
+      el.appendChild(string);
+      arena.appendChild(el);
+      const vx = (Math.random() - 0.5) * 12; // 옆으로 살짝 흔들
+      const wob = Math.random() * Math.PI * 2;
+      balloons.push({ el, x, y, vx, color, wob, popped: false });
     }
-    function onPetDown(e) {
+
+    let dogJumpUntil = 0;
+    function jumpDogTo(targetX) {
+      // 강아지를 풍선의 x 위치까지 점프시킴 + 위로 솟구침
+      const r = arenaRect();
+      const dW = dogWrap.getBoundingClientRect();
+      const dx = Math.max(0, Math.min(r.width - dW.width, targetX - dW.width / 2));
+      // 점프 높이 (콤보 따라 더 높이)
+      const h = 60 + Math.min(40, combo * 4);
+      dogWrap.style.transition = 'transform 280ms cubic-bezier(0.22, 1.4, 0.4, 1)';
+      dogWrap.style.transform = `translateX(${dx - (r.width / 2 - dW.width / 2)}px) translateY(${-h}px)`;
+      dogJumpUntil = performance.now() + 350;
+    }
+
+    function spawnPopFx(x, y, color) {
+      // 폭발 — 작은 점들이 사방으로
+      const N = 8;
+      for (let i = 0; i < N; i++) {
+        const p = document.createElement('div');
+        p.className = 'balloon-burst';
+        p.style.left = x + 'px';
+        p.style.top = y + 'px';
+        p.style.background = color;
+        const angle = (Math.PI * 2 * i) / N + Math.random() * 0.3;
+        const speed = 50 + Math.random() * 40;
+        p.style.setProperty('--dx', `${Math.cos(angle) * speed}px`);
+        p.style.setProperty('--dy', `${Math.sin(angle) * speed}px`);
+        arena.appendChild(p);
+        setTimeout(() => p.remove(), 600);
+      }
+      // 펑 텍스트
+      const pop = document.createElement('div');
+      pop.className = 'balloon-pop-txt';
+      pop.textContent = '펑!';
+      pop.style.left = x + 'px';
+      pop.style.top = y + 'px';
+      arena.appendChild(pop);
+      setTimeout(() => pop.remove(), 600);
+    }
+
+    function popBalloon(b) {
+      if (b.popped) return;
+      b.popped = true;
+      const r = arenaRect();
+      const cx = b.x;
+      const cy = b.y;
+      // 콤보 — 1.5초 안에 연속 터뜨리면 콤보 +
+      const now = performance.now();
+      if (now - lastPopAt < 1500) combo += 1;
+      else combo = 1;
+      if (combo > maxCombo) maxCombo = combo;
+      lastPopAt = now;
+      popped += 1;
+      const gain = 10 + Math.min(40, (combo - 1) * 2);
+      score += gain;
+      scoreEl.textContent = '🎈 ' + popped;
+      comboEl.textContent = combo > 1 ? `🔥 ${combo}` : '';
+      // 강아지 점프 + 풍선 터지는 사운드
+      jumpDogTo(cx);
+      spawnPopFx(cx, cy, b.color);
+      try { SOUNDS.catch(); } catch {}
+      // 풍선 element 제거
+      b.el.classList.add('popped');
+      setTimeout(() => { try { b.el.remove(); } catch {} }, 200);
+    }
+
+    function onTap(e) {
       if (endedFlag) return;
-      e.preventDefault();
-      petActive = true;
-      petLastX = e.clientX; petLastY = e.clientY;
-      try { arena.setPointerCapture(e.pointerId); } catch {}
-    }
-    function onPetMove(e) {
-      if (endedFlag || !petActive) return;
-      if (e.pointerType === 'mouse' && e.buttons === 0) { onPetUp(); return; }
-      if (petLastX === null) { petLastX = e.clientX; petLastY = e.clientY; return; }
-      const dx = e.clientX - petLastX, dy = e.clientY - petLastY;
-      const dist = Math.hypot(dx, dy);
-      petLastX = e.clientX; petLastY = e.clientY;
-      if (dist <= 0) return;
-      petAccum += dist;
-      let added = 0;
-      while (petAccum >= PIXELS_PER_HEART) {
-        count += 1; petAccum -= PIXELS_PER_HEART; added += 1;
+      const t = e.touches && e.touches[0] ? e.touches[0] : e;
+      if (e.preventDefault) e.preventDefault();
+      const r = arenaRect();
+      const cx = (t.clientX !== undefined) ? (t.clientX - r.left) : 0;
+      const cy = (t.clientY !== undefined) ? (t.clientY - r.top) : 0;
+      // 가장 가까운 미터짐 풍선 (탭 위치에서 60px 이내)
+      let best = null, bestD = 60;
+      for (const b of balloons) {
+        if (b.popped) continue;
+        const d = Math.hypot(b.x - cx, b.y - cy);
+        if (d < bestD) { bestD = d; best = b; }
       }
-      if (added > 0) {
-        cntEl.textContent = '❤️ ' + count;
-        const now = performance.now();
-        if (now - lastHeartTs > 80) {
-          spawnHeart(e.clientX, e.clientY);
-          lastHeartTs = now;
-        }
-        dog.classList.remove('wiggle'); void dog.offsetWidth; dog.classList.add('wiggle');
-        try { if (added >= 2) SOUNDS.happy(); } catch {}
-      }
+      if (best) popBalloon(best);
+      else { try { SOUNDS.pop(); } catch {} }
     }
-    function onPetUp() {
-      petActive = false; petLastX = petLastY = null;
-    }
-    arena.addEventListener('pointerdown', onPetDown);
-    arena.addEventListener('pointermove', onPetMove);
-    arena.addEventListener('pointerup', onPetUp);
-    arena.addEventListener('pointercancel', onPetUp);
-    arena.addEventListener('pointerleave', onPetUp);
+    arena.addEventListener('click', onTap);
+    arena.addEventListener('touchstart', onTap, { passive: false });
 
+    let lastFrame = started;
     function step(now) {
       if (endedFlag) return;
+      const dt = Math.min(40, now - lastFrame) / 1000;
       lastFrame = now;
       const elapsed = now - started;
       const remain = Math.max(0, TOTAL - elapsed);
       timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
       tFill.style.width = (remain / TOTAL * 100) + '%';
       if (remain < TOTAL / 3) tFill.classList.add('low'); else tFill.classList.remove('low');
+
+      // spawn — 마지막 1초는 정지 (탈출 풍선 줄임)
+      if (remain > 1000 && now - lastSpawn >= SPAWN_MS) {
+        lastSpawn = now;
+        spawnBalloon();
+        // 어려움일 때 가끔 한 번에 2개
+        if (_diff > 1.2 && Math.random() < 0.3) spawnBalloon();
+      }
+
+      // 풍선 위로 떠오름 + 옆으로 흔들림
+      const r = arenaRect();
+      for (let i = balloons.length - 1; i >= 0; i--) {
+        const b = balloons[i];
+        if (b.popped) continue;
+        b.wob += dt * 2;
+        b.y -= RISE_PX_S * dt;
+        b.x += b.vx * dt + Math.sin(b.wob) * 0.5;
+        // 화면 가장자리 반사
+        if (b.x < 25) { b.x = 25; b.vx = Math.abs(b.vx); }
+        if (b.x > r.width - 25) { b.x = r.width - 25; b.vx = -Math.abs(b.vx); }
+        b.el.style.left = b.x + 'px';
+        b.el.style.top = b.y + 'px';
+        // 화면 위로 탈출
+        if (b.y < -50) {
+          escaped += 1;
+          combo = 0;
+          comboEl.textContent = '';
+          try { b.el.remove(); } catch {}
+          balloons.splice(i, 1);
+        }
+      }
+
+      // 강아지 점프 복귀 — 살짝 지연 후 원래 위치로
+      if (now > dogJumpUntil) {
+        dogWrap.style.transform = 'translateX(0) translateY(0)';
+      }
+
       if (remain <= 0) { endGame(); return; }
       requestAnimationFrame(step);
     }
@@ -3030,36 +3137,41 @@
       if (endedFlag) return;
       endedFlag = true;
       decayPaused = false;
-      // 10초 게임에 맞춰 임계값 1/3 스케일 (best=10, good=7, ok=4)
+      // 남은 풍선 정리
+      while (balloons.length) { try { balloons[0].el.remove(); } catch {}; balloons.shift(); }
+
+      // 차등 보상 — 풍선 터뜨린 개수 기준
       let happyGain, careBoost, badge, tier;
-      if (count >= 10)      { happyGain = 40; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
-      else if (count >= 7)  { happyGain = 30; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
-      else if (count >= 4)  { happyGain = 20; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      if (popped >= 18)     { happyGain = 50; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
+      else if (popped >= 12){ happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (popped >= 6) { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
       else                   { happyGain = 10; careBoost = 0; badge = '😅 조금만 더!'; tier = 'low'; }
       state.happy = clamp(state.happy + happyGain);
       for (let i = 0; i < careBoost; i++) {
         state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
         addCareScore();
       }
-      state.points = (state.points || 0) + Math.min(20, count);
+      state.points = (state.points || 0) + Math.floor(score / 4);
       markPlayDone('pet');
       progressMission('minigame', 1);
       saveState(); render(); SOUNDS.fanfare();
       openResultModal({
-        title: '문지르기 끝!',
-        bigCount: count + '번',
-        countLabel: '문질렀어요',
+        title: '풍선 터뜨리기 끝!',
+        bigCount: popped + '개',
+        countLabel: `최고 ${maxCombo} 콤보`,
         badge, tier,
         rewards: [
           ['💖', '행복', '+' + happyGain],
           ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
+          ['🎈', '터뜨림', popped],
+          ['💨', '놓친', escaped],
         ],
       });
     }
 
     endBtn.addEventListener('click', () => endGame());
     openModal({
-      title: '✋ 문지르기', body, mandatory: true,
+      title: '🎈 풍선 터뜨리기', body, mandatory: true,
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('pet'); saveState(); } },
     });
     setTimeout(() => requestAnimationFrame(step), 80);

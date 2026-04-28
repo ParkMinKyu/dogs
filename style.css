@@ -2524,25 +2524,105 @@ body.is-editing-room .stage {
   padding: 2px 6px;
 }
 
-/* 문지르기: 손가락 드래그로 ❤️ 누적 — touch-action: none으로 스크롤 방지 */
-.minigame-arena.pet-arena { touch-action: none; cursor: grab; }
-.minigame-arena.pet-arena .pet-dog { cursor: grab; pointer-events: none; }
-.pet-dog.wiggle { animation: pet-wiggle 0.35s ease; }
-@keyframes pet-wiggle {
-  0%, 100% { transform: translateX(-50%) rotate(0); }
-  30%      { transform: translateX(-50%) rotate(-6deg) scale(1.06); }
-  70%      { transform: translateX(-50%) rotate(6deg) scale(1.06); }
+/* 풍선 터뜨리기 */
+.minigame-arena.balloon-arena {
+  touch-action: manipulation;
+  cursor: pointer;
+  background: linear-gradient(180deg, #cae8ff 0%, #e8f5ff 50%, #d4f0c8 100%);
+  position: relative;
+  overflow: hidden;
 }
-.pet-heart {
+.balloon-dog-wrap {
   position: absolute;
-  font-size: 26px;
+  left: 50%;
+  bottom: 8px;
+  width: 88px;
+  height: 88px;
+  margin-left: -44px;
   pointer-events: none;
-  animation: pet-heart 700ms ease-out forwards;
+  z-index: 5;
+  filter: drop-shadow(0 6px 4px rgba(0,0,0,0.18));
+  transition: transform 280ms cubic-bezier(0.22, 1.4, 0.4, 1);
 }
-@keyframes pet-heart {
-  0%   { opacity: 0; transform: translate(-50%, 0) scale(0.5); }
-  20%  { opacity: 1; transform: translate(-50%, -10px) scale(1.2); }
-  100% { opacity: 0; transform: translate(-50%, -80px) scale(1.4); }
+.balloon-dog {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.balloon {
+  position: absolute;
+  width: 50px;
+  height: 60px;
+  margin-left: -25px;
+  margin-top: -30px;
+  border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%;
+  cursor: pointer;
+  z-index: 6;
+  transition: transform 80ms ease;
+}
+.balloon::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid currentColor;
+  transform: translateX(-50%);
+  opacity: 0.5;
+}
+.balloon-string {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1.5px;
+  height: 28px;
+  background: rgba(0,0,0,0.35);
+  transform: translateX(-50%) rotate(2deg);
+}
+.balloon.popped {
+  animation: balloon-pop 200ms ease-out forwards;
+}
+@keyframes balloon-pop {
+  0%   { transform: scale(1); opacity: 1; }
+  60%  { transform: scale(1.4); opacity: 0.6; }
+  100% { transform: scale(0.2); opacity: 0; }
+}
+.balloon-burst {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  margin-top: -4px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 8;
+  animation: balloon-burst 600ms cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+  box-shadow: 0 0 6px currentColor;
+}
+@keyframes balloon-burst {
+  0%   { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.3); opacity: 0; }
+}
+.balloon-pop-txt {
+  position: absolute;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: #ff5d8f;
+  pointer-events: none;
+  z-index: 9;
+  text-shadow: 0 2px 0 rgba(255,255,255,0.85);
+  animation: balloon-pop-txt 600ms ease-out forwards;
+  transform: translate(-50%, -50%);
+}
+@keyframes balloon-pop-txt {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  20%  { opacity: 1; transform: translate(-50%, -60%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -110%) scale(1); }
 }
 
 /* 춤추기: 강아지 박자 점프 */
