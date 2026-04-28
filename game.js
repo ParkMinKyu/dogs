@@ -107,6 +107,43 @@
   const MINIGAME_COOLDOWN_MS = 5 * 60 * 1000;
   const MINIGAME_HAPPY_BOOST = 30;
 
+  // ----- 미니게임 난이도 — 케어(진화) 점수 기반 ----------------------------
+  // 1.0(쉬움) → 1.15(보통) → 1.3(어려움). 게임별 hot 파라미터에 곱해서 적용.
+  function diffMul() {
+    const care = state.care || 0;
+    if (care < 100) return 1.0;
+    if (care < 500) return 1.15;
+    return 1.3;
+  }
+  function diffLabel() {
+    const m = diffMul();
+    if (m >= 1.3) return '🔥 어려움';
+    if (m >= 1.15) return '⚡ 보통';
+    return '🌱 쉬움';
+  }
+
+  // ----- 시즌 -------------------------------------------------------------
+  const SEASONS = {
+    spring: { id: 'spring', name: '봄',   emoji: '🌸', months: [3,4,5] },
+    summer: { id: 'summer', name: '여름', emoji: '☀️', months: [6,7,8] },
+    autumn: { id: 'autumn', name: '가을', emoji: '🍂', months: [9,10,11] },
+    winter: { id: 'winter', name: '겨울', emoji: '❄️', months: [12,1,2] },
+  };
+  function currentSeason() {
+    const m = new Date().getMonth() + 1;
+    if (m >= 3 && m <= 5) return 'spring';
+    if (m >= 6 && m <= 8) return 'summer';
+    if (m >= 9 && m <= 11) return 'autumn';
+    return 'winter';
+  }
+  // 시즌 한정 미션 — 일일 미션 풀에 시즌별 1개씩 가산 (높은 보상)
+  const SEASONAL_MISSIONS = {
+    spring: { id: 'season_spring', action: 'minigame', count: 1, name: '봄맞이 산책 1번', emoji: '🌸', reward: 50 },
+    summer: { id: 'season_summer', action: 'wash',     count: 4, name: '여름 물놀이! 씻기 4번', emoji: '🌊', reward: 50 },
+    autumn: { id: 'season_autumn', action: 'play',     count: 5, name: '가을 단풍 산책 5번', emoji: '🍁', reward: 50 },
+    winter: { id: 'season_winter', action: 'sleep',    count: 3, name: '겨울 포근하게 재우기 3번', emoji: '🛌', reward: 50 },
+  };
+
   function timeOfDayFor(date) {
     const h = date.getHours();
     if (h >= 4 && h < 6)   return 'dawn';
@@ -522,6 +559,7 @@
   const bubbleEl   = $('#bubble');
   const stageBadge = $('#stageBadge');
   const todBadge   = $('#todBadge');
+  const seasonBadge = $('#seasonBadge');
   const careBadge  = $('#careBadge');
   const evolveFx   = $('#evolveFx');
   const titleEl    = $('#titleEl');
@@ -1524,6 +1562,11 @@
       root.dataset.tod = tod;
     }
     if (todBadge) todBadge.textContent = TOD_LABEL[tod];
+    // 시즌 — 월 기반이라 빠르게 안 변하지만 같이 갱신
+    const sId = currentSeason();
+    const s = SEASONS[sId];
+    if (root.dataset.season !== sId) root.dataset.season = sId;
+    if (seasonBadge && s) { seasonBadge.textContent = s.emoji + ' ' + s.name; seasonBadge.hidden = false; }
   }
   // 시간대 갱신 — 5분마다 + 페이지 visibility 회복 시 즉시
   setInterval(applyTod, 5 * 60 * 1000);
@@ -1569,9 +1612,12 @@
     return `assets/${s}/${m}.png`;
   }
 
-  function render() {
+  // ----- Render — 분할된 부분 함수들 ---------------------------------------
+  // 각 함수는 독립적으로 호출 가능 → 후속 최적화에서 변경된 영역만 갱신 가능.
+  // render()는 호환성 유지를 위해 모두 호출.
+
+  function renderGauges() {
     const isWashing = state.busy?.action === 'wash';
-    // 원형 게이지 갱신: pct, 색, critical pulse, 씻기 중 highlight
     for (const g of GAUGES) {
       const v = state[g];
       const els = gaugeEls[g];
@@ -1580,16 +1626,18 @@
       els.circle.style.setProperty('--col', colorForGauge(g, v));
       els.pct.textContent = v;
       els.circle.classList.toggle('is-critical', v <= 20);
-      // 씻기 진행 중엔 clean 게이지만 highlight (다른건 dim)
       els.root.classList.toggle('is-washing', isWashing && g === 'clean');
       els.root.classList.toggle('is-dim', isWashing && g !== 'clean');
     }
-    // 욕조 prop 안 청결 % 표시 갱신
+    // 욕조 prop 안 청결 % 표시
     const tubPct = document.querySelector('.prop-bathtub .bath-pct');
     if (tubPct) tubPct.textContent = state.clean + '%';
     const tubLbl = document.querySelector('.prop-bathtub .bath-label');
     if (tubLbl) tubLbl.textContent = state.clean >= 100 ? '깨끗해졌어요! ✨' : '🛁 씻는 중!';
+  }
 
+  function renderPuppyAndMood() {
+    const isWashing = state.busy?.action === 'wash';
     const s = pickPuppyState();
     const stage = state.stage || 'puppy';
     const want = decideSpriteSrc(s, stage);
@@ -1598,17 +1646,13 @@
     puppyWrap.classList.remove('is-happy','is-eating','is-sad','is-sleeping');
     if (s !== 'idle') puppyWrap.classList.add('is-' + s);
 
-    // mood 데이터 — puppy-wrap에 data-mood 부여, stage에 mood-overlay 추가
+    // mood 데이터
     const crit = criticalLowGauge();
-    if (crit) {
-      puppyWrap.dataset.mood = crit;
-    } else if (state.energy <= 20) {
-      puppyWrap.dataset.mood = 'energy';
-    } else {
-      delete puppyWrap.dataset.mood;
-    }
-    // 청결 레벨 4단계 — 점진적 더러움 (clean이 critical이 아니어도 50/30 단계 표현)
-    // 씻는 중엔 더러움 표현 OFF
+    if (crit) puppyWrap.dataset.mood = crit;
+    else if (state.energy <= 20) puppyWrap.dataset.mood = 'energy';
+    else delete puppyWrap.dataset.mood;
+
+    // 청결 레벨 4단계 (씻는 중은 'clean' 강제)
     const cleanLevel = isWashing ? 'clean'
       : state.clean >= 70 ? 'clean'
       : state.clean >= 50 ? 'mild'
@@ -1616,23 +1660,23 @@
       : 'filthy';
     puppyWrap.dataset.cleanLevel = cleanLevel;
 
-    // overlay element 관리 — clean 레벨도 반영
+    // mood overlay 관리
     const stageEl = document.querySelector('.stage');
     let ov = stageEl.querySelector('.mood-overlay');
-    let needOverlay = !!crit || state.energy <= 20 || cleanLevel === 'dirty' || cleanLevel === 'filthy';
+    const needOverlay = !!crit || state.energy <= 20 || cleanLevel === 'dirty' || cleanLevel === 'filthy';
     if (needOverlay) {
       if (!ov) { ov = document.createElement('div'); ov.className = 'mood-overlay'; stageEl.appendChild(ov); }
       const cls = ['mood-overlay'];
       if (crit === 'hunger') cls.push('hunger');
       else if (crit === 'happy') cls.push('happy');
       if (state.energy <= 20) cls.push('sleepy');
-      // 청결 별도 레벨
       if (cleanLevel === 'filthy') cls.push('filthy');
       else if (cleanLevel === 'dirty') cls.push('dirty');
       ov.className = cls.join(' ');
     } else if (ov) { ov.remove(); }
+  }
 
-    // 액션 dim — 거부 상태일 때, 요청 중이면 빨간 점
+  function renderActionStates() {
     const reqs = activeRequestsFor(state);
     const reqByAction = {};
     for (const [g, r] of Object.entries(reqs)) reqByAction[r.def.action] = r.severity;
@@ -1640,7 +1684,6 @@
     actionBtns.forEach(btn => {
       const a = btn.dataset.action;
       if (!a) return;
-      // sleep은 절대 안 막음. lows 있으면 그 게이지 회복하는 액션만 허용.
       let blocked = false;
       if (a !== 'sleep' && a !== 'minigame' && lows.length > 0) {
         const ag = ACTION_GAUGE[a];
@@ -1651,7 +1694,10 @@
       btn.classList.toggle('has-request', !!sev);
       btn.classList.toggle('req-critical', sev === 'hard');
     });
+  }
 
+  function renderHeaderBadges() {
+    const stage = state.stage || 'puppy';
     if (root) {
       root.dataset.stage = stage;
       root.dataset.breed = state.breed || 'shiba';
@@ -1671,16 +1717,25 @@
       if (!titleAvatar.src.endsWith(want)) titleAvatar.src = want;
     }
     if (titleName) titleName.textContent = state.name || '우리 강아지';
+  }
 
+  function renderSickness() {
+    if (vetBtn) vetBtn.hidden = !state.sick;
+    document.body.classList.toggle('is-sick', !!state.sick);
+  }
+
+  function render() {
+    renderGauges();
+    renderPuppyAndMood();
+    renderActionStates();
+    renderHeaderBadges();
     renderAccessories();
     renderActionCooldowns();
     renderMissionDot();
     renderRoomDeco();
     renderMessLayer();
     renderPetSlots();
-    // 아플 때 — 병원 버튼 노출 + sick 클래스
-    if (vetBtn) vetBtn.hidden = !state.sick;
-    document.body.classList.toggle('is-sick', !!state.sick);
+    renderSickness();
     applyTod();
   }
 
@@ -2210,7 +2265,12 @@
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    const picked = pool.slice(0, 3).map(t => ({ ...t, progress: 0, claimed: false }));
+    // 시즌 한정 미션 1개를 가장 위에 고정 + 일반 풀에서 2개
+    const seasonal = SEASONAL_MISSIONS[currentSeason()];
+    const picked = [
+      { ...seasonal, seasonal: true, progress: 0, claimed: false },
+      ...pool.slice(0, 2).map(t => ({ ...t, progress: 0, claimed: false })),
+    ];
     state.missions = { date: today, list: picked };
     saveState();
   }
@@ -2320,11 +2380,11 @@
     state.missions.list.forEach(m => {
       const item = document.createElement('div');
       const done = m.progress >= m.count;
-      item.className = 'mission-item' + (done ? ' done' : '');
+      item.className = 'mission-item' + (done ? ' done' : '') + (m.seasonal ? ' seasonal' : '');
       item.innerHTML = `
         <span class="emo">${m.emoji}</span>
         <div class="body">
-          <div class="name">${m.name}</div>
+          <div class="name">${m.seasonal ? '<span class="mission-season-tag">시즌 한정</span> ' : ''}${m.name}</div>
           <div class="progress">${m.progress} / ${m.count}</div>
         </div>
         <div class="reward">${done ? '✓' : '+'}${m.reward}🌟</div>
@@ -2863,7 +2923,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '✋ 강아지를 <b>문질러주세요!</b> (30초)';
+    guide.innerHTML = `✋ 강아지를 <b>문질러주세요!</b> (30초) <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -2899,8 +2959,8 @@
     const started = performance.now();
     let lastFrame = started;
 
-    // 문지르기 — 씻기 패턴: pointermove 누적 거리 30px당 +1
-    const PIXELS_PER_HEART = 30;
+    // 문지르기 — 씻기 패턴: pointermove 누적 거리 30px당 +1 (난이도에 따라 더 많이 필요)
+    const PIXELS_PER_HEART = 30 * diffMul();
     let petActive = false;
     let petLastX = null, petLastY = null, petAccum = 0;
     let lastHeartTs = 0;
@@ -3011,7 +3071,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🎵 강아지가 점프할 때 <b>탭!</b>';
+    guide.innerHTML = `🎵 강아지가 점프할 때 <b>탭!</b> <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -3041,11 +3101,12 @@
     let score = 0;
     let endedFlag = false;
     const TOTAL = 30000;
-    const BEAT_MS = 800;
+    const _diff = diffMul();
+    const BEAT_MS = 800 / _diff;        // 어려울수록 박자 빠름
     const started = performance.now();
     let lastBeatStart = started;
     let beatActive = false; // 박자 윈도우 (탭 가능 시점)
-    const TAP_WINDOW_MS = 350;
+    const TAP_WINDOW_MS = 350 / _diff;  // 어려울수록 윈도우 좁음
 
     // 강아지 박자 점프 — CSS animation iteration
     dog.classList.add('beat');
@@ -3123,7 +3184,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🦴 강아지로 옮겨서 <b>간식 많이 받아요!</b> (30초)';
+    guide.innerHTML = `🦴 강아지로 옮겨서 <b>간식 많이 받아요!</b> (30초) <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -3156,7 +3217,8 @@
     const TOTAL = 30000;
     const started = performance.now();
     let lastFrame = started;
-    let nextSpawn = 600 + Math.random() * 400;
+    const _diff = diffMul();
+    let nextSpawn = (600 + Math.random() * 400) / _diff;
     let spawnAccum = 0;
     const treats = []; // {el, x, y, vy}
 
@@ -3205,7 +3267,7 @@
       step._lastT = now;
       if (spawnAccum >= nextSpawn) {
         spawnAccum = 0;
-        nextSpawn = 700 + Math.random() * 600;
+        nextSpawn = (700 + Math.random() * 600) / _diff;
         spawnTreat();
       }
       // update treats
@@ -3409,7 +3471,8 @@
     let lastFrame = performance.now();
     let started = lastFrame;
     let spawnAccum = 0;
-    let nextSpawn = 1200 + Math.random() * 800;
+    const _diff = diffMul();
+    let nextSpawn = (1200 + Math.random() * 800) / _diff;
 
     // 점프 상태
     let jumping = false;
@@ -3556,7 +3619,7 @@
       spawnAccum += dt * 1000;
       if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length < 8) {
         spawnAccum = 0;
-        nextSpawn = 600 + Math.random() * 500;
+        nextSpawn = (600 + Math.random() * 500) / _diff;
         spawnItem(r);
       }
 
@@ -3708,7 +3771,7 @@
 
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🎾 강아지를 움직여서 <b>공을 머리로 받아요!</b>';
+    guide.innerHTML = `🎾 강아지를 움직여서 <b>공을 머리로 받아요!</b> <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
 
     const stats = document.createElement('div');
@@ -3765,9 +3828,10 @@
     const TOTAL_MS = 30000;
     let endedFlag = false;
 
-    // 공 물리 — arena 좌표
+    // 공 물리 — arena 좌표 (난이도에 따라 중력 가중)
     let bx = 0, by = 0, vx = 0, vy = 0;
-    const GRAVITY = 700;
+    const _diff = diffMul();
+    const GRAVITY = 700 * _diff;
     const BOUNCE_VY = -560;
     const BALL_R = 26;
     let dogX = null;
