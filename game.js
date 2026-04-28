@@ -2878,6 +2878,9 @@
     { id: 'treat', name: '간식 받기',   emoji: '🦴', desc: '많이 받기 (30초)',         open: () => openTreatGame() },
     { id: 'walk',  name: '산책',       emoji: '🚶', desc: '아이템 찾기 (30초)',       open: () => openWalkGame() },
     { id: 'seq',   name: '발자국 따라가기', emoji: '🐾', desc: '순서대로 누르기',           open: () => openSequenceGame() },
+    { id: 'hide',  name: '숨바꼭질',    emoji: '🌳', desc: '숨은 강아지 찾기 (30초)',     open: () => openHideSeekGame() },
+    { id: 'match', name: '짝 맞추기',   emoji: '🃏', desc: '같은 카드 찾기 (60초)',       open: () => openMatchGame() },
+    { id: 'bury',  name: '뼈 묻기',     emoji: '⛰️', desc: '묻은 뼈 위치 기억!',         open: () => openBuryGame() },
   ];
 
   function openPlayMenu() {
@@ -4618,6 +4621,453 @@
       onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('seq'); saveState(); } },
     });
     setTimeout(startRound, 600);
+  }
+
+  // ----- 숨바꼭질 ---------------------------------------------------------
+  function openHideSeekGame() {
+    decayPaused = true;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = `🌳 강아지가 숨었어요! <b>찾아보세요!</b> <span class="mg-diff">${diffLabel()}</span>`;
+    body.appendChild(guide);
+
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const timeEl = document.createElement('span');
+    const foundEl = document.createElement('span');
+    timeEl.textContent = '⏱ 30';
+    foundEl.textContent = '✓ 0';
+    stats.appendChild(timeEl); stats.appendChild(foundEl);
+    body.appendChild(stats);
+
+    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill); body.appendChild(tBar);
+
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big hide-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+
+    // 6개 숨는 곳 (3x2 그리드)
+    const SPOT_EMOJIS = ['🌳','🪴','📦','🪑','🌵','🛏️'];
+    const grid = document.createElement('div');
+    grid.className = 'hide-grid';
+    const spots = [];
+    for (let i = 0; i < 6; i++) {
+      const s = document.createElement('button');
+      s.type = 'button';
+      s.className = 'hide-spot';
+      s.dataset.idx = String(i);
+      s.innerHTML = `<span class="hide-cover">${SPOT_EMOJIS[i]}</span><span class="hide-dog">🐶</span>`;
+      grid.appendChild(s);
+      spots.push(s);
+    }
+    arena.appendChild(grid);
+    body.appendChild(arena);
+
+    const endBtn = document.createElement('button');
+    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    endBtn.style.marginTop = '6px';
+    body.appendChild(endBtn);
+
+    let endedFlag = false;
+    let found = 0, wrong = 0;
+    const TOTAL = 30000;
+    const _diff = diffMul();
+    const PEEK_MS = Math.max(600, 1100 / _diff);
+    const started = performance.now();
+    let hidingIdx = -1;
+    let acceptInput = false;
+
+    function newRound() {
+      if (endedFlag) return;
+      hidingIdx = Math.floor(Math.random() * 6);
+      acceptInput = false;
+      // 모두 닫힌 상태로
+      spots.forEach(s => s.classList.remove('peek','correct','wrong'));
+      // peek — 정답 위치만 잠시 강아지 보임
+      setTimeout(() => {
+        if (endedFlag) return;
+        spots[hidingIdx].classList.add('peek');
+        try { SOUNDS.pop(); } catch {}
+        setTimeout(() => {
+          if (endedFlag) return;
+          spots[hidingIdx].classList.remove('peek');
+          acceptInput = true;
+        }, PEEK_MS);
+      }, 350);
+    }
+
+    spots.forEach((s, i) => {
+      const trigger = (e) => {
+        e.preventDefault();
+        if (!acceptInput || endedFlag) return;
+        if (i === hidingIdx) {
+          found += 1;
+          foundEl.textContent = '✓ ' + found;
+          s.classList.add('correct');
+          try { SOUNDS.fanfare(); } catch {}
+          acceptInput = false;
+          setTimeout(newRound, 600);
+        } else {
+          wrong += 1;
+          s.classList.add('wrong');
+          try { SOUNDS.whimper(); } catch {}
+          setTimeout(() => s.classList.remove('wrong'), 500);
+        }
+      };
+      s.addEventListener('click', trigger);
+      s.addEventListener('touchstart', trigger, { passive: false });
+    });
+
+    function step(now) {
+      if (endedFlag) return;
+      const elapsed = now - started;
+      const remain = Math.max(0, TOTAL - elapsed);
+      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
+      tFill.style.width = (remain / TOTAL * 100) + '%';
+      if (remain < TOTAL / 3) tFill.classList.add('low'); else tFill.classList.remove('low');
+      if (remain <= 0) { endGame(); return; }
+      requestAnimationFrame(step);
+    }
+
+    function endGame() {
+      if (endedFlag) return;
+      endedFlag = true;
+      decayPaused = false;
+      let happyGain, careBoost, badge, tier;
+      if (found >= 12)     { happyGain = 50; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
+      else if (found >= 8) { happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (found >= 4) { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else                  { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low';  }
+      state.happy = clamp(state.happy + happyGain);
+      for (let i = 0; i < careBoost; i++) {
+        state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+        addCareScore();
+      }
+      state.points = (state.points || 0) + found * 3;
+      markPlayDone('hide');
+      progressMission('minigame', 1);
+      saveState(); render(); SOUNDS.fanfare();
+      openResultModal({
+        title: '숨바꼭질 끝!',
+        bigCount: found + '번',
+        countLabel: '찾았어요',
+        badge, tier,
+        rewards: [
+          ['💖', '행복', '+' + happyGain],
+          ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
+          ['❌', '틀림', wrong],
+        ],
+      });
+    }
+
+    endBtn.addEventListener('click', () => endGame());
+    openModal({
+      title: '🌳 숨바꼭질', body, mandatory: true,
+      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('hide'); saveState(); } },
+    });
+    setTimeout(() => { newRound(); requestAnimationFrame(step); }, 80);
+  }
+
+  // ----- 짝 맞추기 (메모리 카드) ------------------------------------------
+  function openMatchGame() {
+    decayPaused = true;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = `🃏 같은 카드 <b>두 장 찾기!</b> <span class="mg-diff">${diffLabel()}</span>`;
+    body.appendChild(guide);
+
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const timeEl = document.createElement('span');
+    const pairEl = document.createElement('span');
+    timeEl.textContent = '⏱ 60';
+    pairEl.textContent = '🎯 0/6';
+    stats.appendChild(timeEl); stats.appendChild(pairEl);
+    body.appendChild(stats);
+
+    const tBar = document.createElement('div'); tBar.className = 'mg-timebar';
+    const tFill = document.createElement('div'); tFill.className = 'mg-timebar-fill';
+    tBar.appendChild(tFill); body.appendChild(tBar);
+
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big match-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+
+    // 6 페어 = 12 카드, 3x4 그리드
+    const SYMBOLS = ['🦴','🎾','🍖','🐾','💖','⭐'];
+    let deck = [];
+    SYMBOLS.forEach(sym => { deck.push(sym); deck.push(sym); });
+    // shuffle
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'match-grid';
+    const cards = [];
+    deck.forEach((sym, i) => {
+      const c = document.createElement('button');
+      c.type = 'button';
+      c.className = 'match-card';
+      c.dataset.idx = String(i);
+      c.dataset.sym = sym;
+      c.innerHTML = `<span class="match-back">?</span><span class="match-face">${sym}</span>`;
+      grid.appendChild(c);
+      cards.push(c);
+    });
+    arena.appendChild(grid);
+    body.appendChild(arena);
+
+    const endBtn = document.createElement('button');
+    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    endBtn.style.marginTop = '6px';
+    body.appendChild(endBtn);
+
+    let endedFlag = false;
+    let pairs = 0, attempts = 0;
+    const TOTAL = 60000;
+    const _diff = diffMul();
+    const FLIP_BACK_MS = Math.max(500, 900 / _diff);
+    const started = performance.now();
+    let flipped = []; // 현재 뒤집힌 카드(매칭 안된)
+
+    function onCardTap(c) {
+      if (endedFlag) return;
+      if (c.classList.contains('matched') || c.classList.contains('flipped')) return;
+      if (flipped.length >= 2) return;
+      c.classList.add('flipped');
+      try { SOUNDS.pop(); } catch {}
+      flipped.push(c);
+      if (flipped.length === 2) {
+        attempts += 1;
+        const [a, b] = flipped;
+        if (a.dataset.sym === b.dataset.sym) {
+          // match
+          a.classList.add('matched');
+          b.classList.add('matched');
+          flipped = [];
+          pairs += 1;
+          pairEl.textContent = `🎯 ${pairs}/6`;
+          try { SOUNDS.fanfare(); } catch {}
+          if (pairs >= 6) endGame();
+        } else {
+          // mismatch — 잠시 후 다시 뒤집기
+          setTimeout(() => {
+            a.classList.remove('flipped');
+            b.classList.remove('flipped');
+            flipped = [];
+          }, FLIP_BACK_MS);
+        }
+      }
+    }
+    cards.forEach(c => {
+      c.addEventListener('click', (e) => { e.preventDefault(); onCardTap(c); });
+      c.addEventListener('touchstart', (e) => { e.preventDefault(); onCardTap(c); }, { passive: false });
+    });
+
+    function step(now) {
+      if (endedFlag) return;
+      const elapsed = now - started;
+      const remain = Math.max(0, TOTAL - elapsed);
+      timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
+      tFill.style.width = (remain / TOTAL * 100) + '%';
+      if (remain < TOTAL / 3) tFill.classList.add('low'); else tFill.classList.remove('low');
+      if (remain <= 0) { endGame(); return; }
+      requestAnimationFrame(step);
+    }
+
+    function endGame() {
+      if (endedFlag) return;
+      endedFlag = true;
+      decayPaused = false;
+      const elapsed = performance.now() - started;
+      const remainSec = Math.max(0, (TOTAL - elapsed) / 1000);
+      const cleared = pairs >= 6;
+      let happyGain, careBoost, badge, tier;
+      if (cleared && remainSec >= 30)     { happyGain = 50; careBoost = 2; badge = '⭐ 천재예요!';     tier = 'best'; }
+      else if (cleared)                    { happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (pairs >= 3)                 { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else                                  { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low';  }
+      state.happy = clamp(state.happy + happyGain);
+      for (let i = 0; i < careBoost; i++) {
+        state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+        addCareScore();
+      }
+      state.points = (state.points || 0) + pairs * 5;
+      markPlayDone('match');
+      progressMission('minigame', 1);
+      saveState(); render(); SOUNDS.fanfare();
+      openResultModal({
+        title: '짝 맞추기 끝!',
+        bigCount: pairs + '/6',
+        countLabel: '짝 맞춤',
+        badge, tier,
+        rewards: [
+          ['💖', '행복', '+' + happyGain],
+          ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
+          ['🔁', '시도', attempts],
+        ],
+      });
+    }
+
+    endBtn.addEventListener('click', () => endGame());
+    openModal({
+      title: '🃏 짝 맞추기', body, mandatory: true,
+      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('match'); saveState(); } },
+    });
+    setTimeout(() => requestAnimationFrame(step), 80);
+  }
+
+  // ----- 뼈 묻기 (메모리) -------------------------------------------------
+  function openBuryGame() {
+    decayPaused = true;
+    const body = document.createElement('div');
+    const guide = document.createElement('div');
+    guide.className = 'mg-guide';
+    guide.innerHTML = `⛰️ 뼈를 묻은 자리를 <b>기억해서 다시 찾아요!</b> <span class="mg-diff">${diffLabel()}</span>`;
+    body.appendChild(guide);
+
+    const stats = document.createElement('div');
+    stats.className = 'minigame-stats';
+    const roundEl = document.createElement('span');
+    const stateEl = document.createElement('span');
+    roundEl.textContent = '🎯 라운드 1';
+    stateEl.textContent = '👀 보세요...';
+    stats.appendChild(roundEl); stats.appendChild(stateEl);
+    body.appendChild(stats);
+
+    const arena = document.createElement('div');
+    arena.className = 'minigame-arena big bury-arena';
+    arena.dataset.breed = state.breed || 'shiba';
+
+    // 5개 흙더미
+    const moundsRow = document.createElement('div');
+    moundsRow.className = 'bury-row';
+    const mounds = [];
+    for (let i = 0; i < 5; i++) {
+      const m = document.createElement('button');
+      m.type = 'button';
+      m.className = 'bury-mound';
+      m.dataset.idx = String(i);
+      m.innerHTML = `<span class="bury-bone">🦴</span><span class="bury-dirt">⛰️</span>`;
+      moundsRow.appendChild(m);
+      mounds.push(m);
+    }
+    arena.appendChild(moundsRow);
+    body.appendChild(arena);
+
+    const endBtn = document.createElement('button');
+    endBtn.className = 'modal-btn secondary'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
+    endBtn.style.marginTop = '6px';
+    body.appendChild(endBtn);
+
+    let endedFlag = false;
+    let round = 1;
+    let totalFound = 0, totalWrong = 0;
+    let bones = new Set(); // 현재 라운드 뼈 위치
+    let dug = new Set();   // 이미 판 곳
+    let acceptInput = false;
+    const _diff = diffMul();
+
+    function showRound() {
+      acceptInput = false;
+      // 라운드별 뼈 개수: 라운드 1=2, 2=3, 3=4, 4=4
+      const n = Math.min(4, round + 1);
+      // 라운드별 보여주는 시간 (난이도 따라 짧아짐)
+      const PEEK_MS = Math.max(900, 1500 / _diff);
+      bones = new Set();
+      dug = new Set();
+      while (bones.size < n) bones.add(Math.floor(Math.random() * 5));
+      mounds.forEach(m => m.classList.remove('reveal','correct','wrong','dug'));
+      stateEl.textContent = '👀 보세요...';
+      // 보여주기
+      bones.forEach(idx => mounds[idx].classList.add('reveal'));
+      try { SOUNDS.pop(); } catch {}
+      setTimeout(() => {
+        if (endedFlag) return;
+        mounds.forEach(m => m.classList.remove('reveal'));
+        stateEl.textContent = '🤔 어디였더라?';
+        acceptInput = true;
+      }, PEEK_MS);
+    }
+
+    function onMoundTap(idx) {
+      if (!acceptInput || endedFlag) return;
+      if (dug.has(idx)) return;
+      dug.add(idx);
+      const m = mounds[idx];
+      if (bones.has(idx)) {
+        m.classList.add('correct');
+        totalFound += 1;
+        try { SOUNDS.fanfare(); } catch {}
+      } else {
+        m.classList.add('wrong');
+        totalWrong += 1;
+        try { SOUNDS.whimper(); } catch {}
+      }
+      // 모든 뼈 찾으면 다음 라운드
+      const foundNow = [...bones].filter(b => dug.has(b)).length;
+      if (foundNow === bones.size) {
+        acceptInput = false;
+        round += 1;
+        roundEl.textContent = '🎯 라운드 ' + round;
+        if (round > 4) endGame();
+        else setTimeout(showRound, 700);
+      }
+      // 너무 많이 틀리면 라운드 강제 종료
+      const wrongs = [...dug].filter(d => !bones.has(d)).length;
+      if (wrongs >= 3) {
+        acceptInput = false;
+        endGame();
+      }
+    }
+    mounds.forEach((m, i) => {
+      m.addEventListener('click', (e) => { e.preventDefault(); onMoundTap(i); });
+      m.addEventListener('touchstart', (e) => { e.preventDefault(); onMoundTap(i); }, { passive: false });
+    });
+
+    function endGame() {
+      if (endedFlag) return;
+      endedFlag = true;
+      decayPaused = false;
+      let happyGain, careBoost, badge, tier;
+      if (totalFound >= 12)      { happyGain = 50; careBoost = 2; badge = '⭐ 최고예요!';   tier = 'best'; }
+      else if (totalFound >= 8)  { happyGain = 35; careBoost = 1; badge = '👍 잘했어요!';   tier = 'good'; }
+      else if (totalFound >= 4)  { happyGain = 22; careBoost = 1; badge = '🙂 좋아요!';     tier = 'ok';   }
+      else                        { happyGain = 10; careBoost = 0; badge = '😅 다시 도전!'; tier = 'low';  }
+      state.happy = clamp(state.happy + happyGain);
+      for (let i = 0; i < careBoost; i++) {
+        state.careLastTick = (state.careLastTick || 0) - CARE_TICK_MS;
+        addCareScore();
+      }
+      state.points = (state.points || 0) + totalFound * 3;
+      markPlayDone('bury');
+      progressMission('minigame', 1);
+      saveState(); render(); SOUNDS.fanfare();
+      openResultModal({
+        title: '뼈 묻기 끝!',
+        bigCount: totalFound + '개',
+        countLabel: '찾았어요',
+        badge, tier,
+        rewards: [
+          ['💖', '행복', '+' + happyGain],
+          ...(careBoost ? [['🌟', '케어', '+' + careBoost]] : []),
+          ['❌', '틀림', totalWrong],
+        ],
+      });
+    }
+
+    endBtn.addEventListener('click', () => endGame());
+    openModal({
+      title: '⛰️ 뼈 묻기', body, mandatory: true,
+      onClose: () => { if (!endedFlag) { endedFlag = true; decayPaused = false; markPlayDone('bury'); saveState(); } },
+    });
+    setTimeout(showRound, 600);
   }
 
   // ----- 설정 모달 --------------------------------------------------------
