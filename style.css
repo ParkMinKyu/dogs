@@ -3082,11 +3082,20 @@ body.is-editing-room .stage {
   flex-shrink: 0;
   padding-top: max(8px, env(safe-area-inset-top));
 }
-.walk-hud-time, .walk-hud-score {
+.walk-hud-time, .walk-hud-score, .walk-hud-hearts, .walk-hud-combo {
   font-family: var(--font-display);
   font-size: 16px;
   color: #fff;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+.walk-hud-combo {
+  color: #ffeb3b;
+  font-weight: 700;
+  font-size: 15px;
+}
+.walk-hud-hearts {
+  letter-spacing: -2px;
 }
 .walk-hud-bar {
   flex: 1;
@@ -3296,6 +3305,39 @@ body.is-editing-room .stage {
   50%      { filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18)) drop-shadow(0 0 12px #ffd66e); }
 }
 .walk-item-pop { animation: walk-item-pop 240ms ease-out forwards; }
+
+/* 쿠키런 — 장애물 */
+.walk-obstacle {
+  position: absolute;
+  font-size: 38px;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 0 rgba(0,0,0,0.25));
+  z-index: 5;
+}
+
+/* 강아지 충돌 효과 */
+.wsc-dog.walk-hurt { animation: walk-hurt 0.4s ease; }
+@keyframes walk-hurt {
+  0%, 100% { filter: none; }
+  20%, 60% { filter: brightness(1.5) saturate(2) hue-rotate(-30deg); }
+  40%, 80% { transform: translateX(-4px); }
+}
+.wsc-dog.walk-invuln {
+  animation: walk-invuln 250ms linear infinite;
+}
+@keyframes walk-invuln {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+.walk-scroll-arena.walk-shake { animation: walk-shake 0.4s ease-out; }
+@keyframes walk-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(5px); }
+  60%      { transform: translateX(-3px); }
+  80%      { transform: translateX(2px); }
+}
 @keyframes walk-item-pop {
   0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -120%) scale(1.6); }

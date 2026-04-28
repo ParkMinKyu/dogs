@@ -3837,13 +3837,15 @@
     const hud = document.createElement('div');
     hud.className = 'walk-hud';
     const timeEl = document.createElement('span'); timeEl.className = 'walk-hud-time'; timeEl.textContent = '⏱ 30';
+    const heartsEl = document.createElement('span'); heartsEl.className = 'walk-hud-hearts'; heartsEl.textContent = '❤️❤️❤️';
+    const comboEl = document.createElement('span'); comboEl.className = 'walk-hud-combo'; comboEl.textContent = '';
     const scoreEl = document.createElement('span'); scoreEl.className = 'walk-hud-score'; scoreEl.textContent = '🎯 0';
     const tBar = document.createElement('div'); tBar.className = 'walk-hud-bar';
     const tFill = document.createElement('div'); tFill.className = 'walk-hud-fill';
     tBar.appendChild(tFill);
     const endBtn = document.createElement('button');
     endBtn.className = 'walk-hud-end'; endBtn.type = 'button'; endBtn.textContent = '끝내기';
-    hud.appendChild(timeEl); hud.appendChild(tBar); hud.appendChild(scoreEl); hud.appendChild(endBtn);
+    hud.appendChild(timeEl); hud.appendChild(tBar); hud.appendChild(heartsEl); hud.appendChild(comboEl); hud.appendChild(scoreEl); hud.appendChild(endBtn);
     walkInner.appendChild(hud);
 
     // 아레나 — 나머지 공간 전체
@@ -3915,8 +3917,17 @@
 
     // 상태
     const items = []; // { el, def, x, baseY, captured }
+    const obstacles = []; // { el, x, w }
     const collected = {};
     let score = 0;
+    // 쿠키런 — 2단 점프 + 체력 + 콤보
+    let jumpsUsed = 0;
+    const MAX_JUMPS = 2;
+    let health = 3;
+    let invulnUntil = 0;
+    let combo = 0;
+    let comboExpireAt = 0;
+    let lastCaptureAt = 0;
     let endedFlag = false;
     const TOTAL_MS = 30000;
     // 속도는 calibrate()에서 아레나 너비 기준으로 설정
@@ -3959,10 +3970,47 @@
     }
 
     function triggerJump() {
-      if (jumping) return;
+      // 쿠키런 2단 점프 — 첫 점프 + 공중에서 한 번 더
+      if (jumpsUsed >= MAX_JUMPS) return;
       jumping = true;
-      jumpVy = JUMP_VY;
+      // 2단점프는 살짝 약하게 (75%) — 차이 느껴지게
+      jumpVy = JUMP_VY * (jumpsUsed === 0 ? 1.0 : 0.78);
+      jumpsUsed += 1;
       dog.src = decideSpriteSrc('happy');
+      try { SOUNDS.pop(); } catch {}
+    }
+
+    // 장애물 — 점프로 회피해야 함. 부딪히면 체력 -1.
+    const OBSTACLE_DEFS = [
+      { emoji: '🪨', kind: 'rock' },
+      { emoji: '🌵', kind: 'cactus' },
+      { emoji: '🪵', kind: 'log' },
+      { emoji: '🕳️', kind: 'hole' },
+    ];
+    function spawnObstacle(r) {
+      const def = OBSTACLE_DEFS[Math.floor(Math.random() * OBSTACLE_DEFS.length)];
+      const el = document.createElement('div');
+      el.className = 'walk-obstacle';
+      el.textContent = def.emoji;
+      el.style.right = '-40px';
+      el.style.bottom = (DOG_GROUND_BOTTOM + 4) + 'px';
+      arena.appendChild(el);
+      obstacles.push({ el, def, x: r.width + 40 });
+    }
+
+    function hitByObstacle(ob) {
+      health -= 1;
+      invulnUntil = performance.now() + 1500;
+      combo = 0;
+      comboEl.textContent = '';
+      heartsEl.textContent = '❤️'.repeat(Math.max(0, health));
+      try { SOUNDS.whimper(); } catch {}
+      dog.classList.remove('walk-hurt'); void dog.offsetWidth; dog.classList.add('walk-hurt');
+      arena.classList.remove('walk-shake'); void arena.offsetWidth; arena.classList.add('walk-shake');
+      try { ob.el.remove(); } catch {}
+      if (health <= 0) {
+        setTimeout(() => endGame(), 400);
+      }
     }
 
     function spawnItem(r) {
@@ -4066,16 +4114,36 @@
       if (r.width > 10 && ITEM_SPEED === 0) calibrate(); // 크기 확정 후 딱 한 번
       const bgW = r.width || 1;
 
-      // 배경 스크롤
-      bgOffset = (bgOffset + SCROLL_SPEED * dt) % bgW;
+      // 배경 스크롤 (속도 ramp 적용)
+      bgOffset = (bgOffset + SCROLL_SPEED * (1 + Math.floor(elapsed / 5000) * 0.05) * dt) % bgW;
       bgWrap.style.transform = `translateX(-${bgOffset}px)`;
 
-      // 아이템 스폰
+      // 시간 따라 속도 점차 ↑ — 5초마다 +5%, 최대 +50%
+      const elapsedSec = elapsed / 1000;
+      const speedUp = Math.min(1.5, 1 + Math.floor(elapsedSec / 5) * 0.05);
+      const ITEM_SPEED_NOW = ITEM_SPEED * speedUp;
+
+      // 콤보 만료 체크
+      if (combo > 0 && now > comboExpireAt) {
+        combo = 0;
+        comboEl.textContent = '';
+      }
+
+      // 무적 종료 시 시각 복구
+      if (invulnUntil && now > invulnUntil) {
+        invulnUntil = 0;
+        dog.classList.remove('walk-invuln');
+      } else if (invulnUntil) {
+        dog.classList.add('walk-invuln');
+      }
+
+      // 아이템 + 장애물 스폰 (장애물은 25% 확률)
       spawnAccum += dt * 1000;
-      if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length < 8) {
+      if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length + obstacles.length < 8) {
         spawnAccum = 0;
         nextSpawn = (600 + Math.random() * 500) / _diff;
-        spawnItem(r);
+        if (Math.random() < 0.3) spawnObstacle(r);
+        else spawnItem(r);
       }
 
       // 아이템 이동 + 수집 판정
@@ -4083,7 +4151,7 @@
       for (let i = items.length - 1; i >= 0; i--) {
         const it = items[i];
         if (it.captured) continue;
-        it.x -= ITEM_SPEED * dt;
+        it.x -= ITEM_SPEED_NOW * dt;
         it.el.style.left = it.x + 'px';
         it.el.style.right = 'auto';
         if (it.x < -50) {
@@ -4100,8 +4168,38 @@
         const dogHeadY_ = dogFeetY_ + 88;
         const yOk = dogFeetY_ < itemTop && dogHeadY_ > itemBot;
         if (xOk && yOk) {
+          // 콤보 처리 — 점수 배수
+          combo += 1;
+          comboExpireAt = now + 1800;
+          const mult = combo >= 10 ? 3 : combo >= 5 ? 2 : 1;
+          if (combo > 1) comboEl.textContent = `🔥 ${combo}x${mult}`;
+          // captureItem 안에서 score 증가하므로, 배수 적용 위해 def.score를 복제
+          const origScore = it.def.score;
+          if (mult > 1) it.def = Object.assign({}, it.def, { score: origScore * mult });
           captureItem(it);
+          if (mult > 1) it.def.score = origScore;
           items.splice(i, 1);
+        }
+      }
+
+      // 장애물 이동 + 충돌 판정 (지면에 있을 때만 충돌)
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const ob = obstacles[i];
+        ob.x -= ITEM_SPEED_NOW * dt;
+        ob.el.style.left = ob.x + 'px';
+        ob.el.style.right = 'auto';
+        if (ob.x < -50) {
+          try { ob.el.remove(); } catch {}
+          obstacles.splice(i, 1);
+          continue;
+        }
+        if (now < invulnUntil) continue;
+        const xOk = Math.abs(ob.x - dogPixelX) < 38;
+        // 점프 중(dogY > 30px)이면 위로 넘어가서 안 부딪힘
+        const yOk = dogY < 30;
+        if (xOk && yOk) {
+          hitByObstacle(ob);
+          obstacles.splice(i, 1);
         }
       }
 
@@ -4113,6 +4211,7 @@
           dogY = 0;
           jumping = false;
           jumpVy = 0;
+          jumpsUsed = 0; // 착지 시 점프 횟수 리셋
           dog.src = decideSpriteSrc('idle');
         }
       }
@@ -4133,6 +4232,8 @@
       decayPaused = false;
       for (const it of items) { try { it.el.remove(); } catch {} }
       items.length = 0;
+      for (const ob of obstacles) { try { ob.el.remove(); } catch {} }
+      obstacles.length = 0;
       exitWalkMode();
       const before = {};
       for (const g of GAUGES) before[g] = state[g];
