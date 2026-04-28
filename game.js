@@ -107,6 +107,21 @@
   const MINIGAME_COOLDOWN_MS = 5 * 60 * 1000;
   const MINIGAME_HAPPY_BOOST = 30;
 
+  // ----- 미니게임 난이도 — 케어(진화) 점수 기반 ----------------------------
+  // 1.0(쉬움) → 1.15(보통) → 1.3(어려움). 게임별 hot 파라미터에 곱해서 적용.
+  function diffMul() {
+    const care = state.care || 0;
+    if (care < 100) return 1.0;
+    if (care < 500) return 1.15;
+    return 1.3;
+  }
+  function diffLabel() {
+    const m = diffMul();
+    if (m >= 1.3) return '🔥 어려움';
+    if (m >= 1.15) return '⚡ 보통';
+    return '🌱 쉬움';
+  }
+
   function timeOfDayFor(date) {
     const h = date.getHours();
     if (h >= 4 && h < 6)   return 'dawn';
@@ -2863,7 +2878,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '✋ 강아지를 <b>문질러주세요!</b> (30초)';
+    guide.innerHTML = `✋ 강아지를 <b>문질러주세요!</b> (30초) <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -2899,8 +2914,8 @@
     const started = performance.now();
     let lastFrame = started;
 
-    // 문지르기 — 씻기 패턴: pointermove 누적 거리 30px당 +1
-    const PIXELS_PER_HEART = 30;
+    // 문지르기 — 씻기 패턴: pointermove 누적 거리 30px당 +1 (난이도에 따라 더 많이 필요)
+    const PIXELS_PER_HEART = 30 * diffMul();
     let petActive = false;
     let petLastX = null, petLastY = null, petAccum = 0;
     let lastHeartTs = 0;
@@ -3011,7 +3026,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🎵 강아지가 점프할 때 <b>탭!</b>';
+    guide.innerHTML = `🎵 강아지가 점프할 때 <b>탭!</b> <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -3041,11 +3056,12 @@
     let score = 0;
     let endedFlag = false;
     const TOTAL = 30000;
-    const BEAT_MS = 800;
+    const _diff = diffMul();
+    const BEAT_MS = 800 / _diff;        // 어려울수록 박자 빠름
     const started = performance.now();
     let lastBeatStart = started;
     let beatActive = false; // 박자 윈도우 (탭 가능 시점)
-    const TAP_WINDOW_MS = 350;
+    const TAP_WINDOW_MS = 350 / _diff;  // 어려울수록 윈도우 좁음
 
     // 강아지 박자 점프 — CSS animation iteration
     dog.classList.add('beat');
@@ -3123,7 +3139,7 @@
     const body = document.createElement('div');
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🦴 강아지로 옮겨서 <b>간식 많이 받아요!</b> (30초)';
+    guide.innerHTML = `🦴 강아지로 옮겨서 <b>간식 많이 받아요!</b> (30초) <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
     const stats = document.createElement('div');
     stats.className = 'minigame-stats';
@@ -3156,7 +3172,8 @@
     const TOTAL = 30000;
     const started = performance.now();
     let lastFrame = started;
-    let nextSpawn = 600 + Math.random() * 400;
+    const _diff = diffMul();
+    let nextSpawn = (600 + Math.random() * 400) / _diff;
     let spawnAccum = 0;
     const treats = []; // {el, x, y, vy}
 
@@ -3205,7 +3222,7 @@
       step._lastT = now;
       if (spawnAccum >= nextSpawn) {
         spawnAccum = 0;
-        nextSpawn = 700 + Math.random() * 600;
+        nextSpawn = (700 + Math.random() * 600) / _diff;
         spawnTreat();
       }
       // update treats
@@ -3409,7 +3426,8 @@
     let lastFrame = performance.now();
     let started = lastFrame;
     let spawnAccum = 0;
-    let nextSpawn = 1200 + Math.random() * 800;
+    const _diff = diffMul();
+    let nextSpawn = (1200 + Math.random() * 800) / _diff;
 
     // 점프 상태
     let jumping = false;
@@ -3556,7 +3574,7 @@
       spawnAccum += dt * 1000;
       if (spawnAccum >= nextSpawn && items.filter(i => !i.captured).length < 8) {
         spawnAccum = 0;
-        nextSpawn = 600 + Math.random() * 500;
+        nextSpawn = (600 + Math.random() * 500) / _diff;
         spawnItem(r);
       }
 
@@ -3708,7 +3726,7 @@
 
     const guide = document.createElement('div');
     guide.className = 'mg-guide';
-    guide.innerHTML = '🎾 강아지를 움직여서 <b>공을 머리로 받아요!</b>';
+    guide.innerHTML = `🎾 강아지를 움직여서 <b>공을 머리로 받아요!</b> <span class="mg-diff">${diffLabel()}</span>`;
     body.appendChild(guide);
 
     const stats = document.createElement('div');
@@ -3765,9 +3783,10 @@
     const TOTAL_MS = 30000;
     let endedFlag = false;
 
-    // 공 물리 — arena 좌표
+    // 공 물리 — arena 좌표 (난이도에 따라 중력 가중)
     let bx = 0, by = 0, vx = 0, vy = 0;
-    const GRAVITY = 700;
+    const _diff = diffMul();
+    const GRAVITY = 700 * _diff;
     const BOUNCE_VY = -560;
     const BALL_R = 26;
     let dogX = null;

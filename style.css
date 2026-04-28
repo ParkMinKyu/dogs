@@ -1981,6 +1981,17 @@ body.is-sick #vetBtn .dot { display: block; }
   line-height: 1.4;
 }
 .mg-guide b { color: #c47b00; font-size: 16px; }
+.mg-diff {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.6);
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b5a14;
+  vertical-align: middle;
+}
 
 .mg-tutorial {
   position: absolute;
