@@ -3157,6 +3157,74 @@
     const _diff = diffMul();
     const SPAWN_MS = 750 / _diff;
     const FALL_MS = 1500;
+    // 음악 — 8th note (= SPAWN_MS / 2). 화살표 spawn은 매 2 step.
+    const STEP_MS = SPAWN_MS / 2;
+    let nextBeatAt = 0;
+    let beatIdx = 0;
+
+    function playBeat(idx) {
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      const t0 = ctx.currentTime;
+      const s = idx % 8; // 8 8th note cycle (1 measure of 4/4)
+      // kick — 4분음표마다 (하우스 패턴): 0,2,4,6
+      if (s % 2 === 0) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(140, t0);
+        o.frequency.exponentialRampToValueAtTime(48, t0 + 0.16);
+        g.gain.setValueAtTime(0.22, t0);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+        o.connect(g).connect(ctx.destination);
+        o.start(t0); o.stop(t0 + 0.24);
+      }
+      // hihat — 오프비트(8분음표 사이): 1,3,5,7
+      if (s % 2 === 1) {
+        const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.04), ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.06, t0);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.04);
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass'; hp.frequency.value = 6500;
+        src.connect(hp).connect(g).connect(ctx.destination);
+        src.start(t0); src.stop(t0 + 0.06);
+      }
+      // 클랩 (스네어처럼) — 2, 4박: step 2, 6
+      if (s === 2 || s === 6) {
+        const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.08), ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.10, t0);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.08);
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 1.2;
+        src.connect(bp).connect(g).connect(ctx.destination);
+        src.start(t0); src.stop(t0 + 0.10);
+      }
+      // bell 멜로디 — 다운비트(0)에서 펜타토닉(C major) 무작위
+      if (s === 0) {
+        const NOTES = [392, 440, 523, 587, 659, 784];
+        const f = NOTES[Math.floor(Math.random() * NOTES.length)];
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.05, t0);
+        g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.30);
+        o.connect(g).connect(ctx.destination);
+        o.start(t0); o.stop(t0 + 0.32);
+      }
+      // 모든 4분음표마다 히트라인 펄스 — 화살표 spawn과 정확히 동기
+      if (s % 2 === 0) {
+        try { hitLine.classList.add('beat'); setTimeout(() => hitLine.classList.remove('beat'), 110); } catch {}
+      }
+    }
     const HIT_GREAT_PX = 36;
     const HIT_GOOD_PX = 80;
     const started = performance.now();
@@ -3261,6 +3329,13 @@
       timeEl.textContent = '⏱ ' + Math.ceil(remain / 1000);
       tFill.style.width = (remain / TOTAL * 100) + '%';
       if (remain < 10000) tFill.classList.add('low'); else tFill.classList.remove('low');
+
+      // 박자 음악 — 8th note 간격으로 schedule. RAF lag 시 따라잡기 위해 while 루프.
+      if (nextBeatAt === 0) nextBeatAt = now;
+      while (now >= nextBeatAt) {
+        playBeat(beatIdx++);
+        nextBeatAt += STEP_MS;
+      }
 
       // 마지막 FALL_MS는 spawn 정지 — 화면 밖으로 떨어지는 화살표 방지
       if (remain > FALL_MS && now - lastSpawn >= SPAWN_MS) {

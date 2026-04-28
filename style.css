@@ -2594,6 +2594,11 @@ body.is-editing-room .stage {
   box-shadow: 0 0 14px rgba(255, 100, 140, 0.6);
   pointer-events: none;
   z-index: 3;
+  transition: box-shadow 90ms ease, background 90ms ease;
+}
+.ddr-hitline.beat {
+  background: linear-gradient(90deg, transparent, rgba(255, 180, 80, 1), transparent);
+  box-shadow: 0 0 24px rgba(255, 180, 80, 0.95);
 }
 
 .ddr-arrow {
