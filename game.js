@@ -1759,7 +1759,7 @@
   }
 
   function renderSickness() {
-    if (vetBtn) vetBtn.hidden = !state.sick;
+    if (vetBtn) vetBtn.hidden = false;
     document.body.classList.toggle('is-sick', !!state.sick);
   }
 
