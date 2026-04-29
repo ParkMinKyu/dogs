@@ -3444,6 +3444,7 @@
     // 하지 않고 한 번만 계산. 노트8 등 구형 기기에서 매 프레임 forced
     // reflow 누적이 화살표 순간이동의 주된 원인이라 제거.
     let cachedHitY = 0;
+    function arenaRect() { return arena.getBoundingClientRect(); }
     function recomputeHitY() {
       const r = arena.getBoundingClientRect();
       const hr = hitLine.getBoundingClientRect();
