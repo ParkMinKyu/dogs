@@ -3477,9 +3477,6 @@
       judge.classList.add('show');
     }
 
-    function moveDogToLane(lane) {
-      dogWrap.style.left = `${(lane + 0.5) * 25}%`;
-    }
     function animateDog(anim) {
       dog.classList.remove('hop', 'spin');
       void dog.offsetWidth; // reflow로 애니메이션 재시작
@@ -3548,7 +3545,6 @@
         combo += 1; if (combo > maxCombo) maxCombo = combo;
         great += 1;
         label = 'Great!'; klass = 'great';
-        moveDogToLane(lane);
         animateDog('spin');
         try { SOUNDS.catch(); } catch {}
       } else {
@@ -3556,7 +3552,6 @@
         combo += 1; if (combo > maxCombo) maxCombo = combo;
         good += 1;
         label = 'Good!'; klass = 'good';
-        moveDogToLane(lane);
         animateDog('hop');
         try { SOUNDS.catch(); } catch {}
       }

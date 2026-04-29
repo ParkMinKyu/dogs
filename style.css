@@ -2855,7 +2855,6 @@ body.is-editing-room .stage {
   pointer-events: none;
   z-index: 2;
   filter: drop-shadow(0 6px 4px rgba(0,0,0,0.18));
-  transition: left 160ms cubic-bezier(0.2, 1.4, 0.4, 1);
 }
 .ddr-dog {
   position: absolute;
