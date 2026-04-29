@@ -1125,8 +1125,7 @@
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'mess-item';
-      const src = m.type === 'poop' ? 'assets/items/poop.png' : 'assets/items/pee.png';
-      el.innerHTML = `<img src="${src}" class="mess-img" alt="${m.type === 'poop' ? '똥' : '오줌'}" draggable="false"><span class="fly">🪰</span>`;
+      el.innerHTML = (m.type === 'poop' ? '💩' : '💧') + '<span class="fly">🪰</span>';
       el.style.left = m.x + '%';
       el.style.top  = m.y + '%';
       el.dataset.idx = idx;
