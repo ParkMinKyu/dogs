@@ -3449,8 +3449,8 @@
       const hr = hitLine.getBoundingClientRect();
       cachedHitY = hr.top - r.top + hr.height / 2;
     }
-    // 첫 프레임에 hitLine 이 layout 되도록 dual-RAF 후 측정
-    requestAnimationFrame(() => requestAnimationFrame(recomputeHitY));
+    // 모달 애니메이션(280ms)이 끝난 후 측정 — 애니메이션 중 getBoundingClientRect는
+    // 스케일이 적용된 값을 반환하므로 게임 시작 직전(300ms)으로 지연
     const _onResize = () => recomputeHitY();
     window.addEventListener('resize', _onResize);
 
@@ -3532,7 +3532,7 @@
       for (const a of arrows) {
         if (a.hit || a.lane !== lane) continue;
         const t = (now - a.spawnTs) / FALL_MS;
-        const y = -50 + t * (hY + 50);
+        const y = -50 + t * (hY + 25); // t=1 시 화살표 중심(y+25)이 hitLine(hY)에 정확히 도달
         const ay = y + 25; // 화살표 50px 의 중심
         const d = Math.abs(ay - hY);
         if (d < bestDist) { bestDist = d; best = a; }
@@ -3608,10 +3608,10 @@
       for (let i = arrows.length - 1; i >= 0; i--) {
         const a = arrows[i];
         const t = (now - a.spawnTs) / FALL_MS;
-        const y = -50 + t * (hY + 50);
+        const y = -50 + t * (hY + 25);
         a.el.style.transform = `translate3d(0, ${y}px, 0)`;
-        // 못 친 채 한참 지나면 miss
-        if (!a.hit && y > hY + HIT_GOOD_PX + 24) {
+        // 못 친 채 한참 지나면 miss — 화살표 중심(y+25)이 hitLine 아래 HIT_GOOD_PX 초과 시
+        if (!a.hit && y + 25 > hY + HIT_GOOD_PX + 24) {
           a.hit = true;
           miss += 1;
           combo = 0;
@@ -3685,7 +3685,7 @@
         }
       },
     });
-    setTimeout(() => requestAnimationFrame(step), 80);
+    setTimeout(() => { recomputeHitY(); requestAnimationFrame(step); }, 300);
   }
 
   // ----- 간식 받기: 위에서 떨어지는 간식을 강아지가 받음 -----------------
