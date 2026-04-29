@@ -3478,9 +3478,9 @@
     }
 
     function animateDog(anim) {
-      dog.classList.remove('hop', 'spin');
-      void dog.offsetWidth; // reflow로 애니메이션 재시작
-      dog.classList.add(anim);
+      dogWrap.classList.remove('hop', 'spin');
+      void dogWrap.offsetWidth;
+      dogWrap.classList.add(anim);
     }
 
     // 히트 시 receptor 위에서 파티클 폭발 + 링 확장
