@@ -10,22 +10,22 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="우리 강아지" />
+  <meta name="apple-mobile-web-app-title" content="우리 친구" />
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="assets/icons/icon-256.png" />
-  <title>우리 강아지</title>
+  <title>우리 친구</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="app" role="application" aria-label="강아지 키우기 게임" data-stage="puppy" data-tod="day" data-breed="shiba">
+  <main class="app" role="application" aria-label="친구 키우기 게임" data-stage="puppy" data-tod="day" data-breed="shiba">
     <header class="topbar">
       <h1 class="title" id="titleEl">
         <button id="petPickerBtn" class="pet-picker-btn" type="button" aria-label="펫 선택">
-          <img id="titleAvatar" class="title-avatar" src="assets/puppy/idle.png" alt="" />
-          <span id="titleName" class="pet-picker-name-tag">우리 강아지</span>
+          <img id="titleAvatar" class="title-avatar" src="assets/shiba/idle.png" alt="" />
+          <span id="titleName" class="pet-picker-name-tag">우리 친구</span>
           <span id="petPickerCount" class="pet-picker-count" hidden>1</span>
           <span class="pet-picker-plus-tag">+</span>
         </button>
@@ -49,8 +49,24 @@
       </div>
     </header>
 
-    <section class="stage" aria-label="강아지">
-      <button id="missionBtn" class="icon-btn mission-in-stage" type="button" aria-label="일일 미션">
+    <section class="stage" aria-label="친구">
+      <div class="stage-side-buttons">
+        <button id="healthBadge" class="side-btn health-side-btn" type="button" aria-label="종합 상태" title="종합 상태">
+          <span class="health-emoji" id="healthEmoji">😊</span>
+          <span class="health-score" id="healthScore">100</span>
+        </button>
+        <button id="stageShopBtn" class="side-btn icon-btn" type="button" aria-label="상점" title="상점">
+          <span class="icon" aria-hidden="true">🛍️</span>
+        </button>
+        <button id="stageRoomBtn" class="side-btn icon-btn" type="button" aria-label="방 꾸미기" title="방 꾸미기">
+          <span class="icon" aria-hidden="true">🛋️</span>
+        </button>
+        <button id="treatBtn" class="side-btn icon-btn treat-side-btn" type="button" aria-label="간식 주기" title="간식 주기" hidden>
+          <span class="icon" aria-hidden="true">🦴</span>
+          <span class="treat-count" id="treatCount">0</span>
+        </button>
+      </div>
+      <button id="missionBtn" class="icon-btn mission-bottom" type="button" aria-label="일일 미션">
         <span class="icon" aria-hidden="true">📋</span>
         <span class="dot" id="missionDot" hidden></span>
       </button>
@@ -71,10 +87,7 @@
       <div id="decoLayerFront" class="deco-layer deco-front" aria-hidden="true"></div>
       <div id="messLayer" class="mess-layer" aria-hidden="true"></div>
       <div class="puppy-wrap">
-        <img id="puppy" class="puppy" src="assets/puppy/idle.png" alt="강아지" draggable="false" />
-        <div id="accHat" class="acc acc-hat" aria-hidden="true"></div>
-        <div id="accNeck" class="acc acc-neck" aria-hidden="true"></div>
-        <div id="accFeet" class="acc acc-feet" aria-hidden="true"></div>
+        <img id="puppy" class="puppy" src="assets/shiba/idle.png" alt="친구" draggable="false" />
       </div>
       <div id="evolveFx" class="evolve-fx" aria-hidden="true"></div>
       <div id="bubble" class="bubble" aria-hidden="true"></div>
@@ -99,7 +112,16 @@
         </div>
         <span class="lbl">놀이</span>
       </button>
-      <button class="action a-wash"  data-action="wash"  type="button" aria-label="씻기 (단축키 3)" aria-keyshortcuts="3">
+      <button class="action a-walk" data-action="walk" type="button" aria-label="산책 (단축키 3)" aria-keyshortcuts="3">
+        <div class="gauge" data-key="walk">
+          <div class="gauge-circle" style="--pct:80;--col:hsl(30,75%,55%)">
+            <span class="emo" aria-hidden="true">🚶</span>
+            <span class="pct">80</span>
+          </div>
+        </div>
+        <span class="lbl">산책</span>
+      </button>
+      <button class="action a-wash"  data-action="wash"  type="button" aria-label="씻기 (단축키 4)" aria-keyshortcuts="4">
         <div class="gauge" data-key="clean">
           <div class="gauge-circle" style="--pct:80;--col:hsl(150,55%,48%)">
             <span class="emo" aria-hidden="true">🫧</span>
@@ -108,7 +130,7 @@
         </div>
         <span class="lbl">씻기</span>
       </button>
-      <button class="action a-sleep" data-action="sleep" type="button" aria-label="재우기 (단축키 4)" aria-keyshortcuts="4">
+      <button class="action a-sleep" data-action="sleep" type="button" aria-label="재우기 (단축키 5)" aria-keyshortcuts="5">
         <div class="gauge" data-key="energy">
           <div class="gauge-circle" style="--pct:80;--col:hsl(45,90%,55%)">
             <span class="emo" aria-hidden="true">⚡</span>
