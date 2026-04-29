@@ -3477,12 +3477,8 @@
       judge.classList.add('show');
     }
 
-    let dogJumpUntil = 0;
-    function jumpDog(amount) {
-      // amount 0..1 → 점프 높이
-      const h = 14 + amount * 90;
-      dog.style.transform = `translateY(${-h}px)`;
-      dogJumpUntil = performance.now() + 350;
+    function moveDogToLane(lane) {
+      dogWrap.style.left = `${(lane + 0.5) * 25}%`;
     }
 
     // 히트 시 receptor 위에서 파티클 폭발 + 링 확장
@@ -3547,14 +3543,14 @@
         combo += 1; if (combo > maxCombo) maxCombo = combo;
         great += 1;
         label = 'Great!'; klass = 'great';
-        jumpDog(Math.min(1, 0.4 + combo / 12));
+        moveDogToLane(lane);
         try { SOUNDS.catch(); } catch {}
       } else {
         score += 5;
         combo += 1; if (combo > maxCombo) maxCombo = combo;
         good += 1;
         label = 'Good!'; klass = 'good';
-        jumpDog(Math.min(0.6, 0.2 + combo / 18));
+        moveDogToLane(lane);
         try { SOUNDS.catch(); } catch {}
       }
       spawnHitBurst(lane, klass);
@@ -3622,9 +3618,6 @@
           setTimeout(() => { try { a.el.remove(); } catch {} }, 200);
         }
       }
-
-      // 강아지 점프 복귀
-      if (now > dogJumpUntil) dog.style.transform = 'translateY(0)';
 
       if (remain <= 0) { endGame(); return; }
       requestAnimationFrame(step);
