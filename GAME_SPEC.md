@@ -1,7 +1,7 @@
 # 우리 강아지 — 게임 스펙 문서
 
-> 소스 코드 직독 기준 / 작성일: 2026-04-26  
-> 버전: `manifest.json` → `16.4.0-beta` / 캐시 키: `dogs-v2-v164`
+> 소스 코드 직독 기준 / 작성일: 2026-04-26 (최종 동기화: 2026-04-29)  
+> 버전: `manifest.json` → `17.2.0-beta` / 캐시 키: `dogs-v2-v206`
 
 ---
 
@@ -117,10 +117,7 @@
 
 | ID | 이름 | 설명 | species |
 |---|---|---|---|
-| `shiba` | 시바이누 | 용감한 친구 | dog |
-| `maltese` | 말티즈 | 뽀송뽀송 | dog |
-| `poodle` | 푸들 | 곱슬곱슬 | dog |
-| `husky` | 허스키 | 눈송이 눈 | dog |
+| `shiba` | 강아지 | 귀여운 친구 | dog |
 | `cat_yellow` | 노랑이 | 햇살 같은 | cat |
 | `cat_black` | 까망이 | 신비로운 | cat |
 | `cat_gray` | 회색냥 | 고급스러운 | cat |
@@ -128,7 +125,7 @@
 | `rabbit_brown` | 갈토끼 | 네덜란드 | rabbit |
 | `hamster` | 햄찌 | 귀여운 작은 친구 | hamster |
 
-> 고양이/토끼/햄스터는 v2 추가 예정. 현재 스프라이트 폴더는 `assets/breeds/{id}.png`로 미리보기용.  
+> `maltese`, `poodle`, `husky`는 `RETIRED_BREEDS`로 비활성 처리 — 선택 시 자동으로 `shiba`로 교체됨.  
 > 색감은 CSS `filter: hue-rotate / saturate / brightness`로 구현 — 동일 스프라이트 재사용.
 
 ### 성장 단계
@@ -241,9 +238,13 @@ const STAGES = [
 | ID | 이름 | 이모지 | 설명 |
 |---|---|---|---|
 | `ball` | 공놀이 | 🎾 | 공 머리로 받기 (30초) |
-| `pet` | 쓰다듬기 | ✋ | 많이 탭하기 (30초) |
+| `pet` | 풍선 터뜨리기 | 🎈 | 3초 안에 풍선 터뜨리기! (30초) |
 | `dance` | 춤추기 | 🎵 | 박자 맞추기 (30초) |
 | `treat` | 간식 받기 | 🦴 | 낙하 아이템 받기 (30초) |
+| `seq` | 발자국 따라가기 | 🐾 | 순서대로 누르기 |
+| `hide` | 숨바꼭질 | 🌳 | 숨은 강아지 찾기 (30초) |
+| `match` | 짝 맞추기 | 🃏 | 같은 카드 찾기 (60초) |
+| `bury` | 뼈 묻기 | ⛰️ | 묻은 뼈 위치 기억! |
 | `walk` | 산책 | 🚶 | 횡스크롤 점프 아이템 수집 (30초) |
 
 - 공통 **쿨타임**: 게임당 5분 (`MINIGAME_COOLDOWN_MS = 5 * 60 * 1000`)
@@ -280,18 +281,12 @@ const STAGES = [
 
 ---
 
-### 쓰다듬기 (pet)
+### 풍선 터뜨리기 (pet)
 
-- 30초 동안 강아지 이미지를 탭/클릭한 횟수 카운트
+- 30초 동안 풍선이 순서대로 등장 — 각 풍선을 **3초 안에 탭**해야 함
+- 시간 내 터뜨리면 콤보 누적, 놓치면 게임 종료
 
-**보상**
-
-| 횟수 | happyGain | careBoost | 배지 |
-|---|---|---|---|
-| ≥30 | +40 | +2 | ⭐ 최고예요! |
-| ≥20 | +30 | +1 | 👍 잘했어요! |
-| ≥10 | +20 | +1 | 🙂 좋아요! |
-| <10 | +10 | 0 | 😅 조금만 더! |
+**보상**: ball 게임과 동일한 점수/happyGain 구조 적용
 
 ---
 
@@ -426,7 +421,7 @@ hard일 때 낑낑(`SOUNDS.whimper`), soft일 때 팡(`SOUNDS.bounce`) 사운드
 | **외부 출처** (폰트 등) | **Network-First** → 실패 시 캐시 폴백 |
 
 - `install`: PRECACHE 목록 전체 캐싱 + `skipWaiting()`
-- `activate`: 이전 버전 캐시(`dogs-v2-v164` 외) 모두 삭제 + `clients.claim()`
+- `activate`: 이전 버전 캐시(`dogs-v2-v206` 외) 모두 삭제 + `clients.claim()`
 
 ### 프리캐시 목록 (`PRECACHE`)
 
@@ -435,11 +430,17 @@ hard일 때 낑낑(`SOUNDS.whimper`), soft일 때 팡(`SOUNDS.bounce`) 사운드
 assets/puppy/idle.png, happy.png, eating.png, sad.png, sleeping.png
 assets/teen/idle.png, happy.png, eating.png, sad.png, sleeping.png
 assets/adult/idle.png, happy.png, eating.png, sad.png, sleeping.png
-assets/breeds/shiba.png, maltese.png, poodle.png, husky.png
+assets/cat_yellow/idle.png, happy.png, eating.png, sad.png, sleeping.png
+assets/cat_black/idle.png, happy.png, eating.png, sad.png, sleeping.png
+assets/cat_gray/idle.png, happy.png, eating.png, sad.png, sleeping.png
+assets/rabbit_white/idle.png, happy.png, eating.png, sad.png, sleeping.png
+assets/rabbit_brown/idle.png, happy.png, eating.png, sad.png, sleeping.png
+assets/hamster/idle.png, happy.png, eating.png, sad.png, sleeping.png
+assets/breeds/shiba.png
 assets/icons/icon-256.png, icon-512.png
 ```
 
-총 **31개** 파일.
+총 **58개** 파일.
 
 ---
 
@@ -463,7 +464,8 @@ assets/icons/icon-256.png, icon-512.png
 |---|---|
 | 액세서리 구매 | 60~250점 (아이템별 상이) |
 | 강아지 종 변경 | 500점 |
-| 병원 진료 | 50점 |
+| 병원 진료 | 질병별 40~70점 (감기/배탈: 40, 벼룩: 50, 우울증: 60, 피부병: 70) |
+| 예방주사 | 200점 (7일간 발병 면역) |
 
 ### 상점 구성 (`openShopModal`)
 
@@ -533,7 +535,24 @@ TOD는 창문 내부(`.window-sky`) 시각에만 영향. 실내 방 배경색은
 2. 게이지 2개 이상이 동시에 ≤10
 3. 랜덤 발병 (30분당 약 5% 확률)
 
-치료: 병원 버튼(🏥) → 50점 소비 → 5초 진행 → 전 게이지 +10, happy +20
+**질병 카탈로그 (`DISEASES`)**
+
+| ID | 이름 | 이모지 | 원인 게이지 | 치료비 | 약품 |
+|---|---|---|---|---|---|
+| `cold` | 감기 | 🤧 | energy | 40점 | 해열제(fever) |
+| `upset` | 배탈 | 🤢 | hunger | 40점 | 지사제(digest) |
+| `skin` | 피부병 | 🩹 | clean | 70점 | 연고(cream) |
+| `flea` | 벼룩 | 🐛 | clean | 50점 | 벼룩 스프레이(spray) |
+| `blue` | 우울증 | 😔 | happy | 60점 | 영양제(vitamin) |
+
+> 가장 낮은 게이지에 따라 발병 질병이 결정됨. 치료 시 전 게이지 +10, happy 추가 +20.
+
+**예방/정기검진**
+
+| 항목 | 비용 | 효과 |
+|---|---|---|
+| 예방주사 (vaccine) | 200점 | 7일간 발병 면역 |
+| 정기검진 (checkup) | 무료 | +30점, 7일 주기 가능 |
 
 가출 조건 (OR):
 - 게이지 3개 이상 0인 상태가 15분 지속

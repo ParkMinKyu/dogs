@@ -8,9 +8,9 @@
 - "+ 추가" 버튼은 4마리 미만일 때만
 - **해금 임계값** (state.points 누적 기준, 차감 X):
   - 1번: 무료
-  - 2번: 100점
-  - 3번: 500점
-  - 4번: 1500점
+  - 2번: 1000점
+  - 3번: 5000점
+  - 4번: 15000점
 - 잠긴 카드는 🔒 + "🌟 진행/필요" 표시 + 회색 dim, 누르면 안내 말풍선
 
 ### 2. 전역 vs 펫별
@@ -36,8 +36,8 @@
 - 총 **10종** — Pillow로 32×32 head sprite 생성 (시바 sheet은 puppy idle만 적용)
 - 다른 동물의 4 stage sprite는 강아지 generated와 동일한 톤(_gen.py 기반)
 
-### 4. 액세서리 5 부위 × 10개 = 50
-- **부위 5개**: 모자 / 목 / 안경 / 등 / 발
+### 4. 액세서리 3 부위 × 10개 = 30
+- **부위 3개**: 모자(hat) / 목(neck) / 발(feet) — 안경/등 슬롯은 구현 후 제거됨
 - 각 10종, 32×32 픽셀아트 (Pillow 자동 생성)
 - 가격 50~250 케어포인트 차등
 - 산책에서도 1% 확률 등장
@@ -76,9 +76,9 @@
 ✅ 헤더 펫 슬롯 행 (#petSlots) + "+ 추가" 카드 + 활성 펫 분홍 강조
 ✅ 6 새 동물 head sprite (cat_yellow/cat_black/cat_gray/rabbit_white/rabbit_brown/hamster)
 ✅ BREEDS 카탈로그 4 → 10, species 필드 + 종 선택 모달 3-col grid
-✅ 50 액세서리 (5 부위 × 10) — assets/_gen_acc50.py
-✅ 상점 모달 5 부위 탭 — 부위별 10개 카드
-✅ equipped 슬롯 5개로 확장 (back/feet 추가)
+✅ 30 액세서리 (3 부위 × 10) — assets/_gen_acc50.py
+✅ 상점 모달 3 부위 탭 (hat/neck/feet) — 부위별 10개 카드
+✅ equipped 슬롯 3개 (hat/neck/feet) — back/clothes/glasses 슬롯 제거됨
 ✅ acc-back / acc-feet CSS 위치 매핑
 ✅ 옛 acc id 마이그레이션 (hat_red→hat_01 등)
 ✅ sw v50 / manifest 5.0.0-beta
