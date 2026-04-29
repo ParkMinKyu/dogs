@@ -1003,7 +1003,7 @@
     if (p.messes.length >= 4) return false;
     const type = Math.random() < 0.7 ? 'poop' : 'pee';
     const x = 12 + Math.random() * 76;
-    const y = 70 + Math.random() * 18;
+    const y = 80 + Math.random() * 10;
     p.messes.push({ type, x, y, ts: Date.now() });
     return true;
   }
@@ -1125,7 +1125,8 @@
       const el = document.createElement('button');
       el.type = 'button';
       el.className = 'mess-item';
-      el.innerHTML = (m.type === 'poop' ? '💩' : '💧') + '<span class="fly">🪰</span>';
+      const src = m.type === 'poop' ? 'assets/items/poop.png' : 'assets/items/pee.png';
+      el.innerHTML = `<img src="${src}" class="mess-img" alt="${m.type === 'poop' ? '똥' : '오줌'}" draggable="false"><span class="fly">🪰</span>`;
       el.style.left = m.x + '%';
       el.style.top  = m.y + '%';
       el.dataset.idx = idx;
