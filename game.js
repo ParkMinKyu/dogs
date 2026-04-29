@@ -3439,12 +3439,19 @@
     const started = performance.now();
     const arrows = [];
 
-    function arenaRect() { return arena.getBoundingClientRect(); }
-    function hitY() {
-      const r = arenaRect();
+    // arena/hitLine 위치 캐싱 — 게임 중 크기가 변하지 않으므로 매 프레임 측정
+    // 하지 않고 한 번만 계산. 노트8 등 구형 기기에서 매 프레임 forced
+    // reflow 누적이 화살표 순간이동의 주된 원인이라 제거.
+    let cachedHitY = 0;
+    function recomputeHitY() {
+      const r = arena.getBoundingClientRect();
       const hr = hitLine.getBoundingClientRect();
-      return hr.top - r.top + hr.height / 2;
+      cachedHitY = hr.top - r.top + hr.height / 2;
     }
+    // 첫 프레임에 hitLine 이 layout 되도록 dual-RAF 후 측정
+    requestAnimationFrame(() => requestAnimationFrame(recomputeHitY));
+    const _onResize = () => recomputeHitY();
+    window.addEventListener('resize', _onResize);
 
     function spawnArrow(scheduledTs) {
       const lane = Math.floor(Math.random() * 4);
@@ -3452,6 +3459,10 @@
       el.className = 'ddr-arrow';
       el.dataset.lane = String(lane);
       el.innerHTML = noteSVG(lane);
+      // 가로 위치는 spawn 시 한 번만 — 이후 매 프레임 만지지 않음
+      el.style.left = `${(lane + 0.5) * 25}%`;
+      // 초기 위치를 화면 위쪽으로
+      el.style.transform = 'translate3d(0, -50px, 0)';
       arena.appendChild(el);
       // spawnTs를 RAF의 실제 now가 아닌 스케줄된 비트 시각으로 기록 →
       // FALL_MS 후 정확히 다음 spawn 비트와 같은 시각에 hit 라인에 도달
@@ -3512,15 +3523,16 @@
 
     function tryHit(lane) {
       if (endedFlag) return;
-      // 가장 가까운 미타격 화살표
-      const hY = hitY();
+      // 시간 기반으로 화살표 위치 계산 — DOM rect 측정(forced reflow) 회피
+      const hY = cachedHitY;
+      const now = performance.now();
       let best = null;
       let bestDist = Infinity;
-      const aR = arenaRect();
       for (const a of arrows) {
         if (a.hit || a.lane !== lane) continue;
-        const ar = a.el.getBoundingClientRect();
-        const ay = ar.top - aR.top + ar.height / 2;
+        const t = (now - a.spawnTs) / FALL_MS;
+        const y = -50 + t * (hY + 50);
+        const ay = y + 25; // 화살표 50px 의 중심
         const d = Math.abs(ay - hY);
         if (d < bestDist) { bestDist = d; best = a; }
       }
@@ -3547,8 +3559,9 @@
       spawnHitBurst(lane, klass);
       showJudge(label, klass);
       best.hit = true;
-      best.el.classList.add('hit');
-      setTimeout(() => { try { best.el.remove(); } catch {} }, 220);
+      // 화살표는 즉시 제거 — burst 가 hit 효과를 대신 표현. transform 상태에서
+      // scale 애니메이션을 덧입히면 위치가 (0,0) 으로 튀는 문제도 해결됨.
+      try { best.el.remove(); } catch {}
       scoreEl.textContent = '🎯 ' + score;
       comboEl.textContent = combo > 1 ? `🔥 ${combo}` : '';
     }
@@ -3589,14 +3602,13 @@
         nextBeatAt += STEP_MS;
       }
 
-      // 화살표 이동
-      const hY = hitY();
+      // 화살표 이동 — transform 으로 GPU 합성, top/left 변경 안 함
+      const hY = cachedHitY;
       for (let i = arrows.length - 1; i >= 0; i--) {
         const a = arrows[i];
         const t = (now - a.spawnTs) / FALL_MS;
-        const y = -40 + t * (hY + 40);
-        a.el.style.top = y + 'px';
-        a.el.style.left = `${(a.lane + 0.5) * 25}%`;
+        const y = -50 + t * (hY + 50);
+        a.el.style.transform = `translate3d(0, ${y}px, 0)`;
         // 못 친 채 한참 지나면 miss
         if (!a.hit && y > hY + HIT_GOOD_PX + 24) {
           a.hit = true;
@@ -3622,6 +3634,7 @@
       endedFlag = true;
       decayPaused = false;
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', _onResize);
       while (arrows.length) { try { arrows[0].el.remove(); } catch {}; arrows.shift(); }
 
       const happyGain = 20 + Math.min(30, Math.floor(score / 8));
