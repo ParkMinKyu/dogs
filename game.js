@@ -2014,9 +2014,9 @@
       const top = parseFloat(el.style.top || '50');
       el.style.zIndex = Math.floor(top * 10);
     });
-    // front layer (나비/새/풍선/별): 항상 강아지 위 — 큰 값
+    // front layer (나비/새/풍선/별): 항상 강아지 위, stage UI(mess·bubble·missionBtn) 아래
     document.querySelectorAll('#decoLayerFront .deco-item').forEach(el => {
-      el.style.zIndex = 9999;
+      el.style.zIndex = 1100;
     });
   }
 
