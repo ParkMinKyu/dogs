@@ -5489,14 +5489,11 @@
     if (state.sick) {
       const d = DISEASES[state.sick.id] || DISEASES.cold;
       const emerg = isEmergency();
-      const cost = emerg ? d.cost + 50 : d.cost;
       // 1) 직접 치료 (병원)
       cards.push({
         title: emerg ? '🚨 응급 치료' : '🩺 진료받기',
-        sub: `${d.name} 치료 — ${cost}점`,
+        sub: `${d.name} 치료`,
         onClick: () => {
-          if ((state.points || 0) < cost) { showSpeech('🌟 점수가 부족해요', 1800); return; }
-          state.points -= cost;
           closeModal();
           const stageEl = document.querySelector('.stage');
           if (stageEl) {
