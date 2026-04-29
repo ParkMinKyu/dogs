@@ -3480,6 +3480,11 @@
     function moveDogToLane(lane) {
       dogWrap.style.left = `${(lane + 0.5) * 25}%`;
     }
+    function animateDog(anim) {
+      dog.classList.remove('hop', 'spin');
+      void dog.offsetWidth; // reflow로 애니메이션 재시작
+      dog.classList.add(anim);
+    }
 
     // 히트 시 receptor 위에서 파티클 폭발 + 링 확장
     function spawnHitBurst(lane, klass) {
@@ -3544,6 +3549,7 @@
         great += 1;
         label = 'Great!'; klass = 'great';
         moveDogToLane(lane);
+        animateDog('spin');
         try { SOUNDS.catch(); } catch {}
       } else {
         score += 5;
@@ -3551,6 +3557,7 @@
         good += 1;
         label = 'Good!'; klass = 'good';
         moveDogToLane(lane);
+        animateDog('hop');
         try { SOUNDS.catch(); } catch {}
       }
       spawnHitBurst(lane, klass);
