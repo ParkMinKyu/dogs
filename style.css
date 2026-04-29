@@ -373,7 +373,7 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   position: absolute;
   top: 10px;
   right: 10px;
-  z-index: 10;
+  z-index: 1700;
 }
 .icon-btn[aria-pressed="true"] { background: #f1f1f1; opacity: 0.75; }
 .icon-btn .dot {
@@ -401,6 +401,8 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   transition: background 1.2s ease, border-color 1.2s ease;
   /* 씻기 스크럽 등 드래그 동작이 페이지 스크롤로 새지 않게 */
   touch-action: none;
+  /* stage 안 z-index가 외부 UI(모달·헤더)로 탈출하지 않도록 봉인 */
+  isolation: isolate;
 }
 
 .ground {
@@ -537,7 +539,7 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
 .mess-layer {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 1400;
   pointer-events: none;
 }
 .mess-item {
@@ -744,6 +746,7 @@ body.is-sick #vetBtn .dot { display: block; }
   pointer-events: none;
   transition: opacity 200ms ease, transform 240ms cubic-bezier(.2,1.4,.4,1);
   filter: drop-shadow(0 2px 0 #ffffffcc);
+  z-index: 1500;
 }
 .bubble.show { opacity: 1; transform: translateX(-50%) scale(1); }
 
@@ -1027,7 +1030,7 @@ body.is-sick #vetBtn .dot { display: block; }
   bottom: 8%;
   transform: translateX(-50%);
   pointer-events: none;
-  z-index: 6;
+  z-index: 1200;
   width: 220px;
   height: 80px;
 }
@@ -1108,7 +1111,7 @@ body.is-sick #vetBtn .dot { display: block; }
   pointer-events: none;
   box-shadow: 0 4px 0 rgba(74,58,46,0.18);
   animation: wash-cel 1400ms ease-out forwards;
-  z-index: 12;
+  z-index: 1600;
 }
 @keyframes wash-cel {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
@@ -1123,7 +1126,7 @@ body.is-sick #vetBtn .dot { display: block; }
   pointer-events: none;
   animation: wash-confetti-fall 1300ms ease-out forwards;
   filter: drop-shadow(0 0 4px #fff);
-  z-index: 11;
+  z-index: 1590;
 }
 @keyframes wash-confetti-fall {
   0%   { opacity: 0; transform: translateY(-20px) rotate(0); }
@@ -1318,7 +1321,7 @@ body.is-sick #vetBtn .dot { display: block; }
   align-items: center;
   gap: 6px;
   pointer-events: none;
-  z-index: 10;
+  z-index: 1300;
   filter: drop-shadow(0 4px 0 rgba(0,0,0,0.15));
 }
 .busy-gauge .bg-emo {
@@ -2266,7 +2269,7 @@ body.is-editing-room .furn-item:active { cursor: grabbing; }
   display: flex;
   gap: 6px;
   transform: translateX(-50%);
-  z-index: 50;
+  z-index: 1800;
   pointer-events: auto;
 }
 .rit-btn {
