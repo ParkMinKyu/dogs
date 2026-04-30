@@ -14,6 +14,23 @@
   "background_color": "#fde9d9",
   "theme_color": "#ffb3c1",
   "categories": ["games", "kids", "education"],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "방 꾸미기",
+      "short_name": "꾸미기",
+      "description": "방을 꾸며보세요",
+      "url": "./?shortcut=room",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "상점",
+      "short_name": "상점",
+      "description": "상점 열기",
+      "url": "./?shortcut=shop",
+      "icons": [{ "src": "assets/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "assets/icons/icon-48.png",
