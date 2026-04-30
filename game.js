@@ -1604,10 +1604,11 @@
       // is-blocked 차단 — 다른 게이지가 0/위험인데 우선순위 낮은 액션은 막힘
       if (btn.classList.contains('is-blocked')) {
         btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
-        const lows = GAUGES.filter(g => state[g] <= 20);
-        const NAMES = { hunger:'🍖 배고픔', happy:'💖 행복', clean:'🛁 청결', energy:'⚡ 에너지', walk:'🚶 산책' };
-        const urgent = lows.map(g => NAMES[g]).join(', ');
-        showSpeech(`먼저 ${urgent} 챙겨주세요!`, 2500);
+        // 산책은 일일 한도/쿨다운으로 직접 못 챙길 수 있어 메시지에서 제외
+        const NAMES = { hunger:'🍖 배고픔', happy:'💖 행복', clean:'🛁 청결', energy:'⚡ 에너지' };
+        const urgent = GAUGES.filter(g => state[g] <= 20 && NAMES[g]).map(g => NAMES[g]).join(', ');
+        if (urgent) showSpeech(`먼저 ${urgent} 챙겨주세요!`, 2500);
+        else showSpeech('지금은 그 행동이 어려워요', 2000);
         try { SOUNDS.whimper(); } catch {}
         return;
       }
@@ -2212,7 +2213,8 @@
     const reqs = activeRequestsFor(state);
     const reqByAction = {};
     for (const [g, r] of Object.entries(reqs)) reqByAction[r.def.action] = r.severity;
-    const lows = GAUGES.filter(g => state[g] <= 20);
+    // walk는 일일 한도/쿨다운으로 직접 못 챙기니 위험 기준에서 제외
+    const lows = GAUGES.filter(g => g !== 'walk' && state[g] <= 20);
     actionBtns.forEach(btn => {
       const a = btn.dataset.action;
       if (!a) return;
