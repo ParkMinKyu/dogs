@@ -1306,7 +1306,20 @@
     if (!p.name || !p.breed) { p.lastTs = Date.now(); return false; }
     const now = Date.now();
     if (!p.gaugeNextTick) p.gaugeNextTick = {};
+    // 활성 펫일 때만 일일 한도 검사 (state===p) — 한도 다 채우면 해당 게이지 감소 정지
+    const isActive = (p === state);
+    const happyLocked = isActive && (typeof isPlayLimitReached === 'function') && isPlayLimitReached();
+    const walkLocked  = isActive && (typeof isWalkLimitReached === 'function') && isWalkLimitReached();
     for (const g of GAUGES) {
+      // 한도 다 차서 회복 불가능한 게이지는 자연 감소도 멈춤
+      if (g === 'happy' && happyLocked) {
+        p.gaugeNextTick[g] = scheduleNextGaugeTick(g, now);
+        continue;
+      }
+      if (g === 'walk' && walkLocked) {
+        p.gaugeNextTick[g] = scheduleNextGaugeTick(g, now);
+        continue;
+      }
       // 첫 호출이면 다음 시각 셋업
       if (!p.gaugeNextTick[g]) {
         p.gaugeNextTick[g] = scheduleNextGaugeTick(g, now);
