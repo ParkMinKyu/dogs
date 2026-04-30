@@ -1890,6 +1890,7 @@
     puppyWrap.style.left = pos.x + '%';
     puppyWrap.style.bottom = (100 - pos.y) + '%';
     updateDepthSort();
+    repositionFx();
   }
 
   const ACTION_START_SPEECH = {
@@ -2720,6 +2721,7 @@
       }
       updateDepthSort();
       repositionSpeech();
+      repositionFx();
     }
   }
   setInterval(() => {
@@ -3228,6 +3230,20 @@
     body.appendChild(ok);
 
     openModal({ title, body, mandatory: true });
+  }
+
+  // 이펙트 레이어 — 강아지 wander 시 같이 따라가도록 위치 동기화
+  function repositionFx() {
+    if (!puppyWrap) return;
+    const parent = puppyWrap.parentElement;
+    if (!parent) return;
+    const layer = parent.querySelector(':scope > .fx-layer');
+    if (!layer) return;
+    layer.style.left = puppyWrap.style.left || '50%';
+    layer.style.bottom = puppyWrap.style.bottom || '14%';
+    if (!layer.style.transition) {
+      layer.style.transition = 'left 600ms ease, bottom 600ms ease';
+    }
   }
 
   // 만화 speech bubble — 강아지 머리 위 텍스트
