@@ -2459,12 +2459,8 @@
     if (treatBtn && treatCount) {
       const inv = state.treatInv || {};
       const total = Object.values(inv).reduce((s, n) => s + (n || 0), 0);
-      if (total > 0) {
-        treatBtn.hidden = false;
-        treatCount.textContent = total;
-      } else {
-        treatBtn.hidden = true;
-      }
+      treatCount.textContent = total;
+      treatBtn.hidden = total <= 0;
       if (!treatBtn.dataset.bound) {
         treatBtn.dataset.bound = '1';
         treatBtn.addEventListener('click', () => { SOUNDS.pop(); __shopTab = 'treat'; __shopPage = 0; openShopModal(); });
