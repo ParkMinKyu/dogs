@@ -1,7 +1,7 @@
 /* 우리 친구 — Service Worker
    offline-first. HTML/JS/CSS는 network-first로 항상 최신 받음.
    sprite/items/preview/icons는 install 시점에 일괄 precache → 오프라인에서 sprite 전환 시 404 방지. */
-const CACHE = 'dogs-v3-v309';
+const CACHE = 'dogs-v3-v310';
 
 // 첫 진입 시 즉시 캐시 (HTML/CSS/JS/manifest)
 const CORE = [

@@ -45,6 +45,19 @@
 .app[data-breed="rabbit_white"] .puppy,
 .app[data-breed="hamster"]      .puppy { filter: drop-shadow(0 6px 0 #00000018); }
 
+/* breed별 시각 크기 보정 — sprite 안 캐릭터가 차지하는 비율이 종마다 달라 보정.
+   transform-origin: bottom center로 발 baseline 일정 유지. */
+.app .puppy { transform-origin: bottom center; }
+.app[data-breed="bichon"]       .puppy { transform: scale(0.85); }
+.app[data-breed="cat_black"]    .puppy { transform: scale(0.85); }
+.app[data-breed="rabbit_white"] .puppy { transform: scale(1.20); }
+.app[data-breed="hamster"]      .puppy { transform: scale(0.75); }
+/* 좌측 보기 — 기존 scaleX(-1)에 breed scale 합성 */
+.app[data-breed="bichon"]       .puppy-wrap[data-direction="left"] .puppy { transform: scale(0.85) scaleX(-1); }
+.app[data-breed="cat_black"]    .puppy-wrap[data-direction="left"] .puppy { transform: scale(0.85) scaleX(-1); }
+.app[data-breed="rabbit_white"] .puppy-wrap[data-direction="left"] .puppy { transform: scale(1.20) scaleX(-1); }
+.app[data-breed="hamster"]      .puppy-wrap[data-direction="left"] .puppy { transform: scale(0.75) scaleX(-1); }
+
 /* 미니게임 — 모든 breed 동일 drop-shadow */
 .minigame-arena[data-breed="shiba"]        .mg-dog,
 .minigame-arena[data-breed="husky"]        .mg-dog,
