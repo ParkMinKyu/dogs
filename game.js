@@ -2714,7 +2714,7 @@
         setTimeout(() => fp.remove(), 1800);
       }
       updateDepthSort();
-
+      repositionSpeech();
     }
   }
   setInterval(() => {
@@ -3227,6 +3227,17 @@
 
   // 만화 speech bubble — 강아지 머리 위 텍스트
   let __speechEl = null;
+  function repositionSpeech() {
+    if (!__speechEl || !puppyWrap) return;
+    const stage = document.querySelector('.stage');
+    if (!stage) return;
+    const stageR = stage.getBoundingClientRect();
+    const wrapR = puppyWrap.getBoundingClientRect();
+    const cx = wrapR.left - stageR.left + wrapR.width / 2;
+    const top = wrapR.top - stageR.top - 16;
+    __speechEl.style.left = cx + 'px';
+    __speechEl.style.top = top + 'px';
+  }
   function showSpeech(text, durationMs = 3500) {
     if (!puppyWrap) return;
     const stage = document.querySelector('.stage');
@@ -3235,16 +3246,12 @@
     const el = document.createElement('div');
     el.className = 'speech-bubble';
     el.textContent = text;
-    // stage에 붙여서 wrap 좁은 폭 영향 안 받게 — 위치는 wrap 기준으로 계산
-    const stageR = stage.getBoundingClientRect();
-    const wrapR = puppyWrap.getBoundingClientRect();
-    const cx = wrapR.left - stageR.left + wrapR.width / 2;
-    const top = wrapR.top - stageR.top - 16;
-    el.style.left = cx + 'px';
-    el.style.top = top + 'px';
     el.style.transform = 'translate(-50%, -100%)';
+    // 부드럽게 강아지 따라가도록 transition (wander 이동 속도와 비슷한 600ms)
+    el.style.transition = 'left 600ms ease, top 600ms ease, opacity 240ms';
     stage.appendChild(el);
     __speechEl = el;
+    repositionSpeech();
     setTimeout(() => {
       el.classList.add('fade');
       setTimeout(() => { try { el.remove(); } catch {}; if (__speechEl === el) __speechEl = null; }, 250);
