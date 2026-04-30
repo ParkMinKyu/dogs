@@ -784,6 +784,10 @@ body.is-sick #vetBtn .dot { display: block; }
   pointer-events: none;
   z-index: 4;
 }
+/* 상점 미리보기 안에서는 부모 박스를 가득 채워 파티클 위치 잡히게 */
+.shop-preview > .fx-layer {
+  inset: 0;
+}
 .fx-particle {
   --maxOpacity: 0.7;
   position: absolute;

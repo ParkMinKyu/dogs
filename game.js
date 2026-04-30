@@ -2659,16 +2659,16 @@
   // 강아지가 화면상 더 아래(=Y%가 큰)면 앞에. 위면 뒤에 가려짐.
   function updateDepthSort() {
     if (!puppyWrap) return;
-    // 강아지는 항상 wanderY 기반 z-index. action-prop(z:1200)은 자체 z로 가림.
-    // 방 편집 모드에서만 패널(z:90) 아래로 강제.
     const isEditing = document.body.classList.contains('is-editing-room');
-    puppyWrap.style.zIndex = isEditing ? '3' : String(Math.floor((state.wanderY || 86) * 10));
-    // back layer 안 deco-item / furn-item: Y 좌표 기반 z-index
+    // 강아지는 항상 가구/장식보다 위에 (가구가 동물 가리지 않게)
+    // 방 편집 모드에서는 패널(z:90) 아래로 살짝 — 편집 UI 보이게
+    puppyWrap.style.zIndex = isEditing ? '3' : '500';
+    // back layer 가구/장식: 모두 강아지 아래 (z 100~199 범위, Y 순서만 자기네끼리)
     document.querySelectorAll('#decoLayerBack .deco-item, #decoLayerBack .furn-item').forEach(el => {
       const top = parseFloat(el.style.top || '50');
-      el.style.zIndex = Math.floor(top * 10);
+      el.style.zIndex = String(100 + Math.floor(top));
     });
-    // front layer (나비/새/풍선/별): 항상 강아지 위, stage UI(mess·bubble·missionBtn) 아래
+    // front layer (나비/새/풍선/별): 강아지 위, stage UI 아래
     document.querySelectorAll('#decoLayerFront .deco-item').forEach(el => {
       el.style.zIndex = 1100;
     });
