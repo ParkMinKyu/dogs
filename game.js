@@ -11,6 +11,10 @@
   // ----- Constants --------------------------------------------------------
   const GAUGES = ['hunger', 'happy', 'clean', 'energy', 'walk'];
   const MAX = 100;
+  // 일일 한도 — 자정 기준 리셋. applyOfflineDecay() 가 부트(642) 시점에 참조하므로
+  // const TDZ를 피하려면 642번 라인보다 위에서 평가돼야 함.
+  const PLAY_DAILY_LIMIT = 10;
+  const WALK_DAILY_LIMIT = 3;
 
   // 게이지별 자연 감소 — 각자 다른 주기 + 다른 감소량.
   const TICK_MS = 15 * 1000;
@@ -1274,10 +1278,6 @@
   document.addEventListener('keydown', kickBgmOnce, true);
 
   // ----- Decay ------------------------------------------------------------
-  // 일일 한도 — 자정 기준 리셋. applyOfflineDecay() 가 부트 시점에 참조하므로
-  // 함수 정의보다 위에 둬야 TDZ 없이 안전.
-  const PLAY_DAILY_LIMIT = 10;
-  const WALK_DAILY_LIMIT = 3;
   // 오프라인 catchup — 최대 4시간 분만 decay 적용 (밤새 떠나도 가출 안 됨)
   function applyOfflineDecay() {
     // 보호자 일일 한도 잠금 중엔 오프라인 페널티 면제 (guardian 초기화 전엔 skip)
