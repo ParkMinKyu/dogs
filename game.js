@@ -1274,6 +1274,10 @@
   document.addEventListener('keydown', kickBgmOnce, true);
 
   // ----- Decay ------------------------------------------------------------
+  // 일일 한도 — 자정 기준 리셋. applyOfflineDecay() 가 부트 시점에 참조하므로
+  // 함수 정의보다 위에 둬야 TDZ 없이 안전.
+  const PLAY_DAILY_LIMIT = 10;
+  const WALK_DAILY_LIMIT = 3;
   // 오프라인 catchup — 최대 4시간 분만 decay 적용 (밤새 떠나도 가출 안 됨)
   function applyOfflineDecay() {
     // 보호자 일일 한도 잠금 중엔 오프라인 페널티 면제 (guardian 초기화 전엔 skip)
@@ -1289,8 +1293,8 @@
     if (elapsed > OFFLINE_DECAY_CAP_MS) elapsed = OFFLINE_DECAY_CAP_MS;
     if (elapsed > 0) {
       // 일일 한도 다 채운 게이지는 오프라인 감소도 정지 (실시간 tick과 동일 규칙)
-      const happyLocked = (typeof isPlayLimitReached === 'function') && isPlayLimitReached();
-      const walkLocked  = (typeof isWalkLimitReached === 'function') && isWalkLimitReached();
+      const happyLocked = isPlayLimitReached();
+      const walkLocked  = isWalkLimitReached();
       // 게이지별로 평균 interval 기준 ticks 계산
       for (const g of GAUGES) {
         if (g === 'happy' && happyLocked) continue;
@@ -4255,9 +4259,8 @@
 
   // ----- 놀이 메뉴 + 미니게임 ------------------------------------------
   // 게임별 쿨타임은 state.playLast[id], 동일하게 5분.
-  // 하루 최대 놀이 횟수 제한 — 자정 기준 리셋. 산책은 별도 카운트.
-  const PLAY_DAILY_LIMIT = 10;
-  const WALK_DAILY_LIMIT = 3;
+  // (PLAY_DAILY_LIMIT/WALK_DAILY_LIMIT 는 부트 시점 applyOfflineDecay 에서도
+  //  참조하므로 파일 상단으로 호이스팅돼 있음.)
   function getPlayDailyCount() {
     const today = todayKey();
     if (!state.playDaily || state.playDaily.date !== today) {
