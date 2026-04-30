@@ -1288,8 +1288,13 @@
     let elapsed = Math.max(0, now - (state.lastTs || now));
     if (elapsed > OFFLINE_DECAY_CAP_MS) elapsed = OFFLINE_DECAY_CAP_MS;
     if (elapsed > 0) {
+      // 일일 한도 다 채운 게이지는 오프라인 감소도 정지 (실시간 tick과 동일 규칙)
+      const happyLocked = (typeof isPlayLimitReached === 'function') && isPlayLimitReached();
+      const walkLocked  = (typeof isWalkLimitReached === 'function') && isWalkLimitReached();
       // 게이지별로 평균 interval 기준 ticks 계산
       for (const g of GAUGES) {
+        if (g === 'happy' && happyLocked) continue;
+        if (g === 'walk' && walkLocked) continue;
         const def = GAUGE_DECAY[g];
         const ticks = Math.floor(elapsed / def.interval);
         if (ticks > 0) state[g] = clamp(state[g] - def.amount * ticks);
