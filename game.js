@@ -307,6 +307,15 @@
       if (typeof s.lowCleanSince !== 'number') s.lowCleanSince = 0;
       if (!s.gaugeZeroSince || typeof s.gaugeZeroSince !== 'object') s.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null, walk: null };
       if (!s.gaugeNextTick || typeof s.gaugeNextTick !== 'object') s.gaugeNextTick = {};
+      if (s.runawayWarning && typeof s.runawayWarning === 'object') {
+        if (typeof s.runawayWarning.since !== 'number' ||
+            typeof s.runawayWarning.accumulatedFgMs !== 'number' ||
+            typeof s.runawayWarning.lastFgTickTs !== 'number') {
+          s.runawayWarning = null;
+        }
+      } else {
+        s.runawayWarning = null;
+      }
       if (typeof s.gameOver !== 'boolean') s.gameOver = false;
       // v2 — 멀티 펫 마이그레이션
       if (!Array.isArray(s.pets)) {
@@ -388,6 +397,7 @@
       lowCleanSince: 0,
       gaugeZeroSince: { hunger: null, happy: null, clean: null, energy: null, walk: null },
       gaugeNextTick: {},
+      runawayWarning: null,
       gameOver: false,
       busy: null,
       missions: { date: '', list: [] },
@@ -411,7 +421,7 @@
     'wallpaper', 'floor', 'windowDeco',
     'furnitureInv', 'furnitureLayout',
     'lastReqTs', 'messes', 'sick', 'lowCleanSince',
-    'gaugeZeroSince', 'gaugeNextTick', 'busy', 'minigameLastTs', 'playLast', 'actionLastTs', 'playDaily', 'walkDaily',
+    'gaugeZeroSince', 'gaugeNextTick', 'runawayWarning', 'busy', 'minigameLastTs', 'playLast', 'actionLastTs', 'playDaily', 'walkDaily',
     'wanderX', 'wanderY', // v2 — 펫별 위치
   ];
   // Deep clone — 객체/배열의 reference 공유 방지 (snapshot/restore 안전)
@@ -658,6 +668,8 @@
   const roomBtn    = $('#roomBtn');
   const vetBtn     = $('#vetBtn');
   const missionDot = $('#missionDot');
+  const runawayWarnBtn = $('#runawayWarnBtn');
+  const runawayWarnTime = $('#runawayWarnTime');
   const modalRoot  = $('#modalRoot');
   // 새 원형 게이지 — 각 .gauge[data-key]의 .gauge-circle 과 .pct 셀렉터
   const gaugeEls = {};
@@ -1355,24 +1367,84 @@
       const id = pickDiseaseFromState(p);
       p.sick = { id, since: now };
     }
+    evaluateRunawayWarning(p, now);
+    return false;
+  }
+
+  // 위기 진입/해제 평가 — applyDecayToPet 안에서도 호출되지만, 액션으로 게이지가 즉시
+  // 채워졌을 때 다음 tickDecay(최대 15s)까지 기다리지 않고 바로 반영하도록 별도 함수로 분리.
+  function evaluateRunawayWarning(p, now) {
+    if (!p) return;
+    if (!now) now = Date.now();
     if (!p.gaugeZeroSince) p.gaugeZeroSince = { hunger: null, happy: null, clean: null, energy: null, walk: null };
+    // gaugeZeroSince 갱신 — 게이지가 다시 0보다 크면 즉시 null로 (해제 트리거)
     for (const g of GAUGES) {
-      if (p[g] <= 0) {
+      if ((p[g] ?? 0) <= 0) {
         if (!p.gaugeZeroSince[g]) p.gaugeZeroSince[g] = now;
       } else {
         p.gaugeZeroSince[g] = null;
       }
     }
+    // 위기 진입 조건: 게이지 3개+ 0인 채 15분 / 1게이지 0인 채 1시간 / 아픈 채 30분
     const zeroes = GAUGES.filter(g => p.gaugeZeroSince[g]);
+    let warnReason = null;
     if (zeroes.length >= 3) {
       const oldest = Math.min(...zeroes.map(g => p.gaugeZeroSince[g]));
-      if (now - oldest >= 15 * 60 * 1000) return true;
+      if (now - oldest >= 15 * 60 * 1000) warnReason = 'gauge3';
     }
-    for (const g of zeroes) {
-      if (now - p.gaugeZeroSince[g] >= 60 * 60 * 1000) return true;
+    if (!warnReason) {
+      for (const g of zeroes) {
+        if (now - p.gaugeZeroSince[g] >= 60 * 60 * 1000) { warnReason = 'gauge1'; break; }
+      }
     }
-    if (p.sick && now - p.sick.since >= 30 * 60 * 1000) return true;
-    return false;
+    if (!warnReason && p.sick && now - p.sick.since >= 30 * 60 * 1000) warnReason = 'sick';
+
+    if (warnReason) {
+      if (!p.runawayWarning) {
+        p.runawayWarning = { since: now, accumulatedFgMs: 0, lastFgTickTs: now, reason: warnReason };
+      } else {
+        p.runawayWarning.reason = warnReason;
+      }
+    } else {
+      if (p.runawayWarning) p.runawayWarning = null;
+    }
+  }
+
+  const RUNAWAY_GRACE_MS = 24 * 60 * 60 * 1000;
+  // 위기 진입한 펫의 24h 카운트 누적. 백그라운드에선 누적 안 함 (visibilityState='hidden' 시 skip).
+  // 활성 펫이 24h 만료 시 true 반환 → tickDecay에서 triggerRunaway() 호출.
+  function tickRunawayTimers() {
+    const now = Date.now();
+    const isHidden = (typeof document !== 'undefined' && document.visibilityState === 'hidden');
+    let activeExpired = false;
+    const advancePet = (p) => {
+      if (!p || !p.runawayWarning) return false;
+      const w = p.runawayWarning;
+      if (!isHidden) {
+        const delta = Math.max(0, now - (w.lastFgTickTs || now));
+        w.accumulatedFgMs = (w.accumulatedFgMs || 0) + delta;
+      }
+      w.lastFgTickTs = now;
+      return (w.accumulatedFgMs || 0) >= RUNAWAY_GRACE_MS;
+    };
+    if (advancePet(state)) activeExpired = true;
+    if (Array.isArray(state.pets)) {
+      for (const pet of state.pets) {
+        if (pet.id === state.activePetId) continue;
+        if (advancePet(pet)) {
+          // 비활성 펫 만료 — 즉시 가출 (활성 펫 우선이므로 메시지만 띄우고 switch)
+          const nm = pet.name || '친구';
+          flashBubble('🚪');
+          showSpeech(`${nameWithSubject(nm)} 너무 외로워서 떠났어요...`, 3000);
+          switchToPet(pet.id);
+          // switchToPet 후 활성 펫이 됐으니 다음 tick에서 처리되도록 즉시 만료 표시
+          if (state.runawayWarning) state.runawayWarning.accumulatedFgMs = RUNAWAY_GRACE_MS;
+          activeExpired = true;
+          break;
+        }
+      }
+    }
+    return activeExpired;
   }
 
   function tickDecay() {
@@ -1395,25 +1467,20 @@
       return;
     }
     // 활성 펫: state.* 직접 변경 (UI 즉시 반영)
-    const activeRunaway = applyDecayToPet(state);
+    applyDecayToPet(state);
     // 비활성 펫: pets[] 객체 직접 변경 (시간 흐름이 모든 펫에 영향)
-    let inactiveRunawayPet = null;
     if (Array.isArray(state.pets)) {
       for (const pet of state.pets) {
         if (pet.id === state.activePetId) continue;
-        if (applyDecayToPet(pet) && !inactiveRunawayPet) inactiveRunawayPet = pet;
+        applyDecayToPet(pet);
       }
     }
+    // 위기 24h 카운트 누적 (포그라운드 시간만)
+    const activeRunaway = tickRunawayTimers();
     saveState();
     render();
     if (activeRunaway) {
       triggerRunaway();
-    } else if (inactiveRunawayPet) {
-      const nm = inactiveRunawayPet.name || '친구';
-      flashBubble('🚪');
-      showSpeech(`${nameWithSubject(nm)} 너무 외로워서 떠났어요...`, 3000);
-      switchToPet(inactiveRunawayPet.id);
-      setTimeout(() => triggerRunaway(), 400);
     }
   }
   setInterval(tickDecay, TICK_MS);
@@ -2430,6 +2497,8 @@
   }
 
   function render() {
+    // 게이지 변경 직후엔 위기 평가를 다음 tick까지 기다리지 않고 즉시 반영
+    evaluateRunawayWarning(state, Date.now());
     renderGauges();
     renderPuppyAndMood();
     renderActionStates();
@@ -2438,6 +2507,7 @@
     renderAccessories();
     renderActionCooldowns();
     renderMissionDot();
+    renderRunawayWarn();
     renderRoomDeco();
     renderMessLayer();
     renderPetSlots();
@@ -3196,6 +3266,52 @@
     if (!missionDot) return;
     const incomplete = (state.missions?.list || []).some(m => m.progress < m.count);
     missionDot.hidden = !incomplete;
+  }
+
+  function renderRunawayWarn() {
+    if (!runawayWarnBtn || !runawayWarnTime) return;
+    const w = state.runawayWarning;
+    if (!w || state.gameOver) {
+      runawayWarnBtn.hidden = true;
+      return;
+    }
+    const remaining = Math.max(0, RUNAWAY_GRACE_MS - (w.accumulatedFgMs || 0));
+    const totalMin = Math.ceil(remaining / (60 * 1000));
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    runawayWarnTime.textContent = h > 0 ? `${h}h${m.toString().padStart(2, '0')}` : `${m}분`;
+    runawayWarnBtn.hidden = false;
+  }
+
+  function openRunawayWarnModal() {
+    const w = state.runawayWarning;
+    if (!w) return;
+    const body = document.createElement('div');
+    const nm = state.name || '친구';
+    const reasonText = {
+      gauge3: '여러 게이지가 너무 오래 0이에요',
+      gauge1: '게이지 하나가 너무 오래 0이에요',
+      sick:   '아픈 채로 너무 오래 두었어요',
+    }[w.reason] || '돌봄이 부족해요';
+    const remaining = Math.max(0, RUNAWAY_GRACE_MS - (w.accumulatedFgMs || 0));
+    const totalMin = Math.ceil(remaining / (60 * 1000));
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    const left = h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+    const p = document.createElement('p');
+    p.className = 'modal-sub';
+    p.innerHTML = `${nameWithSubject(nm)} 떠나려고 해요...<br><br>` +
+      `<b>이유:</b> ${reasonText}<br>` +
+      `<b>남은 시간:</b> ${left}<br><br>` +
+      `게이지를 회복시키거나 병을 치료하면 다시 돌아와요.`;
+    body.appendChild(p);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'modal-btn';
+    btn.textContent = '알았어요';
+    btn.addEventListener('click', () => { SOUNDS.pop(); closeModal(); });
+    body.appendChild(btn);
+    openModal({ title: '⚠️ 친구가 떠나려 해요', body });
   }
 
   function openMissionsModal() {
@@ -7155,6 +7271,7 @@
   // ----- 헤더 버튼 핸들러 -------------------------------------------------
   settingsBtn.addEventListener('click', () => { SOUNDS.pop(); openSettingsModal(); });
   missionBtn.addEventListener('click', () => { SOUNDS.pop(); openMissionsModal(); });
+  if (runawayWarnBtn) runawayWarnBtn.addEventListener('click', () => { SOUNDS.pop(); openRunawayWarnModal(); });
   vetBtn?.addEventListener('click', () => { SOUNDS.pop(); openVetModal(); });
   document.getElementById('petPickerBtn')?.addEventListener('click', () => { SOUNDS.pop(); openPetPicker(); });
   careBadge?.addEventListener('click', () => { SOUNDS.pop(); openCareMenu(); });
@@ -7558,7 +7675,17 @@
   startGuardianSession();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') { commitGuardianSession(); flushSaveState(); }
-    else { startGuardianSession(); applyTod(); if (!state.gameOver) ensureTodayMissions(); render(); if (!state.gameOver && isOverDailyLimit()) showLockModal(); }
+    else {
+      // 위기 24h 카운트가 백그라운드 시간 차이를 누적하지 않도록 lastFgTickTs를 현재로 리셋
+      const nowTs = Date.now();
+      if (state.runawayWarning) state.runawayWarning.lastFgTickTs = nowTs;
+      if (Array.isArray(state.pets)) {
+        for (const pet of state.pets) {
+          if (pet.runawayWarning) pet.runawayWarning.lastFgTickTs = nowTs;
+        }
+      }
+      startGuardianSession(); applyTod(); if (!state.gameOver) ensureTodayMissions(); render(); if (!state.gameOver && isOverDailyLimit()) showLockModal();
+    }
   });
   window.addEventListener('beforeunload', () => { commitGuardianSession(); flushSaveState(); });
   window.addEventListener('pagehide', () => { commitGuardianSession(); flushSaveState(); });
@@ -7633,6 +7760,30 @@
     setBreed(b) { state.breed = b; saveState(); render(); },
     setTod(tod) { timeOverride = tod; applyTod(); render(); },
     clearTod() { timeOverride = null; applyTod(); render(); },
+    setRunawayWarning(remainingMin = 5*60+45, reason = 'gauge1') {
+      const now = Date.now();
+      const remainingMs = remainingMin * 60 * 1000;
+      state.runawayWarning = {
+        since: now - (RUNAWAY_GRACE_MS - remainingMs),
+        accumulatedFgMs: RUNAWAY_GRACE_MS - remainingMs,
+        lastFgTickTs: now,
+        reason,
+      };
+      saveState(); render();
+      return state.runawayWarning;
+    },
+    clearRunawayWarning() { state.runawayWarning = null; saveState(); render(); },
+    openRunawayWarn: openRunawayWarnModal,
+    // 위기 조건이 즉시 충족되도록 게이지/시각을 강제로 과거화 — 그 후 tickDecay에서 자연스럽게 위기 진입 + 유지
+    triggerRunaway() { triggerRunaway(); },
+    forceRunawayCondition() {
+      const past = Date.now() - 70 * 60 * 1000; // 70분 전부터 hunger 0
+      state.hunger = 0;
+      state.gaugeZeroSince = state.gaugeZeroSince || {};
+      state.gaugeZeroSince.hunger = past;
+      saveState(); render();
+      return { hunger: state.hunger, since: past };
+    },
     forceEvolveFx() { triggerEvolveFx(); },
     openMinigame, openShop: openShopModal, openMissions: openMissionsModal,
     openPlayMenu, openPet: openPetGame, openDance: openDanceGame, openTreat: openTreatGame,

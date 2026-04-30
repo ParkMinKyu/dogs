@@ -1,6 +1,6 @@
 /* 우리 친구 — Service Worker
    offline-first. HTML/JS/CSS는 network-first로 항상 최신 받음. */
-const CACHE = 'dogs-v3-v300';
+const CACHE = 'dogs-v3-v307';
 const PRECACHE = [
   './',
   'index.html',

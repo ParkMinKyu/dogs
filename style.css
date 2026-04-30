@@ -387,6 +387,42 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   z-index: 1700;
 }
 
+/* 가출 위기 경고 버튼 — 미션 버튼 바로 위 */
+.runaway-warn-btn[hidden] { display: none !important; }
+.runaway-warn-btn {
+  position: absolute;
+  bottom: 64px;
+  right: 10px;
+  z-index: 1700;
+  background: #ff5e5e;
+  border: 3px solid #ffd0d0;
+  color: #fff;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  box-shadow: 0 2px 6px rgba(255,94,94,0.5);
+  animation: runaway-pulse 1.4s ease-in-out infinite;
+  padding: 0;
+  gap: 0;
+}
+.runaway-warn-btn .icon { font-size: 18px; line-height: 1; }
+.runaway-warn-btn .runaway-time {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-top: 1px;
+  line-height: 1;
+}
+@keyframes runaway-pulse {
+  0%, 100% { transform: scale(1);    box-shadow: 0 2px 6px rgba(255,94,94,0.5); }
+  50%      { transform: scale(1.08); box-shadow: 0 4px 14px rgba(255,94,94,0.8); }
+}
+
 /* stage 우상단 사이드 버튼 스택 */
 .stage-side-buttons {
   position: absolute;
