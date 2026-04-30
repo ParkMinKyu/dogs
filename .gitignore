@@ -21,3 +21,14 @@ assets/puppy/shiba_happy.png
 assets/puppy/shiba_eating.png
 assets/puppy/shiba_sad.png
 assets/puppy/shiba_sleeping.png
+
+# PWA Builder Android 빌드 산출물 — 절대 커밋 금지 (사이닝 키 유출 위험)
+.builds/
+*.aab
+*.apk
+*.keystore
+*.jks
+*.pepk
+signing-key-info.txt
+pwabuilder-*.zip
+android-app/

@@ -98,12 +98,18 @@ img { image-rendering: pixelated; image-rendering: crisp-edges; }
   width: 100%;
   max-width: 600px;
   margin: 0 auto;
-  padding: 18px 18px 28px;
+  /* safe-area-inset — 안드로이드 nav bar / 노치 회피 */
+  padding:
+    max(18px, env(safe-area-inset-top, 0px))
+    max(18px, env(safe-area-inset-right, 0px))
+    max(28px, calc(env(safe-area-inset-bottom, 0px) + 12px))
+    max(18px, env(safe-area-inset-left, 0px));
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: 14px;
   min-height: 100vh;
   min-height: 100dvh;
+  box-sizing: border-box;
 }
 
 /* ---------- Top bar ---------- */
