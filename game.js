@@ -33,10 +33,10 @@
   };
   // 액션별 쿨다운 (ms)
   const ACTION_COOLDOWN_MS = {
-    feed: 5 * 1000,
-    play: 8 * 1000,
-    wash: 15 * 1000,
-    sleep: 20 * 1000,
+    feed: 10 * 1000,
+    play: 16 * 1000,
+    wash: 30 * 1000,
+    sleep: 40 * 1000,
     walk: 5 * 60 * 1000,
   };
 
@@ -109,10 +109,11 @@
   ];
   const EFFECT_BY_ID = Object.fromEntries(EFFECTS.map(e => [e.id, e]));
 
-  // 간식 — 케어포인트로 구매. 사용 시 hunger 회복 + 미니게임 쿨다운 단축
+  // 간식 — 케어포인트로 구매.
+  // 쿠키: 쿨다운 단축 / 뼈다귀: 일일 한도 +1
   const TREATS = [
     { id: 'treat_cookie', name: '쿠키',   emoji: '🍪', price: 500,  hunger: 30, cdCutMs: 30 * 1000 },
-    { id: 'treat_bone',   name: '뼈다귀', emoji: '🦴', price: 1000, hunger: 60, cdCutMs: 60 * 1000 },
+    { id: 'treat_bone',   name: '뼈다귀', emoji: '🦴', price: 1000, hunger: 60, dailyBonus: 1 },
   ];
   const TREAT_BY_ID = Object.fromEntries(TREATS.map(t => [t.id, t]));
 
@@ -542,7 +543,11 @@
   // localStorage / sessionStorage / IndexedDB / cookies / SW caches / SW 등록 모두 정리.
   // ?nuke=1 / ?reset=1 / ?clear=1 URL 진입과 in-app "처음부터 다시" 모두 동일.
   async function hardReset() {
+    // 보호자 PIN/설정은 게임 데이터와 무관하게 보존
+    let savedGuardian = null;
+    try { savedGuardian = localStorage.getItem('dogs.guardian.v1'); } catch {}
     try { localStorage.clear(); } catch {}
+    try { if (savedGuardian) localStorage.setItem('dogs.guardian.v1', savedGuardian); } catch {}
     try { sessionStorage.clear(); } catch {}
     try {
       if (typeof indexedDB !== 'undefined' && indexedDB.databases) {
@@ -1259,6 +1264,13 @@
   // ----- Decay ------------------------------------------------------------
   // 오프라인 catchup — 최대 4시간 분만 decay 적용 (밤새 떠나도 가출 안 됨)
   function applyOfflineDecay() {
+    // 보호자 일일 한도 잠금 중엔 오프라인 페널티 면제 (guardian 초기화 전엔 skip)
+    let locked = false;
+    try { locked = isOverDailyLimit(); } catch {}
+    if (locked) {
+      state.lastTs = Date.now();
+      return;
+    }
     const OFFLINE_DECAY_CAP_MS = 4 * 60 * 60 * 1000;
     const now = Date.now();
     let elapsed = Math.max(0, now - (state.lastTs || now));
@@ -1321,7 +1333,8 @@
     } else {
       p.lowCleanSince = 0;
     }
-    if (!p.sick && !immune && GAUGES.filter(g => p[g] <= 10).length >= 2) {
+    // 게이지 2개 이상이 ≤10이면 예방주사도 무시하고 발병 (방치 페널티)
+    if (!p.sick && GAUGES.filter(g => p[g] <= 10).length >= 2) {
       const id = pickDiseaseFromState(p);
       p.sick = { id, since: now };
     }
@@ -1352,6 +1365,22 @@
   function tickDecay() {
     if (decayPaused) { state.lastTs = Date.now(); return; }
     if (state.gameOver) return;
+    // 보호자 일일 한도 잠금 중엔 게이지 정지 (시간 흐름만 유지)
+    let _locked = false;
+    try { _locked = isOverDailyLimit(); } catch {}
+    if (_locked) {
+      state.lastTs = Date.now();
+      // gaugeNextTick도 현재 시각 기준으로 밀어둠 — 잠금 풀리면 즉시 떨어지지 않게
+      if (state.gaugeNextTick) {
+        const now = Date.now();
+        for (const g of GAUGES) {
+          if (state.gaugeNextTick[g] && state.gaugeNextTick[g] < now) {
+            state.gaugeNextTick[g] = now + (GAUGE_DECAY[g]?.interval || TICK_MS);
+          }
+        }
+      }
+      return;
+    }
     // 활성 펫: state.* 직접 변경 (UI 즉시 반영)
     const activeRunaway = applyDecayToPet(state);
     // 비활성 펫: pets[] 객체 직접 변경 (시간 흐름이 모든 펫에 영향)
@@ -1375,6 +1404,34 @@
     }
   }
   setInterval(tickDecay, TICK_MS);
+
+  // sleeping 모션 중엔 1초마다 energy 자동 회복
+  setInterval(() => {
+    if (state.gameOver) return;
+    if (decayPaused) return;
+    let _lk = false;
+    try { _lk = isOverDailyLimit(); } catch {}
+    if (_lk) return;
+    // 자동 sleeping 상태 — pickPuppyState가 'sleeping' 반환할 조건과 동일
+    // (에너지 ≤20 + 더 낮은 다른 게이지 없음)
+    if (state.sick) return;
+    const lows = GAUGES.filter(g => state[g] <= 30);
+    if (lows.length) {
+      const lowest = lows.sort((a, b) => state[a] - state[b])[0];
+      // 가장 낮은 게이지가 energy일 때만 sleeping
+      if (lowest !== 'energy') return;
+    } else if (state.energy > 20) {
+      return;
+    }
+    // 100% 미만이면 1 회복
+    if ((state.energy || 0) < 100) {
+      state.energy = clamp(state.energy + 1);
+      // 매번 floating delta는 시끄러우니 5단위로만
+      if (state.energy % 5 === 0) showGaugeDelta('energy', 1);
+      saveState();
+      render();
+    }
+  }, 1000);
 
   // ----- 똥/오줌 spawn (5~10분에 한 번, 펫별) ----------------------------
   const MESS_INTERVAL_MIN = 5 * 60 * 1000;
@@ -1544,6 +1601,16 @@
         try { SOUNDS.whimper(); } catch {}
         return;
       }
+      // is-blocked 차단 — 다른 게이지가 0/위험인데 우선순위 낮은 액션은 막힘
+      if (btn.classList.contains('is-blocked')) {
+        btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+        const lows = GAUGES.filter(g => state[g] <= 20);
+        const NAMES = { hunger:'🍖 배고픔', happy:'💖 행복', clean:'🛁 청결', energy:'⚡ 에너지', walk:'🚶 산책' };
+        const urgent = lows.map(g => NAMES[g]).join(', ');
+        showSpeech(`먼저 ${urgent} 챙겨주세요!`, 2500);
+        try { SOUNDS.whimper(); } catch {}
+        return;
+      }
       // 액션 통계 카운트 (play_menu는 미니게임 진입, 실제 카운트는 미니게임에서)
       if (typeof logGuardianAction === 'function') {
         if (action === 'feed' || action === 'wash' || action === 'sleep') logGuardianAction(action);
@@ -1552,7 +1619,7 @@
       if (action === 'play_menu' || action === 'minigame') {
         if (isPlayLimitReached()) {
           btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
-          showSpeech(`오늘은 충분히 놀았어요! (${PLAY_DAILY_LIMIT}/${PLAY_DAILY_LIMIT})`, 2500);
+          showSpeech(`충분히 놀았어요 (${PLAY_DAILY_LIMIT}/${PLAY_DAILY_LIMIT}) — 🦴 뼈다귀 먹이면 1번 더 가능!`, 3000);
           try { SOUNDS.whimper(); } catch {}
           return;
         }
@@ -1560,9 +1627,27 @@
       if (action === 'walk') {
         if (isWalkLimitReached()) {
           btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
-          showSpeech(`오늘은 산책 충분히 했어요! (${WALK_DAILY_LIMIT}/${WALK_DAILY_LIMIT})`, 2500);
+          showSpeech(`산책 충분히 했어요 (${WALK_DAILY_LIMIT}/${WALK_DAILY_LIMIT}) — 🦴 뼈다귀 먹이면 1번 더 가능!`, 3000);
           try { SOUNDS.whimper(); } catch {}
           return;
+        }
+        // 산책 쿨다운 (5분)
+        const cdMs = ACTION_COOLDOWN_MS.walk;
+        if (cdMs) {
+          if (!state.actionLastTs) state.actionLastTs = {};
+          const last = state.actionLastTs.walk || 0;
+          const remain = cdMs - (Date.now() - last);
+          if (remain > 0) {
+            const sec = Math.ceil(remain / 1000);
+            const mm = Math.floor(sec / 60), ss = sec % 60;
+            const txt = mm > 0 ? `${mm}:${String(ss).padStart(2,'0')}` : `${sec}초`;
+            btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+            showSpeech(`산책은 잠시 후! ${txt}`, 1500);
+            try { SOUNDS.pop(); } catch {}
+            return;
+          }
+          state.actionLastTs.walk = Date.now();
+          saveState();
         }
       }
       if (action === 'play_menu') { openPlayMenu(); return; }
@@ -1586,7 +1671,7 @@
     // 진행 중이면 다른 액션 차단
     if (state.busy && state.busy.endsAt && Date.now() < state.busy.endsAt) return;
     if (state.busy && !state.busy.endsAt) return; // wash 등 무제한 진행 중
-    // 액션별 쿨다운 체크
+    // 액션별 쿨다운 체크 (갱신은 실제 액션 적용 후 아래에서)
     const cdMs = ACTION_COOLDOWN_MS[action];
     if (cdMs) {
       if (!state.actionLastTs) state.actionLastTs = {};
@@ -1599,7 +1684,6 @@
         try { SOUNDS.pop(); } catch {}
         return;
       }
-      state.actionLastTs[action] = Date.now();
     }
 
     // 해당 게이지가 이미 100%면 메시지만
@@ -1644,14 +1728,20 @@
     if (face?.sound && SOUNDS[face.sound]) SOUNDS[face.sound]();
 
     if (action === 'wash') {
-      // 무제한 — 청결 100 도달 또는 그만하기 버튼으로 종료
+      // 무제한 — 청결 100 도달 또는 그만하기 버튼으로 종료. 쿨다운은 finishBusy에서.
       startBusyAction('wash');
       return;
     }
     const dur = ACTION_DURATION[action] || 0;
     if (dur > 0) {
+      // busy 액션 — 끝난 시점에 finishBusy에서 쿨다운 갱신
       startBusyAction(action);
     } else {
+      // instant 액션 — 즉시 효과 + 즉시 쿨다운 시작
+      if (cdMs) {
+        state.actionLastTs = state.actionLastTs || {};
+        state.actionLastTs[action] = Date.now();
+      }
       applyActionEffect(action);
     }
   }
@@ -1765,6 +1855,11 @@
     state.busy = null;
     state.washScrub = 0;
     updateDepthSort();
+    // busy 끝난 시점에 쿨다운 시작
+    if (ACTION_COOLDOWN_MS[action]) {
+      state.actionLastTs = state.actionLastTs || {};
+      state.actionLastTs[action] = Date.now();
+    }
     applyActionEffect(action);
     tempFaceState = 'happy';
     tempFaceUntil = Date.now() + 700;
@@ -2640,9 +2735,11 @@
     if (wrap) wrap.style.setProperty('--tint-filter', tint.filter);
 
     // 이펙트 — 동물 주변 떠다니는 파티클
+    // wrap의 자식으로 두면 tint filter 영향을 받으므로 wrap의 형제(부모인 stage)에 직접 부착
     if (wrap) {
       const fx = EFFECT_BY_ID[state.effect] || EFFECTS[0];
-      let layer = wrap.querySelector('.fx-layer');
+      const parent = wrap.parentElement;
+      let layer = parent ? parent.querySelector(':scope > .fx-layer') : null;
       if (!fx.emoji) {
         if (layer) layer.remove();
       } else {
@@ -2651,52 +2748,82 @@
           if (layer) layer.remove();
           layer = document.createElement('div');
           layer.className = wantClass;
-          // 파티클 6개 — 각각 다른 left/delay
-          for (let i = 0; i < 6; i++) {
+          for (let i = 0; i < 4; i++) {
             const p = document.createElement('span');
             p.className = 'fx-particle';
             p.textContent = fx.emoji;
             p.style.setProperty('--i', i);
+            p.style.setProperty('--maxOpacity', (0.45 + Math.random() * 0.45).toFixed(2));
             layer.appendChild(p);
           }
-          wrap.appendChild(layer);
+          parent.appendChild(layer);
+        }
+        // wrap 위치/크기에 맞춰 layer 정렬
+        if (layer) {
+          layer.style.position = 'absolute';
+          layer.style.left = wrap.style.left || '50%';
+          layer.style.bottom = wrap.style.bottom || '14%';
+          layer.style.width = getComputedStyle(wrap).width;
+          layer.style.height = getComputedStyle(wrap).height;
+          layer.style.transform = 'translateX(-50%)';
+          layer.style.pointerEvents = 'none';
+          layer.style.zIndex = '4';
         }
       }
     }
   }
 
+  // 스킬 쿨다운 오버레이를 만들거나 갱신. 쿨다운 끝나는 순간 ready 클래스로 번쩍임.
+  function applyCooldownOverlay(btn, remainMs, totalMs) {
+    let ov = btn.querySelector('.cd-overlay');
+    const wasCooling = btn.classList.contains('is-cooling');
+    if (remainMs > 0 && totalMs > 0) {
+      const pct = Math.max(0, Math.min(100, (remainMs / totalMs) * 100));
+      if (!ov) {
+        ov = document.createElement('div');
+        ov.className = 'cd-overlay';
+        const txt = document.createElement('span');
+        txt.className = 'cd-text';
+        ov.appendChild(txt);
+        btn.appendChild(ov);
+      }
+      ov.style.setProperty('--pct', pct);
+      // 남은 시간 텍스트
+      const sec = Math.ceil(remainMs / 1000);
+      const txtEl = ov.querySelector('.cd-text');
+      if (txtEl) {
+        txtEl.textContent = sec >= 60 ? `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}` : sec;
+      }
+      btn.classList.add('is-cooling');
+      btn.classList.remove('cd-ready');
+    } else {
+      if (ov) ov.remove();
+      btn.classList.remove('is-cooling');
+      // 쿨다운 끝나는 순간 — 번쩍임 애니메이션 한 번
+      if (wasCooling) {
+        btn.classList.remove('cd-ready');
+        void btn.offsetWidth;
+        btn.classList.add('cd-ready');
+        setTimeout(() => btn.classList.remove('cd-ready'), 900);
+      }
+    }
+  }
+
   function renderActionCooldowns() {
+    // 미니게임 버튼 (legacy)
     const mgBtn = document.querySelector('.action[data-action="minigame"]');
     if (mgBtn) {
       const remain = minigameCooldownRemain();
-      if (remain > 0) {
-        mgBtn.disabled = true;
-        const sec = Math.ceil(remain / 1000);
-        let cdEl = mgBtn.querySelector('.cooldown');
-        if (!cdEl) { cdEl = document.createElement('span'); cdEl.className = 'cooldown'; mgBtn.appendChild(cdEl); }
-        cdEl.textContent = sec + '초';
-      } else {
-        mgBtn.disabled = false;
-        const cdEl = mgBtn.querySelector('.cooldown');
-        if (cdEl) cdEl.remove();
-      }
+      applyCooldownOverlay(mgBtn, remain, MINIGAME_COOLDOWN_MS);
+      mgBtn.disabled = false; // 시각만 표시, 클릭은 핸들러가 차단
     }
-    // 액션 쿨다운 표시 (feed/play/wash/sleep)
+    // 액션 쿨다운 (feed/play/wash/sleep/walk)
     Object.entries(ACTION_COOLDOWN_MS).forEach(([action, cdMs]) => {
       const btn = document.querySelector(`.action[data-action="${action}"]`);
       if (!btn) return;
       const last = (state.actionLastTs || {})[action] || 0;
       const remain = cdMs - (Date.now() - last);
-      let cdEl = btn.querySelector('.cooldown');
-      if (remain > 0) {
-        const sec = Math.ceil(remain / 1000);
-        if (!cdEl) { cdEl = document.createElement('span'); cdEl.className = 'cooldown'; btn.appendChild(cdEl); }
-        cdEl.textContent = sec + '초';
-        btn.classList.add('is-cooling');
-      } else {
-        if (cdEl) cdEl.remove();
-        btn.classList.remove('is-cooling');
-      }
+      applyCooldownOverlay(btn, remain, cdMs);
     });
   }
 
@@ -3019,11 +3146,21 @@
   let __speechEl = null;
   function showSpeech(text, durationMs = 3500) {
     if (!puppyWrap) return;
+    const stage = document.querySelector('.stage');
+    if (!stage) return;
     if (__speechEl) { try { __speechEl.remove(); } catch {} __speechEl = null; }
     const el = document.createElement('div');
     el.className = 'speech-bubble';
     el.textContent = text;
-    puppyWrap.appendChild(el);
+    // stage에 붙여서 wrap 좁은 폭 영향 안 받게 — 위치는 wrap 기준으로 계산
+    const stageR = stage.getBoundingClientRect();
+    const wrapR = puppyWrap.getBoundingClientRect();
+    const cx = wrapR.left - stageR.left + wrapR.width / 2;
+    const top = wrapR.top - stageR.top - 16;
+    el.style.left = cx + 'px';
+    el.style.top = top + 'px';
+    el.style.transform = 'translate(-50%, -100%)';
+    stage.appendChild(el);
     __speechEl = el;
     setTimeout(() => {
       el.classList.add('fade');
@@ -3076,30 +3213,58 @@
     openModal({ title: '오늘의 미션', body });
   }
 
-  // 간식 사용 — hunger 회복 + 모든 미니게임 쿨다운 30초 단축
+  // 간식 사용 — hunger 회복 + 효과별 보너스
   function useTreat(id) {
     const t = TREAT_BY_ID[id];
     if (!t) return false;
     const inv = state.treatInv || {};
     if ((inv[id] || 0) <= 0) return false;
+    // 뼈다귀(dailyBonus) — 놀이/산책 한도 둘 다 안 차있으면 사용 거부
+    if (t.dailyBonus) {
+      const playReached = isPlayLimitReached();
+      const walkReached = isWalkLimitReached();
+      if (!playReached && !walkReached) {
+        showSpeech('아직 더 놀 수 있어요! 한도 다 찼을 때 먹여주세요', 2500);
+        try { SOUNDS.pop(); } catch {}
+        return false;
+      }
+    }
     inv[id] -= 1;
     state.treatInv = inv;
     state.hunger = clamp(state.hunger + t.hunger);
     showGaugeDelta('hunger', t.hunger);
-    // 모든 미니게임(playLast) 쿨다운 단축 — t.cdCutMs만큼 lastTs 앞당김
-    state.playLast = state.playLast || {};
-    Object.keys(state.playLast).forEach(k => {
-      state.playLast[k] = Math.max(0, state.playLast[k] - t.cdCutMs);
-    });
-    if (state.minigameLastTs) state.minigameLastTs = Math.max(0, state.minigameLastTs - t.cdCutMs);
-    // 액션 쿨다운(특히 산책)도 같이 단축
-    state.actionLastTs = state.actionLastTs || {};
-    Object.keys(state.actionLastTs).forEach(k => {
-      state.actionLastTs[k] = Math.max(0, state.actionLastTs[k] - t.cdCutMs);
-    });
+    let extraMsg = '';
+    if (t.cdCutMs) {
+      // 쿨다운 단축 — 미니게임 + 액션 모두
+      state.playLast = state.playLast || {};
+      Object.keys(state.playLast).forEach(k => {
+        state.playLast[k] = Math.max(0, state.playLast[k] - t.cdCutMs);
+      });
+      if (state.minigameLastTs) state.minigameLastTs = Math.max(0, state.minigameLastTs - t.cdCutMs);
+      state.actionLastTs = state.actionLastTs || {};
+      Object.keys(state.actionLastTs).forEach(k => {
+        state.actionLastTs[k] = Math.max(0, state.actionLastTs[k] - t.cdCutMs);
+      });
+      const sec = Math.round(t.cdCutMs / 1000);
+      extraMsg = `쿨다운 ${sec}초 빨라졌어요`;
+    }
+    if (t.dailyBonus) {
+      // 일일 한도 +N (놀이/산책 둘 다) + 쿨다운도 같이 리셋해서 바로 사용 가능
+      const today = todayKey();
+      if (!state.playDaily || state.playDaily.date !== today) state.playDaily = { date: today, count: 0 };
+      if (!state.walkDaily || state.walkDaily.date !== today) state.walkDaily = { date: today, count: 0 };
+      state.playDaily.count = Math.max(0, (state.playDaily.count || 0) - t.dailyBonus);
+      state.walkDaily.count = Math.max(0, (state.walkDaily.count || 0) - t.dailyBonus);
+      // 산책/미니게임 쿨다운 리셋 — 한도 풀어줘도 쿨에 막히면 답답함
+      state.actionLastTs = state.actionLastTs || {};
+      state.actionLastTs.walk = 0;
+      state.playLast = state.playLast || {};
+      Object.keys(state.playLast).forEach(k => { state.playLast[k] = 0; });
+      state.minigameLastTs = 0;
+      extraMsg = `놀이/산책 ${t.dailyBonus}회 추가! 바로 가능`;
+    }
     flashBubble(t.emoji);
-    const sec = Math.round(t.cdCutMs / 1000);
-    showSpeech(`${t.emoji} ${t.name} 냠냠! 미니게임/산책 ${sec}초 빨라졌어요`, 2200);
+    showSpeech(`${t.emoji} ${t.name} 냠냠! ${extraMsg}`, 2400);
     try { SOUNDS.eat(); } catch {}
     saveState(); render();
     return true;
@@ -3140,11 +3305,12 @@
       const fx = EFFECT_BY_ID[__shopPreviewEffectId] || EFFECTS[0];
       if (!fx.emoji) return;
       previewFx.classList.add('fx-' + fx.id);
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 4; i++) {
         const p = document.createElement('span');
         p.className = 'fx-particle';
         p.textContent = fx.emoji;
         p.style.setProperty('--i', i);
+        p.style.setProperty('--maxOpacity', (0.45 + Math.random() * 0.45).toFixed(2));
         previewFx.appendChild(p);
       }
     }
@@ -3232,7 +3398,9 @@
           const nameEl = document.createElement('div'); nameEl.textContent = t.name;
           const desc = document.createElement('div');
           desc.className = 'treat-desc';
-          desc.textContent = `🍖+${t.hunger} ⏩-${Math.round(t.cdCutMs/1000)}s`;
+          if (t.cdCutMs) desc.textContent = `🍖+${t.hunger} ⏩-${Math.round(t.cdCutMs/1000)}s`;
+          else if (t.dailyBonus) desc.textContent = `🍖+${t.hunger} 🎯 한도+${t.dailyBonus}`;
+          else desc.textContent = `🍖+${t.hunger}`;
           const priceEl = document.createElement('div'); priceEl.className = 'price';
           const btnRow = document.createElement('div'); btnRow.className = 'treat-btn-row';
           const buyBtn = document.createElement('button');
@@ -3378,27 +3546,27 @@
   // 산책 등에서 모은 아이템을 방에 배치. state.roomInv는 카운트, state.roomLayout은
   // 배치된 아이템 [{kind, x, y}] (x,y는 방 영역 0~100% 비율).
   const ROOM_ITEMS = {
-    bone:    { emoji: '🦴', name: '뼈다귀' },
-    flower:  { emoji: '🌸', name: '꽃' },
-    butter:  { emoji: '🦋', name: '나비' },
-    bird:    { emoji: '🐦', name: '새' },
-    balloon: { emoji: '🎈', name: '풍선' },
-    star:    { emoji: '⭐', name: '별' },
-    gem:     { emoji: '💎', name: '보석' },
-    gift:    { emoji: '🎁', name: '선물' },
+    bone:    { emoji: '🦴', name: '뼈다귀', sellPrice: 5 },
+    flower:  { emoji: '🌸', name: '꽃',     sellPrice: 3 },
+    butter:  { emoji: '🦋', name: '나비',   sellPrice: 5 },
+    bird:    { emoji: '🐦', name: '새',     sellPrice: 5 },
+    balloon: { emoji: '🎈', name: '풍선',   sellPrice: 10 },
+    star:    { emoji: '⭐', name: '별',     sellPrice: 20 },
+    gem:     { emoji: '💎', name: '보석',   sellPrice: 30 },
+    gift:    { emoji: '🎁', name: '선물',   sellPrice: 15 },
   };
 
   // 가구 카탈로그 (배치형)
   const FURNITURE = {
-    sofa:     { emoji: '🛋️', name: '소파' },
-    bed:      { emoji: '🛏️', name: '침대' },
-    plant:    { emoji: '🪴', name: '화분' },
-    chair:    { emoji: '🪑', name: '의자' },
-    mirror:   { emoji: '🪞', name: '거울' },
-    picture:  { emoji: '🖼️', name: '액자' },
-    tv:       { emoji: '📺', name: 'TV' },
-    bookshelf:{ emoji: '📚', name: '책장' },
-    lamp:     { emoji: '🪔', name: '등불' },
+    sofa:     { emoji: '🛋️', name: '소파',  sellPrice: 50 },
+    bed:      { emoji: '🛏️', name: '침대',  sellPrice: 60 },
+    plant:    { emoji: '🪴', name: '화분',  sellPrice: 40 },
+    chair:    { emoji: '🪑', name: '의자',  sellPrice: 40 },
+    mirror:   { emoji: '🪞', name: '거울',  sellPrice: 50 },
+    picture:  { emoji: '🖼️', name: '액자',  sellPrice: 50 },
+    tv:       { emoji: '📺', name: 'TV',    sellPrice: 70 },
+    bookshelf:{ emoji: '📚', name: '책장',  sellPrice: 60 },
+    lamp:     { emoji: '🪔', name: '등불',  sellPrice: 50 },
   };
 
   // 벽지/바닥/창문 카탈로그 — id → CSS 적용
@@ -3808,7 +3976,7 @@
             __roomPickedKind = picking ? kind : null;
             if (picking) showSpeech(`${def.emoji} ${def.name} 어디에 둘까요?`, 2500);
             renderEditPanel();
-          }));
+          }, { sellable: true, invKey: 'roomInv' }));
         });
       }
     } else if (__editTab === 'furn') {
@@ -3823,7 +3991,7 @@
             __roomPickedKind = picking ? kind : null;
             if (picking) showSpeech(`${def.emoji} ${def.name} 어디에 둘까요?`, 2500);
             renderEditPanel();
-          }));
+          }, { sellable: true, invKey: 'furnitureInv' }));
         });
       }
     } else if (__editTab === 'wallpaper') {
@@ -3898,12 +4066,36 @@
   function appendEmpty(grid, msg) {
     const e = document.createElement('div'); e.className = 'room-inv-empty'; e.textContent = msg; grid.appendChild(e);
   }
-  function appendItemCard(grid, def, count, kind, onClick) {
-    const card = document.createElement('button');
-    card.type = 'button';
+  function appendItemCard(grid, def, count, kind, onClick, opts = {}) {
+    const card = document.createElement('div');
     card.className = 'room-inv-card' + (__roomPickedKind === kind ? ' picked' : '');
-    card.innerHTML = `<span class="emo">${def.emoji}</span><span class="name">${def.name}</span><span class="count">×${count}</span>`;
-    card.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    const main = document.createElement('button');
+    main.type = 'button';
+    main.className = 'room-inv-card-main';
+    main.innerHTML = `<span class="emo">${def.emoji}</span><span class="name">${def.name}</span><span class="count">×${count}</span>`;
+    main.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    card.appendChild(main);
+    // 판매 버튼 — sellPrice 있을 때 해당 인벤토리 카운트 차감
+    if (opts.sellable && def.sellPrice) {
+      const invKey = opts.invKey || 'roomInv';
+      const sellBtn = document.createElement('button');
+      sellBtn.type = 'button';
+      sellBtn.className = 'room-inv-sell';
+      sellBtn.innerHTML = `<span class="sell-ico">💰</span><span>팔기 +${def.sellPrice}🌟</span>`;
+      sellBtn.title = '팔기';
+      sellBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const inv = state[invKey];
+        if (!inv || (inv[kind] || 0) <= 0) return;
+        inv[kind] -= 1;
+        if (inv[kind] <= 0) delete inv[kind];
+        state.points = (state.points || 0) + def.sellPrice;
+        try { SOUNDS.cash(); } catch {}
+        flashBubble('🌟');
+        saveState(); render(); renderEditPanel();
+      });
+      card.appendChild(sellBtn);
+    }
     grid.appendChild(card);
   }
   function appendStyleCard(grid, name, swatchSpec, isCurrent, locked, onClick) {
@@ -5309,7 +5501,7 @@
       state.happy  = clamp(state.happy  + 40);
       state.energy = clamp(state.energy - 20);
       state.hunger = clamp(state.hunger - 10);
-      state.clean  = clamp(state.clean  - 15);
+      state.clean  = clamp(state.clean  - 30);
       state.walk   = clamp((state.walk || 0) + 60);
       for (const g of GAUGES) {
         const d = state[g] - before[g];
@@ -6516,7 +6708,14 @@
     yes.type = 'button';
     yes.className = 'modal-btn danger';
     yes.textContent = '네, 다시 시작할게요';
-    yes.addEventListener('click', () => { performReset(); });
+    yes.addEventListener('click', () => {
+      // 보호자 PIN 설정되어 있으면 게이트 통과해야 리셋 가능
+      if (guardian.pin) {
+        openGuardianGateModal({ onPass: () => performReset() });
+      } else {
+        performReset();
+      }
+    });
     body.appendChild(yes);
 
     const no = document.createElement('button');
@@ -6559,7 +6758,13 @@
     body.appendChild(p);
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'modal-btn danger'; btn.textContent = '🔄 다시 시작';
-    btn.addEventListener('click', () => { performReset(); });
+    btn.addEventListener('click', () => {
+      if (guardian.pin) {
+        openGuardianGateModal({ onPass: () => performReset() });
+      } else {
+        performReset();
+      }
+    });
     body.appendChild(btn);
     openModal({ title: '친구가 떠났어요', body, mandatory: true });
   }
@@ -7044,11 +7249,40 @@
     p.className = 'modal-sub';
     p.textContent = `오늘은 ${guardian.limitMin}분 다 놀았어요. 내일 또 만나요!`;
     body.appendChild(p);
+    // 보호자 풀기 버튼 — PIN 통과 시 +기존 한도 분만큼 추가
+    const unlockBtn = document.createElement('button');
+    unlockBtn.type = 'button';
+    unlockBtn.className = 'modal-btn';
+    unlockBtn.textContent = `🔓 보호자 풀기 (+${guardian.limitMin}분 추가)`;
+    unlockBtn.style.marginTop = '12px';
+    unlockBtn.addEventListener('click', () => {
+      const grantBonus = () => {
+        // 오늘 누적 사용 시간을 limitMin 만큼 깎아서 한도 +기존 분만큼 부여 효과
+        commitGuardianSession();
+        const k = todayKey();
+        const cur = guardian.log[k] || 0;
+        guardian.log[k] = Math.max(0, cur - guardian.limitMin);
+        saveGuardian();
+        startGuardianSession();
+        lockShown = false;
+        closeModal();
+        showSpeech(`✨ ${guardian.limitMin}분 더 놀 수 있어요!`, 2500);
+        try { SOUNDS.fanfare(); } catch {}
+      };
+      if (guardian.pin) {
+        openGuardianGateModal({ onPass: grantBonus });
+      } else {
+        // PIN 미설정이면 바로 부여 (보호자 모드 자체가 꺼져있는 상태)
+        grantBonus();
+      }
+    });
+    body.appendChild(unlockBtn);
     const hint = document.createElement('p');
     hint.className = 'modal-sub';
     hint.style.opacity = '0.7';
     hint.style.fontSize = '0.9em';
-    hint.textContent = '보호자: 설정 → 보호자 모드에서 시간을 늘릴 수 있어요.';
+    hint.style.marginTop = '8px';
+    hint.textContent = '보호자: 설정 → 보호자 모드에서 한도 자체를 변경할 수 있어요.';
     body.appendChild(hint);
     openModal({ title: '⏰ 잠시 쉬어요', body, mandatory: true });
   }
@@ -7062,6 +7296,7 @@
     if (document.visibilityState !== 'visible') return;
     commitGuardianSession();
     startGuardianSession();
+    if (state.gameOver) return;
     if (isOverDailyLimit()) showLockModal();
   }, 60 * 1000);
 
@@ -7310,7 +7545,7 @@
   startGuardianSession();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') { commitGuardianSession(); flushSaveState(); }
-    else { startGuardianSession(); applyTod(); ensureTodayMissions(); render(); if (isOverDailyLimit()) showLockModal(); }
+    else { startGuardianSession(); applyTod(); if (!state.gameOver) ensureTodayMissions(); render(); if (!state.gameOver && isOverDailyLimit()) showLockModal(); }
   });
   window.addEventListener('beforeunload', () => { commitGuardianSession(); flushSaveState(); });
   window.addEventListener('pagehide', () => { commitGuardianSession(); flushSaveState(); });
@@ -7325,11 +7560,20 @@
   // ----- 첫 진입 흐름: 이름 → 종 -----------------------------------------
   applyTod();
   render();
-  // busy 복귀 — 페이지 reload 후 진행 중이었으면 이어서
-  if (state.busy && Date.now() < state.busy.endsAt) {
-    scheduleBusyEnd();
-  } else if (state.busy) {
-    finishBusy(); // 이미 끝났으면 즉시 마무리
+  // 가출 후 새로고침 — 다른 모든 후속 처리 건너뛰고 게임오버 모달만 띄움
+  if (state.gameOver) {
+    setTimeout(() => openGameOverModal(), 50);
+  } else if (isOverDailyLimit()) {
+    // 보호자 일일 한도 초과 — 새로고침해도 잠금 유지
+    setTimeout(() => showLockModal(), 50);
+  } else {
+    // busy 복귀 — 페이지 reload 후 진행 중이었으면 이어서
+    if (state.busy && Date.now() < state.busy.endsAt) {
+      scheduleBusyEnd();
+    } else if (state.busy) {
+      finishBusy();
+    }
+    bootstrap();
   }
 
   function bootstrap() {
@@ -7341,7 +7585,6 @@
       openBreedModal({ mandatory: true });
     }
   }
-  bootstrap();
 
   function clamp(v) {
     const n = Math.round(v);
@@ -7443,6 +7686,8 @@
   if (new URLSearchParams(location.search).get('testacc') === '1') {
     setTimeout(() => {
       try {
+        // 가출 후 새로고침 — 게임오버 모달 유지, testacc 건너뜀
+        if (state.gameOver) return;
         // 이름/종 미설정이면 자동 채우기 + setup 모달 닫기
         if (!state.name) state.name = '테스트';
         if (!state.breed) { state.breed = 'shiba'; state.species = 'dog'; }
@@ -7450,7 +7695,12 @@
           if (!state.pets[0].name) state.pets[0].name = state.name;
           if (!state.pets[0].breed) { state.pets[0].breed = state.breed; state.pets[0].species = 'dog'; }
         }
+        // 모달 깔끔히 닫기 — closeModal로 hidden까지 처리
+        try { closeModal(true); } catch {}
+        try { closeModal(); } catch {}
         document.querySelectorAll('.modal-backdrop, .modal').forEach(m => m.remove());
+        const mr = document.getElementById('modalRoot');
+        if (mr) { mr.innerHTML = ''; mr.hidden = true; mr.classList.remove('modal-mandatory'); }
         const counts = window.__dogs.unlockAll();
         saveState(); render();
         const badge = document.createElement('div');

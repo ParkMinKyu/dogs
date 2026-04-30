@@ -1,9 +1,9 @@
 {
-  "name": "우리 강아지",
-  "short_name": "강아지",
-  "version": "17.2.0-beta",
-  "id": "dogs-v2-v172",
-  "description": "어린이를 위한 다마고치 스타일 강아지 키우기 게임",
+  "name": "우리 친구",
+  "short_name": "친구",
+  "version": "1.0.0",
+  "id": "kr.dogs.friends",
+  "description": "어린이를 위한 친구 키우기 게임 — 강아지/고양이/토끼/햄스터를 돌보고 미니게임으로 놀아주세요",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
@@ -11,18 +11,86 @@
   "orientation": "portrait",
   "background_color": "#fde9d9",
   "theme_color": "#ffb3c1",
+  "categories": ["games", "kids", "education"],
   "icons": [
+    {
+      "src": "assets/icons/icon-48.png",
+      "sizes": "48x48",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "assets/icons/icon-256.png",
       "sizes": "256x256",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "assets/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/01-home.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "메인 화면 — 친구 키우기"
+    },
+    {
+      "src": "screenshots/02-shop.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "색상 상점"
+    },
+    {
+      "src": "screenshots/03-status.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "친구 상태 상세"
+    },
+    {
+      "src": "screenshots/04-play-menu.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "8가지 미니게임"
+    },
+    {
+      "src": "screenshots/05-room-wallpaper.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "방 꾸미기"
     }
   ]
 }
