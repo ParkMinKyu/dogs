@@ -2716,11 +2716,14 @@
   }
 
   function enterRoomEdit() {
+    // 잔존 패널 방어적 제거 — 상태 불일치 시 중복 패널 방지
+    document.querySelectorAll('.room-edit-panel').forEach(el => el.remove());
+    __roomEditPanelEl = null;
+
     document.body.classList.add('is-editing-room');
     updateDepthSort();
     __roomPickedKind = null;
     showSpeech('방을 꾸며볼까요? 아이템을 골라 탭해요! 🏠', 3000);
-    // 편집 패널 — 화면 하단 고정
     const panel = document.createElement('div');
     panel.id = 'roomEditPanel';
     panel.className = 'room-edit-panel';
@@ -2741,7 +2744,9 @@
     document.body.classList.remove('is-editing-room');
     updateDepthSort();
     __roomPickedKind = null;
+    // __roomEditPanelEl 참조 + DOM에 남은 패널 모두 제거
     if (__roomEditPanelEl) { __roomEditPanelEl.remove(); __roomEditPanelEl = null; }
+    document.querySelectorAll('.room-edit-panel').forEach(el => el.remove());
     saveState();
     render();
   }
