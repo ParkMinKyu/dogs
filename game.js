@@ -418,6 +418,7 @@
     }
     document.body.classList.remove('is-sick');
     saveState();
+    _roomDecoDirty = true;
     render();
   }
   function addNewPet() {
@@ -1772,7 +1773,7 @@
     renderAccessories();
     renderActionCooldowns();
     renderMissionDot();
-    renderRoomDeco();
+    if (_roomDecoDirty) { renderRoomDeco(); _roomDecoDirty = false; }
     renderMessLayer();
     renderPetSlots();
     renderSickness();
@@ -2031,6 +2032,7 @@
     const back = document.getElementById('decoLayerBack');
     const front = document.getElementById('decoLayerFront');
     if (!back || !front) return;
+    clearRoomSelection();
     back.innerHTML = ''; front.innerHTML = '';
     // 장식품
     const layout = state.roomLayout || [];
@@ -2574,6 +2576,7 @@
   let __roomEditPanelEl = null;
   let __roomSelectedItem = null; // { type:'deco'|'furn', idx, el }
   let __roomDragState = null;
+  let _roomDecoDirty = true; // rebuild items only when layout/style actually changes
 
   function clearRoomSelection() {
     if (__roomSelectedItem) {
@@ -2619,6 +2622,7 @@
           state.furnitureLayout.splice(idx, 1);
         }
         clearRoomSelection();
+        _roomDecoDirty = true;
         saveState(); render(); renderEditPanel();
         return;
       }
@@ -2694,6 +2698,7 @@
         }
       } else {
         saveState();
+        updateDepthSort();
         const tb = document.getElementById('roomItemToolbar');
         if (tb) positionToolbar(tb, el);
       }
@@ -2772,6 +2777,7 @@
       if (state.furnitureInv[__roomPickedKind] <= 0) __roomPickedKind = null;
       showSpeech(`${def?.emoji || ''} 여기 좋다! ✨`, 1800);
     }
+    _roomDecoDirty = true;
     saveState();
     render();
     renderEditPanel();
@@ -2848,7 +2854,7 @@
         appendStyleCard(grid, def.name, '🎨', id === state.wallpaper, !owned, () => {
           if (!owned) return;
           state.wallpaper = id;
-          saveState(); render(); renderEditPanel();
+          _roomDecoDirty = true; saveState(); render(); renderEditPanel();
         });
       });
     } else if (__editTab === 'floor') {
@@ -2857,7 +2863,7 @@
         appendStyleCard(grid, def.name, '🟫', id === state.floor, !owned, () => {
           if (!owned) return;
           state.floor = id;
-          saveState(); render(); renderEditPanel();
+          _roomDecoDirty = true; saveState(); render(); renderEditPanel();
         });
       });
     }
