@@ -1368,8 +1368,8 @@
     } else {
       p.lowCleanSince = 0;
     }
-    // 게이지 2개 이상이 ≤10이면 예방주사도 무시하고 발병 (방치 페널티)
-    if (!p.sick && GAUGES.filter(g => p[g] <= 10).length >= 2) {
+    // 게이지 2개 이상이 ≤10이면 발병 (방치 페널티) — 면역 있어도 게이지 3개 이상 ≤10이면 발병
+    if (!p.sick && GAUGES.filter(g => p[g] <= 10).length >= (immune ? 3 : 2)) {
       const id = pickDiseaseFromState(p);
       p.sick = { id, since: now };
     }
