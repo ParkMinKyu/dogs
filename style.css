@@ -2856,7 +2856,7 @@ body.is-editing-room .furn-item:hover { transform: translate(-50%, -50%) scale(1
   filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18));
 }
 /* 아이템 — 항상 클릭/드래그 가능 */
-.deco-item, .furn-item { pointer-events: auto; cursor: pointer; touch-action: none; }
+.deco-item, .furn-item { pointer-events: auto; cursor: pointer; touch-action: none; will-change: transform; }
 body.is-editing-room .deco-item,
 body.is-editing-room .furn-item { cursor: grab; }
 body.is-editing-room .deco-item:active,
@@ -2926,13 +2926,13 @@ body.is-editing-room .stage {
 }
 .deco-star { animation: deco-star 1.4s ease-in-out infinite; }
 @keyframes deco-star {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: drop-shadow(0 0 4px #ffe28a); }
-  50%      { transform: translate(-50%, -50%) scale(1.15); filter: drop-shadow(0 0 12px #ffd66e); }
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50%      { transform: translate(-50%, -50%) scale(1.2); }
 }
 .deco-gem { animation: deco-gem 2s ease-in-out infinite; }
 @keyframes deco-gem {
-  0%, 100% { filter: drop-shadow(0 0 4px #9fd6ff); }
-  50%      { filter: drop-shadow(0 0 12px #9ad4ff) drop-shadow(0 0 18px #6cbff7); }
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
 }
 
 /* 편집 패널 — 화면 하단 fixed */
@@ -2960,6 +2960,15 @@ body.is-editing-room .stage {
   overflow-y: auto;
 }
 .room-edit-panel.compact .room-edit-tabs { margin-bottom: 4px; }
+.room-edit-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.room-edit-btn-row .modal-btn {
+  flex: 1;
+  margin-top: 0;
+}
 .room-edit-panel.compact .room-edit-head {
   font-size: 11px;
   margin-bottom: 4px;

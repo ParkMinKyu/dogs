@@ -480,6 +480,7 @@
     }
     document.body.classList.remove('is-sick');
     saveState();
+    _roomDecoDirty = true;
     render();
   }
   function addNewPet() {
@@ -2514,7 +2515,7 @@
     renderActionCooldowns();
     renderMissionDot();
     renderRunawayWarn();
-    renderRoomDeco();
+    if (_roomDecoDirty) { renderRoomDeco(); _roomDecoDirty = false; }
     renderMessLayer();
     renderPetSlots();
     renderSickness();
@@ -2774,6 +2775,7 @@
     const back = document.getElementById('decoLayerBack');
     const front = document.getElementById('decoLayerFront');
     if (!back || !front) return;
+    clearRoomSelection();
     back.innerHTML = ''; front.innerHTML = '';
     // 장식품
     const layout = state.roomLayout || [];
@@ -3850,6 +3852,7 @@
   let __roomEditPanelEl = null;
   let __roomSelectedItem = null; // { type:'deco'|'furn', idx, el }
   let __roomDragState = null;
+  let _roomDecoDirty = true;
 
   function clearRoomSelection() {
     if (__roomSelectedItem) {
@@ -3895,6 +3898,7 @@
           state.furnitureLayout.splice(idx, 1);
         }
         clearRoomSelection();
+        _roomDecoDirty = true;
         saveState(); render(); renderEditPanel();
         return;
       }
@@ -3970,6 +3974,7 @@
         }
       } else {
         saveState();
+        updateDepthSort();
         const tb = document.getElementById('roomItemToolbar');
         if (tb) positionToolbar(tb, el);
       }
@@ -3987,11 +3992,12 @@
   }
 
   function enterRoomEdit() {
+    document.querySelectorAll('.room-edit-panel').forEach(el => el.remove());
+    __roomEditPanelEl = null;
     document.body.classList.add('is-editing-room');
     updateDepthSort();
     __roomPickedKind = null;
     showSpeech('방을 꾸며볼까요? 아이템을 골라 탭해요! 🏠', 3000);
-    // 편집 패널 — 화면 하단 고정
     const panel = document.createElement('div');
     panel.id = 'roomEditPanel';
     panel.className = 'room-edit-panel';
@@ -3999,7 +4005,6 @@
     __roomEditPanelEl = panel;
     renderEditPanel();
 
-    // stage 클릭 핸들러 — 배치 모드일 때만 작동
     const stageEl = document.querySelector('.stage');
     if (stageEl && !stageEl.__roomClickBound) {
       stageEl.addEventListener('click', stageRoomEditClick);
@@ -4013,6 +4018,7 @@
     updateDepthSort();
     __roomPickedKind = null;
     if (__roomEditPanelEl) { __roomEditPanelEl.remove(); __roomEditPanelEl = null; }
+    document.querySelectorAll('.room-edit-panel').forEach(el => el.remove());
     saveState();
     render();
   }
@@ -4051,9 +4057,7 @@
       if (state.furnitureInv[__roomPickedKind] <= 0) __roomPickedKind = null;
       showSpeech(`${def?.emoji || ''} 여기 좋다! ✨`, 1800);
     }
-    saveState();
-    render();
-    renderEditPanel();
+    _roomDecoDirty = true; saveState(); render(); renderEditPanel();
   }
 
   function renderEditPanel() {
@@ -4157,7 +4161,7 @@
         if (!owned) return; // 보유한 것만 표시
         renderers.push(g => appendStyleCard(g, def.name, { kind: 'wallpaper', id }, id === state.wallpaper, false, () => {
           state.wallpaper = id;
-          saveState(); render(); renderEditPanel();
+          _roomDecoDirty = true; saveState(); render(); renderEditPanel();
         }));
       });
     } else if (__editTab === 'floor') {
@@ -4166,7 +4170,7 @@
         if (!owned) return;
         renderers.push(g => appendStyleCard(g, def.name, { kind: 'floor', id }, id === state.floor, false, () => {
           state.floor = id;
-          saveState(); render(); renderEditPanel();
+          _roomDecoDirty = true; saveState(); render(); renderEditPanel();
         }));
       });
     } else if (__editTab === 'window') {
@@ -4175,7 +4179,7 @@
         if (!owned) return;
         renderers.push(g => appendStyleCard(g, def.name, { kind: 'window', id }, id === state.windowDeco, false, () => {
           state.windowDeco = id;
-          saveState(); render(); renderEditPanel();
+          _roomDecoDirty = true; saveState(); render(); renderEditPanel();
         }));
       });
     }
@@ -4213,12 +4217,35 @@
       panel.appendChild(ind);
     }
 
+    const btnRow = document.createElement('div');
+    btnRow.className = 'room-edit-btn-row';
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'modal-btn compact danger';
+    resetBtn.textContent = '🗑️ 초기화';
+    resetBtn.addEventListener('click', () => {
+      if (!confirm('배치된 장식·가구를 모두 회수할까요?')) return;
+      (state.roomLayout || []).forEach(it => {
+        state.roomInv[it.kind] = (state.roomInv[it.kind] || 0) + 1;
+      });
+      state.roomLayout = [];
+      (state.furnitureLayout || []).forEach(it => {
+        state.furnitureInv[it.kind] = (state.furnitureInv[it.kind] || 0) + 1;
+      });
+      state.furnitureLayout = [];
+      _roomDecoDirty = true; saveState(); render(); renderEditPanel();
+    });
+
     const done = document.createElement('button');
     done.type = 'button';
     done.className = 'modal-btn compact';
     done.textContent = '완료';
     done.addEventListener('click', exitRoomEdit);
-    panel.appendChild(done);
+
+    btnRow.appendChild(resetBtn);
+    btnRow.appendChild(done);
+    panel.appendChild(btnRow);
   }
   function appendEmpty(grid, msg) {
     const e = document.createElement('div'); e.className = 'room-inv-empty'; e.textContent = msg; grid.appendChild(e);
