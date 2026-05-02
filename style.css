@@ -2342,6 +2342,15 @@ body.is-editing-room .stage {
   max-height: 60vh;
   overflow-y: auto;
 }
+.room-edit-btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.room-edit-btn-row .modal-btn {
+  flex: 1;
+  margin-top: 0;
+}
 .room-edit-head {
   font-family: var(--font-display);
   font-size: 14px;

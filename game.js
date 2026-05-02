@@ -2869,12 +2869,36 @@
     }
     panel.appendChild(grid);
 
+    const btnRow = document.createElement('div');
+    btnRow.className = 'room-edit-btn-row';
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'modal-btn danger';
+    resetBtn.textContent = '🗑️ 초기화';
+    resetBtn.addEventListener('click', () => {
+      if (!confirm('배치된 장식·가구를 모두 회수할까요?')) return;
+      (state.roomLayout || []).forEach(it => {
+        state.roomInv[it.kind] = (state.roomInv[it.kind] || 0) + 1;
+      });
+      state.roomLayout = [];
+      (state.furnitureLayout || []).forEach(it => {
+        state.furnitureInv[it.kind] = (state.furnitureInv[it.kind] || 0) + 1;
+      });
+      state.furnitureLayout = [];
+      _roomDecoDirty = true;
+      saveState(); render(); renderEditPanel();
+    });
+
     const done = document.createElement('button');
     done.type = 'button';
     done.className = 'modal-btn';
     done.textContent = '완료';
     done.addEventListener('click', exitRoomEdit);
-    panel.appendChild(done);
+
+    btnRow.appendChild(resetBtn);
+    btnRow.appendChild(done);
+    panel.appendChild(btnRow);
 
     const hint = document.createElement('p');
     hint.className = 'modal-hint';
