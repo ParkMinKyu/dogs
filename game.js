@@ -8,6 +8,11 @@
 (() => {
   'use strict';
 
+  // iOS Safari pinch-zoom / gesture 전역 차단
+  document.addEventListener('gesturestart',  e => e.preventDefault(), { passive: false });
+  document.addEventListener('gesturechange', e => e.preventDefault(), { passive: false });
+  document.addEventListener('gestureend',    e => e.preventDefault(), { passive: false });
+
   // ----- Constants --------------------------------------------------------
   const GAUGES = ['hunger', 'happy', 'clean', 'energy', 'walk'];
   const MAX = 100;

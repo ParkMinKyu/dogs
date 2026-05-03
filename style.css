@@ -75,6 +75,7 @@ html, body {
   max-width: 100%; overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none; -moz-user-select: none; user-select: none;
+  touch-action: manipulation;
 }
 
 /* form 요소는 user-select 복원 — 모바일에서 입력/탭 가능해야 함 */
