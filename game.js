@@ -4029,12 +4029,20 @@
   const __editPage = { deco: 0, furn: 0, wallpaper: 0, floor: 0, window: 0 };
   const PAGE_SIZE = 3;
 
+  const ROOM_ITEM_MAX = 50;
+
   function stageRoomEditClick(e) {
     if (!document.body.classList.contains('is-editing-room')) return;
     // 아이템/툴바 클릭은 무시
     if (e.target.closest('.deco-item, .furn-item, #roomItemToolbar')) return;
     // 배치 모드가 아니면 선택 해제만
     if (!__roomPickedKind) { clearRoomSelection(); return; }
+
+    const totalPlaced = (state.roomLayout || []).length + (state.furnitureLayout || []).length;
+    if (totalPlaced >= ROOM_ITEM_MAX) {
+      showSpeech(`방이 꽉 찼어요! 최대 ${ROOM_ITEM_MAX}개까지 배치할 수 있어요 🏠`, 2500);
+      return;
+    }
 
     const stageEl = e.currentTarget;
     const r = stageEl.getBoundingClientRect();
@@ -4094,9 +4102,10 @@
     head.className = 'room-edit-head';
     if (__editTab === 'deco' || __editTab === 'furn') {
       const cat = __editTab === 'deco' ? ROOM_ITEMS : FURNITURE;
+      const totalPlaced = (state.roomLayout || []).length + (state.furnitureLayout || []).length;
       head.textContent = __roomPickedKind
         ? `📍 ${cat[__roomPickedKind]?.name || ''} 둘 자리 탭하세요`
-        : '카드 탭 → 방에 배치';
+        : `카드 탭 → 방에 배치  (${totalPlaced}/${ROOM_ITEM_MAX})`;
     } else if (__editTab === 'wallpaper') {
       head.textContent = '벽지 골라요 (즉시 적용)';
     } else if (__editTab === 'floor') {
