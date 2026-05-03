@@ -2853,12 +2853,11 @@ body.is-editing-room .furn-item:hover { transform: translate(-50%, -50%) scale(1
   font-size: 28px;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18));
 }
 /* 아이템 — 항상 클릭/드래그 가능 */
-.deco-item, .furn-item { pointer-events: auto; cursor: pointer; touch-action: none; will-change: transform; }
+.deco-item, .furn-item { pointer-events: auto; cursor: pointer; touch-action: none; contain: layout style; }
 body.is-editing-room .deco-item,
-body.is-editing-room .furn-item { cursor: grab; }
+body.is-editing-room .furn-item { cursor: grab; animation-play-state: paused; }
 body.is-editing-room .deco-item:active,
 body.is-editing-room .furn-item:active { cursor: grabbing; }
 
